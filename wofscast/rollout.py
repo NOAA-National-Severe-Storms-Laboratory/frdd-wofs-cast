@@ -24,6 +24,40 @@ import numpy as np
 import typing_extensions
 import xarray
 
+from .autoregressive_lam import _border_mask
+
+def create_border_mask(shape, N=5):
+    """
+    Create a border mask for an array of given shape.
+    Assumes the last two dimensions are spatial (lat, lon).
+    """
+    mask = np.zeros(shape[-2:], dtype=bool)
+    mask[:N, :] = True
+    mask[-N:, :] = True
+    mask[:, :N] = True
+    mask[:, -N:] = True
+    return mask
+
+def apply_border_mask_and_update(inputs, boundary_conditions):
+    """
+    Apply a border mask to the inputs dataset and update the values at the border
+    with those from the boundary_conditions dataset using xarray.where.
+    """
+    updated_inputs = inputs.copy()
+    
+    # Assuming the last two dimensions in data_vars are spatial dimensions 'lat' and 'lon'.
+    for var in inputs.data_vars:
+        if var in boundary_conditions.data_vars:
+            data_shape = inputs[var].shape
+            border_mask = create_border_mask(data_shape)
+            # Expanding mask to match the full shape of the data array if needed
+            expanded_mask = np.broadcast_to(border_mask, data_shape)
+            # Convert boolean array to xarray.DataArray for using with xarray.where
+            mask_data_array = xarray.DataArray(expanded_mask, dims=inputs[var].dims, coords=inputs[var].coords)
+            # Using xarray.where to update values at the borders
+            updated_inputs[var] = xarray.where(mask_data_array, boundary_conditions[var], inputs[var])
+    
+    return updated_inputs
 
 class PredictorFn(typing_extensions.Protocol):
   """Functional version of base.Predictor.__call__ with explicit rng."""
@@ -167,8 +201,13 @@ def chunked_prediction_generator(
         targets_template=current_targets_template,
         forcings=current_forcings)
 
+    # Replace the boundaries of the prediction with the values 
+    # from the target_template. 
+    boundary_conditions = current_targets_template.copy()
+    predictions = apply_border_mask_and_update(predictions, boundary_conditions)
+    
+    
     next_frame = xarray.merge([predictions, current_forcings])
-
     next_inputs = _get_next_inputs(current_inputs, next_frame)
 
     # Shift timedelta coordinates, so we don't recompile at every iteration.
@@ -203,6 +242,7 @@ def _get_next_inputs(
 
   # Apply concatenate next frame with inputs, crop what we don't need.
   num_inputs = prev_inputs.dims["time"]
+
   return (
       xarray.concat(
           [prev_inputs, next_inputs], dim="time", data_vars="different")
