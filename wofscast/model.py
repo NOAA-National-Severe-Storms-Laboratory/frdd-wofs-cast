@@ -17,18 +17,22 @@ import datetime
 
 import cartopy.crs as ccrs
 #from google.cloud import storage
-from wofscast import autoregressive_lam as autoregressive
-from wofscast import casting
-from wofscast import checkpoint
-from wofscast import data_utils
-from wofscast import my_graphcast as graphcast
-from wofscast import normalization
-from wofscast import rollout
-from wofscast import xarray_jax
-from wofscast import xarray_tree
-from wofscast.data_generator import load_wofscast_data, wofscast_data_generator, wofscast_batch_generator, to_static_vars
-from wofscast.wofscast_task_config import WOFS_TASK_CONFIG, train_lead_times, TARGET_VARS
+from . import autoregressive_lam as autoregressive
+from . import casting
+from . import checkpoint
+from . import data_utils
+from . import my_graphcast as graphcast
+from . import normalization
+from . import rollout
+from . import xarray_jax
+from . import xarray_tree
+from .data_generator import (load_wofscast_data, 
+                             wofscast_data_generator, 
+                             wofscast_batch_generator, 
+                             to_static_vars, 
+                             add_local_solar_time)
 
+from .wofscast_task_config import WOFS_TASK_CONFIG, train_lead_times, TARGET_VARS
 
 import haiku as hk
 import jax
@@ -37,7 +41,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import xarray #as xr
 
-from wofscast.utils import count_total_parameters, save_model_params, load_model_params 
+from .utils import count_total_parameters, save_model_params, load_model_params 
 
 # For training the weights!
 import optax
@@ -285,7 +289,16 @@ def repeat_generator(original_generator, num_repeats):
         for data in original_generator:
             yield data
 
-class WoFSCastTrainer:
+# Our models aren't stateful, so the state is always empty, so just return the
+# predictions. This is requiredy by our rollout code, and generally simpler.
+def drop_state(fn):
+    return lambda **kw: fn(**kw)[0]
+
+# Always pass params and state, so the usage below are simpler
+def with_params(fn, model_obj):
+     return functools.partial(fn, params=model_obj.model_params, state=model_obj.state)
+            
+class WoFSCastModel:
     """
     A class for training the WoFSCast model, designed to predict weather phenomena using
     the same Graph Neural Network (GNN) approach for GraphCast. The training process is divided into three phases, 
@@ -313,7 +326,7 @@ class WoFSCastTrainer:
     - verbose (int): Verbosity level for logging.
 
     Methods:
-    __init__: Initializes the WoFSCastTrainer instance with the given parameters, ensuring
+    __init__: Initializes the WoFSCastModel instance with the given parameters, ensuring
               not to overwrite existing models, and preparing the model for training.
     """
     
@@ -386,7 +399,7 @@ class WoFSCastTrainer:
             generator: A data generator that returns inputs, targets, forcings. 
         """
         # Ensure the file_paths are compatiable with the generator_chunk_size 
-        file_paths = truncate_to_chunk_size(file_paths, chunk_size=self.generator_chunk_size)
+        #file_paths = truncate_to_chunk_size(file_paths, chunk_size=self.generator_chunk_size)
         
         # Initialize the training step function. 
         train_step_jitted = jax.jit(with_configs(grads_fn, self, self.norm_stats))
@@ -476,15 +489,18 @@ class WoFSCastTrainer:
                    phase_num, 
                    client, 
                    ): 
+        
         # Create mini-batches for the current epoch and compute gradients. 
         total_loss = 0. 
         batch_count = 0 
         total_diagnostics = {}
         
+        #TODO: Generator is hardcoded. Need to refactor to be more general. 
         for inputs, targets, forcings in wofscast_data_generator(file_paths, 
                                                                  self.train_lead_times, 
                                                                  self.task_config, 
-                                                                 self.generator_chunk_size):
+                                                                 self.generator_chunk_size, 
+                                                                 client):
             
             for batch_inputs, batch_targets, batch_forcings in wofscast_batch_generator(
                                                                     inputs, 
@@ -560,6 +576,88 @@ class WoFSCastTrainer:
         
         return model_params, state, opt_state
     
+    def _transpose(self, ds, dims):
+        return ds.transpose(*dims, missing_dims='ignore')
+    
+    def get_inputs(self, dataset, lead_times=slice('10min', '120min')): 
+        # Add the local solar time variables:
+        # TODO: To get the future forcing variables, need 
+        # to replace with the extend targets_template.
+        dataset = add_local_solar_time(dataset)
+        
+        inputs, targets, forcings = data_utils.extract_inputs_targets_forcings(
+                dataset, target_lead_times=lead_times,
+                **dataclasses.asdict(self.task_config))
+
+        inputs = inputs.expand_dims(dim='batch')
+        targets = targets.expand_dims(dim='batch')
+        forcings = forcings.expand_dims(dim='batch')
+        
+        return inputs, targets, forcings
+    
+    # Load the model 
+    def load_model(self, path):
+        with open(path, 'rb') as f:
+            data = checkpoint.load(f, dict)
+    
+        #Unravel the task config. 
+        _TASK_CONFIG_KEYS = list(vars(graphcast.TaskConfig)['__dataclass_fields__'].keys())
+    
+        task_config = data['task_config']
+    
+        task_config_dict = {}
+        for key in _TASK_CONFIG_KEYS: 
+            if isinstance(task_config[key], dict):
+                # unravel
+                if key == 'pressure_levels':
+                    task_config_dict[key] = [int(item) for _, item in task_config[key].items()]
+                else:
+                    task_config_dict[key] = [str(item) for _, item in task_config[key].items()]
+            elif key == 'input_duration':
+                task_config_dict[key] = str(task_config[key])
+            else:
+                task_config_dict[key] = task_config[key]
+    
+        self.domain_size = 150 #data['domain_size']
+        data['task_config'] = task_config_dict
+    
+        self.model_params = data['parameters']
+        self.state = {}
+        self._init_task_config_run(data['task_config'])
+        self._init_model_config_run(data['model_config'])
+        
+        
+    
+    def predict(self, inputs, targets, forcings): 
+       # Convert the constant fields to time-independent (drop time dim)
+        inputs = to_static_vars(inputs)
+
+        # It is crucial to tranpose the data so that level is last 
+        # since the input includes 2D & 3D variables. 
+        inputs = self._transpose(inputs, ['batch', 'time', 'lat', 'lon', 'level'])
+        targets = self._transpose(targets, ['batch', 'time', 'lat', 'lon', 'level'])
+        forcings = self._transpose(forcings, ['batch', 'time', 'lat', 'lon'])
+        
+        # TODO: use the extend_targets_template from rollout.py. 
+        #targets_template = self.expand_time_dim(targets) * np.nan
+        targets_template = targets 
+        
+        #print("Inputs:           ", inputs.dims.mapping)
+        #print("Target Template:  ", targets_template.dims.mapping)
+        #print("Forcings:         ", forcings.dims.mapping)
+        
+        run_forward_jitted = drop_state(with_params(jax.jit(with_configs(
+            run_forward.apply, self, self.norm_stats)), self))
+
+        # @title Autoregressive rollout (keep the loop in JAX)
+        predictions = rollout.chunked_prediction(
+            run_forward_jitted,
+            rng=jax.random.PRNGKey(0),
+            inputs=inputs,
+            targets_template=targets_template,
+            forcings=forcings)
+
+        return predictions #, targets, inputs
 
     def _init_model_params_and_state(self, inputs, targets, forcings, optimizer):
         # Check that the norm stats haven't changed!!
@@ -629,6 +727,33 @@ class WoFSCastTrainer:
         new_params = optax.apply_updates(params, updates)
         return new_params, opt_state
 
+    def _init_task_config_run(self, data): 
+
+        domain_size =self.domain_size if self.domain_size else data['domain_size']
+        
+        self.task_config = graphcast.TaskConfig(
+              input_variables=data['input_variables'],
+              target_variables=data['target_variables'],
+              forcing_variables=data['forcing_variables'],
+              pressure_levels=data['pressure_levels'],
+              input_duration=data['input_duration'],
+              n_vars_2D = data['n_vars_2D'],
+              domain_size = domain_size
+          )
+    
+    def _init_model_config_run(self, data):
+        self.model_config = graphcast.ModelConfig(
+              resolution=int(data['resolution']),
+              mesh_size=int(data['mesh_size']),
+              latent_size=int(data['latent_size']),
+              gnn_msg_steps=int(data['gnn_msg_steps']),
+              hidden_layers=int(data['hidden_layers']),
+              grid_to_mesh_node_dist=int(data['grid_to_mesh_node_dist']),
+              loss_weights = data['loss_weights'],
+        )
+    
+    
+    
     def _init_task_config(self):
         """Initialize the TaskConfig object used in the GraphCast code."""
         self.task_config = WOFS_TASK_CONFIG

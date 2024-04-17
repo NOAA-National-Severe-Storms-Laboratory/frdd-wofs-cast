@@ -710,8 +710,7 @@ class GraphCast(predictor_base.Predictor):
         features=_add_batch_second_axis(
             edges.features.astype(dummy_mesh_node_features.dtype), batch_size))
 
-    
-    
+
     input_graph = self._grid2mesh_graph_structure._replace(
         edges={grid2mesh_edges_key: new_edges},
         nodes={
