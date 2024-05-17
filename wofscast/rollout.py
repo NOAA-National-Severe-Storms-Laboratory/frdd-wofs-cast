@@ -19,43 +19,49 @@ from absl import logging
 import chex
 import dask.array
 from . import xarray_tree
+from .border_mask import create_border_mask
 import jax
 import numpy as np
 import typing_extensions
 import xarray
-
-from .autoregressive_lam import _border_mask
-
-def create_border_mask(shape, N=5):
-    """
-    Create a border mask for an array of given shape.
-    Assumes the last two dimensions are spatial (lat, lon).
-    """
-    mask = np.zeros(shape[-2:], dtype=bool)
-    mask[:N, :] = True
-    mask[-N:, :] = True
-    mask[:, :N] = True
-    mask[:, -N:] = True
-    return mask
 
 def apply_border_mask_and_update(inputs, boundary_conditions):
     """
     Apply a border mask to the inputs dataset and update the values at the border
     with those from the boundary_conditions dataset using xarray.where.
     """
+    
     updated_inputs = inputs.copy()
     
+    # Tranpose so the border mask can be applied correctly. 
+    dims = ('batch', 'time', 'level', 'lat', 'lon')
+    
+    updated_inputs = updated_inputs.transpose(*dims, missing_dims='ignore')
+    boundary_conditions = boundary_conditions.transpose(*dims, missing_dims='ignore')
+    
     # Assuming the last two dimensions in data_vars are spatial dimensions 'lat' and 'lon'.
-    for var in inputs.data_vars:
+    for var in updated_inputs.data_vars:
         if var in boundary_conditions.data_vars:
-            data_shape = inputs[var].shape
-            border_mask = create_border_mask(data_shape)
+            data_shape = updated_inputs[var].shape
+            
+            border_mask = create_border_mask(data_shape[-2:], )
+            
             # Expanding mask to match the full shape of the data array if needed
             expanded_mask = np.broadcast_to(border_mask, data_shape)
             # Convert boolean array to xarray.DataArray for using with xarray.where
-            mask_data_array = xarray.DataArray(expanded_mask, dims=inputs[var].dims, coords=inputs[var].coords)
+            mask_data_array = xarray.DataArray(expanded_mask, 
+                                               dims=updated_inputs[var].dims, 
+                                               coords=updated_inputs[var].coords)
             # Using xarray.where to update values at the borders
+            if 'level' in updated_inputs[var].dims:
+                dims = ('batch', 'time', 'level', 'lat', 'lon')
+            else:
+                dims = updated_inputs[var].dims
+                
             updated_inputs[var] = xarray.where(mask_data_array, boundary_conditions[var], inputs[var])
+            print(var, updated_inputs[var].dtype)
+    
+    updated_inputs = updated_inputs.transpose(*dims, missing_dims='ignore')
     
     return updated_inputs
 
@@ -140,7 +146,6 @@ def chunked_prediction_generator(
     template in structure.
 
   """
-
   # Create copies to avoid mutating inputs.
   inputs = xarray.Dataset(inputs)
   targets_template = xarray.Dataset(targets_template)
@@ -205,7 +210,6 @@ def chunked_prediction_generator(
     # from the target_template. 
     boundary_conditions = current_targets_template.copy()
     predictions = apply_border_mask_and_update(predictions, boundary_conditions)
-    
     
     next_frame = xarray.merge([predictions, current_forcings])
     next_inputs = _get_next_inputs(current_inputs, next_frame)

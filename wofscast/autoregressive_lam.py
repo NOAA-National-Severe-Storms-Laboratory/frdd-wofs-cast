@@ -20,6 +20,8 @@ from absl import logging
 from . import predictor_base
 from . import xarray_jax
 from . import xarray_tree
+#from .border_mask import BORDER_MASK_JAX
+
 import haiku as hk
 import jax
 import xarray
@@ -27,7 +29,7 @@ import xarray
 import jax.numpy as jnp
 import numpy as np
 
-def _border_mask(shape, N=10):
+def _border_mask(shape, N=5):
     """
     Create a border mask for an array of given shape.
 
@@ -47,10 +49,59 @@ def _border_mask(shape, N=10):
     mask[:, :N] = True  # Left border
     mask[:, -N:] = True  # Right border
 
-    return jnp.array(mask)
+    return jnp.array(mask, dtype=jnp.bfloat16)
 
 # Create a border mask for the domain (slow to constantly recreate this!!!)
-BORDER_MASK = _border_mask((150, 150), N=30)  # Adjust N as needed
+BORDER_MASK_JAX = _border_mask((150, 150), N=5)  # Adjust N as needed
+
+def predict_by_patch(model, all_inputs, target_template, forcings, **kwargs):
+    # Define the number of patches (assuming a 2x2 grid)
+    lon_patches = 2
+    lat_patches = 2
+
+    # Calculate the size of each patch along the latitude and longitude
+    lon_step = len(all_inputs.lon) // lon_patches
+    lat_step = len(all_inputs.lat) // lat_patches
+
+    print(f'{lon_step=}, {lat_step=}')
+
+    # Initialize a nested list for patches (rows)
+    patch_rows = []
+
+    # Process each patch and organize them in a 2D list
+    for i in range(lat_patches):
+        row_patches = []
+        lat_start = i * lat_step
+        lat_end = (i + 1) * lat_step if i < lat_patches - 1 else len(all_inputs.lat)
+
+        for j in range(lon_patches):
+            lon_start = j * lon_step
+            lon_end = (j + 1) * lon_step if j < lon_patches - 1 else len(all_inputs.lon)
+
+            print(f'{i=}, {j=}, {lon_start=}, {lon_end=}, {lat_start=}, {lat_end=}')
+            
+            # Extract the patch
+            patch_inputs = all_inputs.isel(lon=slice(lon_start, lon_end), lat=slice(lat_start, lat_end))
+            patch_forcings = forcings.isel(lon=slice(lon_start, lon_end), lat=slice(lat_start, lat_end))
+            patch_targets = target_template.isel(lon=slice(lon_start, lon_end), lat=slice(lat_start, lat_end))
+
+            # Make predictions for the patch using the model
+            patch_predictions = model(
+                patch_inputs, patch_targets,
+                forcings=patch_forcings,
+                **kwargs
+            )
+
+            # Append predictions to the current row
+            row_patches.append(patch_predictions)
+
+        # Append the completed row to the list of patch rows
+        patch_rows.append(row_patches)
+
+    # Combine all the patch predictions into a single dataset
+    combined_predictions = xarray.combine_nested(patch_rows, concat_dim=['lat', 'lon'], compat='no_conflicts')
+
+    return combined_predictions
 
 def update_boundary_conditions(predictions, boundary_conditions):
     """
@@ -66,27 +117,25 @@ def update_boundary_conditions(predictions, boundary_conditions):
     """
     updated_predictions = predictions.copy()
 
+    shape = (updated_predictions.lon.size, updated_predictions.lat.size)
+    
     # Transpose for the masking; need horizontal dims last. 
-    updated_predictions = updated_predictions.transpose('batch', 'time', 'level', 'lat', 'lon')
-    boundary_conditions = boundary_conditions.transpose('batch', 'time', 'level', 'lat', 'lon')
+    dims = ('batch', 'time', 'level', 'lat', 'lon')
+    
+    updated_predictions = updated_predictions.transpose(*dims, missing_dims='ignore')
+    boundary_conditions = boundary_conditions.transpose(*dims, missing_dims='ignore')
     
     for var in updated_predictions.data_vars:
         if var in boundary_conditions.data_vars:
-            #print(f'\n{var=}, {BORDER_MASK.shape=}, {updated_inputs[var].shape=}\n')
-            expanded_mask = jnp.broadcast_to(BORDER_MASK, updated_predictions[var].shape)
-            #print(f'{expanded_mask.shape=}')
+            expanded_mask = jnp.broadcast_to(BORDER_MASK_JAX, updated_predictions[var].shape)
             
             # Get the JAX arrays directly
             pred_values = xarray_jax.jax_data(updated_predictions[var])
             target_values = xarray_jax.jax_data(boundary_conditions[var])
-            
-            #print(f'{input_values.shape=}, {target_values.shape=}\n')
-            
+
             # Assign updated values back to the dataset
             updated_values = jnp.where(expanded_mask, target_values, pred_values)
-            
-            #print(f'{updated_values.shape=}, {updated_values=}')
-            
+
             # Wrap updated JAX array back into xarray
             if 'level' in predictions[var].dims:
                 dims = ('batch', 'time', 'level', 'lat', 'lon')
@@ -95,13 +144,11 @@ def update_boundary_conditions(predictions, boundary_conditions):
             
             updated_predictions[var] = xarray_jax.DataArray(updated_values, dims=dims, coords=predictions[var].coords)
             
-    
     # Transpose so levels is last.
-    updated_predictions = updated_predictions.transpose('batch', 'time', 'lat', 'lon', 'level')
+    new_dims = ('batch', 'time', 'lat', 'lon', 'level')
+    updated_predictions = updated_predictions.transpose(*new_dims, missing_dims='ignore')
             
     return updated_predictions
-
-
 
 def _unflatten_and_expand_time(flat_variables, tree_def, time_coords):
   variables = jax.tree_util.tree_unflatten(tree_def, flat_variables)
@@ -142,7 +189,7 @@ class Predictor(predictor_base.Predictor):
       self,
       predictor: predictor_base.Predictor,
       noise_level: Optional[float] = None,
-      gradient_checkpointing: bool = False,
+      gradient_checkpointing: bool = False, 
       ):
     """Initializes an autoregressive predictor wrapper.
 
@@ -233,7 +280,6 @@ class Predictor(predictor_base.Predictor):
       ValueError: if the time coordinates of the inputs and targets are not
         different by a constant time step.
     """
-
     constant_inputs = self._get_and_validate_constant_inputs(
         inputs, targets_template, forcings)
     self._validate_targets_and_forcings(targets_template, forcings)
@@ -261,9 +307,6 @@ class Predictor(predictor_base.Predictor):
     lat_dim, lon_dim = 'lat', 'lon'
     NY, NX = len(inputs[lat_dim]), len(inputs[lon_dim])
     
-    # Create a border mask for the domain (slow to constantly recreate this!!!)
-    border_mask = _border_mask((NY, NX), N=5)  # Adjust N as needed
-    
     def one_step_prediction(inputs, scan_variables):
 
       flat_forcings, flat_bcs = scan_variables
@@ -276,11 +319,19 @@ class Predictor(predictor_base.Predictor):
       # Add constant inputs:
       all_inputs = xarray.merge([constant_inputs, inputs])
     
+      #'''
       predictions: xarray.Dataset = self._predictor(
           all_inputs, target_template,
           forcings=forcings,
           **kwargs)
-
+      '''
+      # Patch-based predictions and then quilt together 
+      predictions: xarray.Dataset = predict_by_patch(self._predictor, 
+                     all_inputs, 
+                     target_template,
+                    forcings=forcings,
+                  **kwargs)
+      '''      
       # Update the boundary conditions. 
       predictions = update_boundary_conditions(predictions, boundary_conditions)      
             

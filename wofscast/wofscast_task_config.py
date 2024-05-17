@@ -1,4 +1,4 @@
-from . import my_graphcast as graphcast
+from . import graphcast_lam as graphcast
 import numpy as np
 
 # the number of gridpoints in one direction; square domain.
@@ -14,7 +14,7 @@ TARGET_VARS = VARS_3D + VARS_2D
 # I compute this myself rather than using the GraphCast code. 
 FORCING_VARS = (
             'local_solar_time_sin',
-            'local_solar_time_cos'
+            'local_solar_time_cos',
         )
 # Not pressure levels, but just vertical array indices at the moment. 
 # When I created the wrfwof files, I pre-sampled every 3 levels. 
@@ -33,5 +33,27 @@ WOFS_TASK_CONFIG = graphcast.TaskConfig(
       pressure_levels=PRESSURE_LEVELS,
       input_duration=INPUT_DURATION,
       n_vars_2D = len(VARS_2D),
-      domain_size = DOMAIN_SIZE
+      domain_size = DOMAIN_SIZE,
+      tiling=None,
+      train_lead_times = train_lead_times,
  )
+
+VARS_2D = ['COMPOSITE_REFL_10CM']
+STATIC_VARS = ['XLAND', 'HGT']
+
+INPUT_VARS_DBZ = VARS_2D + STATIC_VARS
+TARGET_VARS_DBZ =  VARS_2D
+
+DBZ_TASK_CONFIG = graphcast.TaskConfig(
+      input_variables=INPUT_VARS_DBZ,
+      target_variables=TARGET_VARS_DBZ,
+      forcing_variables=FORCING_VARS,
+      pressure_levels=PRESSURE_LEVELS,
+      input_duration=INPUT_DURATION,
+      n_vars_2D = len(VARS_2D),
+      domain_size = DOMAIN_SIZE,
+      tiling=None,
+      train_lead_times = train_lead_times,
+ )
+
+
