@@ -15,10 +15,14 @@
 
 from typing import Any, Mapping, Sequence, Tuple, Union
 
+
+from . import data_generator
 from . import solar_radiation
 import numpy as np
 import pandas as pd
 import xarray
+import dataclasses
+
 
 TimedeltaLike = Any  # Something convertible to pd.Timedelta.
 TimedeltaStr = str  # A string convertible to pd.Timedelta.
@@ -416,9 +420,13 @@ def extract_inputs_targets_forcings(
   #  add_derived_vars(dataset)
   #if set(forcing_variables) & {TISR}:
   #  add_tisr_var(dataset)
-    
+  
+  # Add the forcing variables. 
+  #dataset = data_generator.add_local_solar_time(dataset)  
+
+
   # `datetime` is needed by add_derived_vars but breaks autoregressive rollouts.
-  dataset = dataset.drop_vars("datetime")
+  dataset = dataset.drop_vars("datetime", errors='ignore')
 
   inputs, targets = extract_input_target_times(
       dataset,
@@ -437,3 +445,49 @@ def extract_inputs_targets_forcings(
   targets = targets[list(target_variables)]
 
   return inputs, targets , forcings
+
+
+def batch_extract_inputs_targets_forcings(dataset: xarray.Dataset,
+    *,
+    n_input_steps : int, 
+    n_target_steps : int,                                      
+    input_variables: Tuple[str, ...],
+    target_variables: Tuple[str, ...],
+    forcing_variables: Tuple[str, ...],
+    pressure_levels: Tuple[int, ...],
+    input_duration: TimedeltaLike,
+    target_lead_times: TargetLeadTimes,
+    **kwargs
+    ) -> Tuple[xarray.Dataset, xarray.Dataset, xarray.Dataset]:
+    '''
+    Based on an input dataset with multiple timesteps, this function 
+    returns rollouts multiple, mutually exclusive input/output pairs
+    concatenating them along a 'batch' dimension. 
+    '''
+    inputs = []
+    targets = []
+    forcings = [] 
+
+    n_total_steps=n_input_steps+n_target_steps # 2 input steps + 1 target step
+
+    for i in range(0, dataset.time.size-n_total_steps, n_total_steps+1):
+        _inputs, _targets, _forcings = extract_inputs_targets_forcings(
+                dataset.isel(time=slice(i, i+n_total_steps)), #, datetime=slice(i,i+n_total_steps)), 
+                target_lead_times=target_lead_times,
+                input_variables = input_variables, 
+            target_variables=target_variables, 
+            forcing_variables=forcing_variables,
+            pressure_levels=pressure_levels, 
+            input_duration=input_duration
+            )
+        inputs.append(_inputs)
+        targets.append(_targets)
+        forcings.append(_forcings)
+    
+    inputs = xr.concat(inputs, dim='batch')
+    targets = xr.concat(targets, dim='batch')
+    forcings = xr.concat(forcings, dim='batch')
+    
+    return inputs, targets, forcings 
+
+

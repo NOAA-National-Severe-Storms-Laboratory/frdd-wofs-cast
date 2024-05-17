@@ -183,7 +183,7 @@ class FileFormatter:
         # Unaccumulate rainfall
         ds = self.unaccum_rainfall(ds)
     
-        ds = self.resize(ds)
+        ##ds = self.resize(ds)
         if self.debug:
             print(f"Processed result for {out_path}")
             return ds 

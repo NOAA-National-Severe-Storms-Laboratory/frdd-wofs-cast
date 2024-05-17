@@ -45,40 +45,70 @@ def merge_meshes(
       vertices=mesh_list[-1].vertices,
       faces=np.concatenate([mesh.faces for mesh in mesh_list], axis=0))
 
+def concatenate_meshes(tiling, domain_size):
+    """Merges separate meshes into one. Used for tiling together smaller meshes for 
+    applying the limited area GNN to larger domains. E.g., Apply a WoFS trained 
+    GNN to HRRR data."""
+    combined_vertices = np.array([], dtype=np.float32).reshape(0,2)
+    combined_faces = np.array([], dtype=np.int32).reshape(0,3)
+    vertex_offset = 0
+    
+    for i in range(tiling[0]):
+        for j in range(tiling[1]):
+            x_start = (i * domain_size) + 1
+            y_start = (j * domain_size) + 1
+            mesh = get_tri_mesh(x_start, y_start, domain_size)
+            # Adjust face indices and concatenate
+            adjusted_faces = mesh.faces + vertex_offset
+            combined_faces = np.vstack([combined_faces, adjusted_faces])
+            combined_vertices = np.vstack([combined_vertices, mesh.vertices])
+            vertex_offset += mesh.vertices.shape[0]
+    
+    return TriangularMesh(vertices=combined_vertices, faces=combined_faces)
+
 
 def get_hierarchy_of_triangular_meshes(
-    splits: int, domain_size: int,) -> List[TriangularMesh]:
-  """Returns a sequence of meshes
+    splits: int, domain_size: int, tiling=None) -> List[TriangularMesh]:
+    """Returns a sequence of meshes
 
-  Starting with a regular icosahedron (12 vertices, 20 faces, 30 edges) with
-  circumscribed unit sphere. Then, each triangular face is iteratively
-  subdivided into 4 triangular faces `splits` times. The new vertices are then
-  projected back onto the unit sphere. All resulting meshes are returned in a
-  list, from lowest to highest resolution.
+      Starting with a regular icosahedron (12 vertices, 20 faces, 30 edges) with
+      circumscribed unit sphere. Then, each triangular face is iteratively
+      subdivided into 4 triangular faces `splits` times. The new vertices are then
+      projected back onto the unit sphere. All resulting meshes are returned in a
+      list, from lowest to highest resolution.
 
-  The vertices in each face are specified in counter-clockwise order as
-  observed from the outside the icosahedron.
+      The vertices in each face are specified in counter-clockwise order as
+      observed from the outside the icosahedron.
 
-  Args:
-     splits: How many times to split each triangle.
-  Returns:
-     Sequence of `TriangularMesh`s of length `splits + 1` each with:
+      Args:
+         splits: How many times to split each triangle.
+         domain_size : int: Number of grid points 
+         tiling : 2-tuple of int: Whether to tile the initial mesh (default=None). Used for applying 
+             the trained limited area model over a larger domain. 
+      Returns:
+         Sequence of `TriangularMesh`s of length `splits + 1` each with:
 
-       vertices: [num_vertices, 3] vertex positions in 3D, all with unit norm.
-       faces: [num_faces, 3] with triangular faces joining sets of 3 vertices.
+           vertices: [num_vertices, 3] vertex positions in 3D, all with unit norm.
+           faces: [num_faces, 3] with triangular faces joining sets of 3 vertices.
            Each row contains three indices into the vertices array, indicating
            the vertices adjacent to the face. Always with positive orientation
            (counterclock-wise when looking from the outside).
-  """
-  current_mesh = get_tri_mesh(domain_size)
-  output_meshes = [current_mesh]
-  for _ in range(splits):
-    current_mesh = _two_split_triangle_faces(current_mesh)
-    output_meshes.append(current_mesh)
-  return output_meshes
+    """
+    if tiling:
+        current_mesh = concatenate_meshes(tiling, domain_size)
+    else:
+        current_mesh = get_tri_mesh(1, 1, domain_size)
+        
+    output_meshes = [current_mesh]
+    
+    for _ in range(splits):
+        current_mesh = _two_split_triangle_faces(current_mesh)
+        output_meshes.append(current_mesh)
+    
+    return output_meshes
 
 
-def get_tri_mesh(size) -> TriangularMesh:
+def get_tri_mesh(x_start, y_start, size) -> TriangularMesh:
     """Returns a staggered triangular mesh.
   
     Returns:
@@ -91,14 +121,39 @@ def get_tri_mesh(size) -> TriangularMesh:
          counterclock-wise when looking from the outside).
 
     """
+    # Define vertices of the mesh (square + center point)
+    offset = 1 
+    
+    half_size = size // 2 
+    
+    vertices = np.array([
+        [x_start, y_start], # Bottom left corner
+        [x_start + size, y_start], # Bottom right corner
+        [x_start + size, y_start + size], # Top right corner
+        [x_start, y_start + size], # Top left corner 
+        [x_start + half_size, y_start + half_size]  # center point
+    ], dtype=np.float32)
+    
+    tri = Delaunay(vertices)
+    faces = tri.simplices  # The faces are defined by the Delaunay triangulation
+    
+    return TriangularMesh(vertices=vertices,
+                        faces=np.array(faces, dtype=np.int32))
+    
+    '''
     bdry = 1
     
     # Initialize the list of points
     half_size = (size-(2*bdry)) // 2 
     
-    adj_size = size-bdry
-    
-    points = [[bdry, bdry], [adj_size, bdry], [half_size, half_size], [bdry,adj_size], [adj_size, adj_size]]
+    # Points at the corners and center of the square domain
+    points = np.array([
+        [bdry, bdry],  # Bottom-left corner
+        [size - bdry, bdry],  # Bottom-right corner
+        [size - bdry, size - bdry],  # Top-right corner
+        [bdry, size - bdry],  # Top-left corner
+        [half_size, half_size]  # Center point
+    ])
                 
     # x, y pairs.                
     points = np.array(points)
@@ -113,7 +168,7 @@ def get_tri_mesh(size) -> TriangularMesh:
 
     return TriangularMesh(vertices=vertices.astype(np.float32),
                         faces=np.array(faces, dtype=np.int32))
-
+    '''
 
 def _two_split_triangle_faces(triangular_mesh: TriangularMesh) -> TriangularMesh:
     """Splits each triangular face into 4 triangles keeping the orientation."""

@@ -1,8 +1,14 @@
 #!/usr/bin/env python
 # coding: utf-8
 
+
 import sys, os 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.getcwd())))
+
+
+# Set JAX_TRACEBACK_FILTERING to off for detailed traceback
+os.environ['JAX_TRACEBACK_FILTERING'] = 'off'
+
 
 # @title Imports
 import dataclasses
@@ -21,7 +27,7 @@ from . import autoregressive_lam as autoregressive
 from . import casting
 from . import checkpoint
 from . import data_utils
-from . import my_graphcast as graphcast
+from . import graphcast_lam as graphcast
 from . import normalization
 from . import rollout
 from . import xarray_jax
@@ -31,8 +37,6 @@ from .data_generator import (load_wofscast_data,
                              wofscast_batch_generator, 
                              to_static_vars, 
                              add_local_solar_time)
-
-from .wofscast_task_config import WOFS_TASK_CONFIG, train_lead_times, TARGET_VARS
 
 import haiku as hk
 import jax
@@ -52,10 +56,11 @@ import jax.numpy as jnp
 from jax import device_put
 from jax import pmap, device_put, local_device_count
 # Check available devices
-print("Available devices:", jax.devices())
+print("Available GPU devices:", jax.devices())
 from jax import tree_util
 
 import time 
+import wandb
 
 
 def add_diagnostics(accum_diagnostics, diagnostics, ind): 
@@ -112,7 +117,7 @@ def construct_wrapped_graphcast(model_config: graphcast.ModelConfig,
     # BFloat16 happens after applying normalization to the inputs/targets.
     predictor = normalization.InputsAndResiduals(
       predictor,
-     diffs_stddev_by_level=norm_stats['diffs_stddev_by_level'],
+      diffs_stddev_by_level=norm_stats['diffs_stddev_by_level'],
       mean_by_level=norm_stats['mean_by_level'],
       stddev_by_level=norm_stats['stddev_by_level']
     )
@@ -123,11 +128,11 @@ def construct_wrapped_graphcast(model_config: graphcast.ModelConfig,
     return predictor
 
 
+# Function for deployment. Used to make predictions on new data and rollout. 
 @hk.transform_with_state
 def run_forward(model_config, task_config, norm_stats, inputs, targets_template, forcings):
     predictor = construct_wrapped_graphcast(model_config, task_config, norm_stats)
     return predictor(inputs, targets_template=targets_template, forcings=forcings)
-
 
 @hk.transform_with_state
 def loss_fn(model_config, task_config, norm_stats, inputs, targets, forcings):
@@ -144,14 +149,15 @@ def with_configs(fn, model_obj, norm_stats):
     return functools.partial(
       fn, model_config=model_obj.model_config, task_config=model_obj.task_config, norm_stats=norm_stats)
 
-
-def grads_fn(params, state, inputs, targets, forcings, model_config, task_config):
+'''
+def grads_fn(params, state, inputs, targets, forcings, model_config, task_config, norm_stats):
     def compute_loss(params, state, inputs, targets, forcings):
         (loss, diagnostics), next_state = loss_fn.apply(params, state, 
                                                         jax.random.PRNGKey(0), 
                                                         model_config, 
-                                                        task_config, 
+                                                        task_config, norm_stats,
                                                         inputs, targets, forcings)
+        
         return loss, (diagnostics, next_state)
     
     # Compute gradients and auxiliary outputs
@@ -170,7 +176,7 @@ def grads_fn(params, state, inputs, targets, forcings, model_config, task_config
     clipped_grads = tree_util.tree_map(clip_grads, grads)
 
     return loss, diagnostics, next_state, clipped_grads
-   
+'''   
 
 def grads_fn_parallel(params, state, inputs, targets, forcings, model_config, task_config, norm_stats):
     def compute_loss(params, state, inputs, targets, forcings):
@@ -199,8 +205,6 @@ def grads_fn_parallel(params, state, inputs, targets, forcings, model_config, ta
     clipped_grads = tree_util.tree_map(clip_grads, grads)
 
     return loss, diagnostics, next_state, clipped_grads
-
-
 
 def truncate_to_chunk_size(input_list, chunk_size=512):
     # Calculate the new length as the smallest multiple of chunk_size
@@ -255,6 +259,9 @@ def shard_xarray_dataset(dataset, num_devices=None):
     if num_devices is None:
         num_devices = jax.local_device_count()
 
+    if num_devices == 1:
+        return dataset 
+        
     # Assuming the first dimension of each data variable is the batch dimension
     batch_size = next(iter(dataset.data_vars.values())).shape[0]
     shard_size = batch_size // num_devices
@@ -276,14 +283,12 @@ def replicate_for_devices(params, num_devices=None):
     """Replicate parameters for each device using jax.device_put_replicated."""
     if num_devices is None:
         num_devices = jax.local_device_count()
-    #devices = jax.devices()[:num_devices]
-    #replicated = jax.device_put_replicated(params, devices)
-    
+
+    if num_devices == 1:
+        return params 
+        
     return jax.tree_map(lambda x: jnp.array([x] * num_devices), params)
     
-    #return replicated
-        
-        
 def repeat_generator(original_generator, num_repeats):
     for _ in range(num_repeats):
         for data in original_generator:
@@ -331,25 +336,43 @@ class WoFSCastModel:
     """
     
     def __init__(self, 
-                 mesh_size=3, 
-                 latent_size=32, 
-                 gnn_msg_steps=4, 
-                 hidden_layers=1, 
-                 grid_to_mesh_node_dist=5,
-                 n_epochs_phase1 = 5, 
-                 n_epochs_phase2 = 5,
-                 n_epochs_phase3 = 10,
-                 total_timesteps = 12, 
-                 batch_size=200,
-                 generator_chunk_size=64, 
-                 checkpoint=True,
-                 norm_stats_path = '/work/mflora/wofs-cast-data/normalization_stats', 
-                 out_path = '/work/mflora/wofs-cast-data/model/wofscast.npz',
-                 checkpoint_interval = 100,
-                 use_multi_gpus=True, verbose=2
+                 task_config = None, 
+                 mesh_size : int =3, 
+                 latent_size : int =32, 
+                 gnn_msg_steps : int =4, 
+                 hidden_layers: int =1, 
+                 grid_to_mesh_node_dist: int =5,
+                 use_transformer : bool = False, 
+                 k_hop : int = 8, 
+                 num_attn_heads : int = 4, 
+                 n_epochs_phase1 : int = 5, 
+                 n_epochs_phase2 : int = 5,
+                 n_epochs_phase3 : int = 10,
+                 total_timesteps : int  = 12, 
+                 batch_size : int =200,
+                 generator_chunk_size : int =64, 
+                 checkpoint : bool =True,
+                 norm_stats_path : str = '/work/mflora/wofs-cast-data/normalization_stats', 
+                 out_path : str = '/work/mflora/wofs-cast-data/model/wofscast.npz',
+                 checkpoint_interval : int = 100,
+                 use_multi_gpus=True, 
+                 verbose=2, 
+                 domain_size=None, 
+                 tiling=None, 
+                 loss_weights = None
                 ):
+
+        # Initialize the Weights & Biases project for logging and tracking 
+        # training loss and other metrics. 
+        project_name = os.path.basename(out_path).replace('.npz', '')
+        wandb.init(project=project_name) 
+        
+        self.k_hop = k_hop
+        self.loss_weights = loss_weights 
         
         self.verbose = verbose
+        self.domain_size = domain_size 
+        self.tiling = tiling
         
         # Ensure not to overwrite an existing model!
         out_path = modify_path_if_exists(out_path)
@@ -366,17 +389,20 @@ class WoFSCastModel:
         self.total_timesteps = total_timesteps
         self.checkpoint = checkpoint
         self.generator_chunk_size = generator_chunk_size
+       
+        # Initialize the GraphCast TaskConfig obj.
+        if task_config is not None: 
+            self._init_task_config(task_config)
         
-        self.mesh_size = mesh_size
-        self.latent_size = latent_size
-        self.gnn_msg_steps = gnn_msg_steps
-        self.hidden_layers = hidden_layers
-        self.grid_to_mesh_node_dist = grid_to_mesh_node_dist
-    
-        self._init_task_config()
-        self._init_model_config()
+            # Initialize the GraphCast ModelConfig obj. 
+            self._init_model_config(mesh_size, latent_size, 
+                           gnn_msg_steps, hidden_layers, grid_to_mesh_node_dist, 
+                           loss_weights, k_hop, use_transformer, num_attn_heads)
+        
+            self._init_training_loss_diagnostics()
+        
+        # Load the normalization statistics. 
         self._load_norm_stats(norm_stats_path)
-        self._init_training_loss_diagnostics()
         
         self.out_path = out_path 
         self.checkpoint_interval= checkpoint_interval
@@ -401,20 +427,17 @@ class WoFSCastModel:
         # Ensure the file_paths are compatiable with the generator_chunk_size 
         #file_paths = truncate_to_chunk_size(file_paths, chunk_size=self.generator_chunk_size)
         
-        # Initialize the training step function. 
-        train_step_jitted = jax.jit(with_configs(grads_fn, self, self.norm_stats))
-        
         self.num_devices = 1 
         if self.use_multi_gpus: 
             # Assume you have N GPUs
             self.num_devices = jax.local_device_count()
-            # Using the GraphCast xarray-based JAX pmap; JAX documentation 
+            # Note: Using the GraphCast xarray-based JAX pmap; JAX documentation 
             # says we dont need to jit the function, pmap will handle it. 
             train_step_func = xarray_jax.pmap(with_configs(grads_fn_parallel, self, self.norm_stats), 
                                               dim='devices', axis_name='devices')
       
         else:
-            train_step_func = train_step_jitted
+            train_step_func = jax.jit(with_configs(grads_fn, self, self.norm_stats))
 
         # 3-phase learning. 
         total_phases = [1,2,3]
@@ -463,7 +486,7 @@ class WoFSCastModel:
                            optimizer, 
                            n_timesteps, 
                            epoch, 
-                           phase_num, 
+                           phase_num,
                             client 
                            )
                 
@@ -509,7 +532,7 @@ class WoFSCastModel:
                                                                     self.batch_size, 
                                                                     n_timesteps=n_timesteps
                                                                               ):
-
+                
                 if model_params is None:
                     # Initialize the model parameters
                     model_params, state = self._init_model_params_and_state(batch_inputs, 
@@ -517,26 +540,27 @@ class WoFSCastModel:
                                                                         batch_forcings, 
                                                                         optimizer
                                                                            )
+
                 if opt_state is None:
                     # Initialize the optimizer state only at the beginning
                     opt_state = optimizer.init(model_params)
-            
-            
+                    
                 # Split the inputs, targets, forcings, model_params, state, opt_state 
                 # up to send to multiple GPUs.
-                batch_inputs_sharded = shard_xarray_dataset(batch_inputs)
-                batch_targets_sharded = shard_xarray_dataset(batch_targets)
-                batch_forcings_sharded = shard_xarray_dataset(batch_forcings)
+                batch_inputs_sharded = shard_xarray_dataset(batch_inputs, self.num_devices)
+                batch_targets_sharded = shard_xarray_dataset(batch_targets, self.num_devices)
+                batch_forcings_sharded = shard_xarray_dataset(batch_forcings, self.num_devices)
    
                 model_params_sharded = replicate_for_devices(model_params, self.num_devices)
                 state_sharded = replicate_for_devices(state, self.num_devices)
-            
+
                 loss, diagnostics, state, grads = train_step_func(model_params_sharded, 
-                                                              state_sharded, 
+                                                              state_sharded,            
                                                               batch_inputs_sharded, 
                                                               batch_targets_sharded, 
                                                               batch_forcings_sharded,
                                                              )
+                
                 if self.verbose > 2:
                     print(f'{loss=}')
 
@@ -571,6 +595,13 @@ class WoFSCastModel:
         
         self.training_loss[f'Phase {phase_num}'][epoch] = total_loss / batch_count 
 
+        
+        # Log metrics to wandb
+        wandb.log({
+            f"Phase {phase_num} Loss": total_loss / batch_count,
+            **{f"Phase {phase_num} {k}": v / batch_count for k, v in total_diagnostics.items()}
+        })
+        
         if self.verbose > 0:
             print(f"Phase {phase_num} Epoch: {epoch}.....Loss: {total_loss/batch_count:.5f}")
         
@@ -596,7 +627,10 @@ class WoFSCastModel:
         return inputs, targets, forcings
     
     # Load the model 
-    def load_model(self, path):
+    def load_model(self, path, 
+                   **additional_model_config # For backwards compat.
+                  ):
+        
         with open(path, 'rb') as f:
             data = checkpoint.load(f, dict)
     
@@ -607,7 +641,7 @@ class WoFSCastModel:
     
         task_config_dict = {}
         for key in _TASK_CONFIG_KEYS: 
-            if isinstance(task_config[key], dict):
+            if isinstance(task_config.get(key, None), dict):
                 # unravel
                 if key == 'pressure_levels':
                     task_config_dict[key] = [int(item) for _, item in task_config[key].items()]
@@ -616,18 +650,18 @@ class WoFSCastModel:
             elif key == 'input_duration':
                 task_config_dict[key] = str(task_config[key])
             else:
-                task_config_dict[key] = task_config[key]
+                task_config_dict[key] = task_config.get(key, None)
     
-        self.domain_size = 150 #data['domain_size']
+        if self.domain_size is None:
+            self.domain_size = 150 #data['domain_size']
+            
         data['task_config'] = task_config_dict
-    
+   
         self.model_params = data['parameters']
         self.state = {}
         self._init_task_config_run(data['task_config'])
-        self._init_model_config_run(data['model_config'])
-        
-        
-    
+        self._init_model_config_run(data['model_config'], **additional_model_config)
+
     def predict(self, inputs, targets, forcings): 
        # Convert the constant fields to time-independent (drop time dim)
         inputs = to_static_vars(inputs)
@@ -661,10 +695,11 @@ class WoFSCastModel:
 
     def _init_model_params_and_state(self, inputs, targets, forcings, optimizer):
         # Check that the norm stats haven't changed!!
-        norm_stat_count = self.norm_stats['mean_by_level']['level'].shape[0]
-        input_count = inputs['level'].shape[0]
+        if 'level' in inputs.dims.keys(): 
+            norm_stat_count = self.norm_stats['mean_by_level']['level'].shape[0]
+            input_count = inputs['level'].shape[0]
                 
-        assert norm_stat_count == input_count, "Norm Stat is not compatiable with the inputs!"
+            assert norm_stat_count == input_count, "Norm Stat is not compatiable with the inputs!"
                 
         init_jitted = jax.jit(with_configs(run_forward.init, self, self.norm_stats))
 
@@ -730,7 +765,7 @@ class WoFSCastModel:
     def _init_task_config_run(self, data): 
 
         domain_size =self.domain_size if self.domain_size else data['domain_size']
-        
+            
         self.task_config = graphcast.TaskConfig(
               input_variables=data['input_variables'],
               target_variables=data['target_variables'],
@@ -738,10 +773,29 @@ class WoFSCastModel:
               pressure_levels=data['pressure_levels'],
               input_duration=data['input_duration'],
               n_vars_2D = data['n_vars_2D'],
-              domain_size = domain_size
+              domain_size = domain_size, 
+              tiling = self.tiling, 
+              train_lead_times = data.get('train_lead_times', None)
           )
+        
+        if self.verbose > 2:
+            print(self.task_config)
+        
     
-    def _init_model_config_run(self, data):
+    def _init_model_config_run(self, data, **additional_model_config):
+        
+        k_hop = data.get('k_hop', None)
+        if k_hop is None: 
+            k_hop = additional_model_config.get('k_hop', 8) 
+        
+        use_transformer = data.get('use_transformer', None)
+        if use_transformer is None: 
+            use_transformer = additional_model_config.get('use_transformer', False) 
+        
+        num_attn_heads = data.get('num_attn_heads', None)
+        if num_attn_heads is None: 
+            num_attn_heads = additional_model_config.get('num_attn_heads', 4) 
+        
         self.model_config = graphcast.ModelConfig(
               resolution=int(data['resolution']),
               mesh_size=int(data['mesh_size']),
@@ -750,31 +804,60 @@ class WoFSCastModel:
               hidden_layers=int(data['hidden_layers']),
               grid_to_mesh_node_dist=int(data['grid_to_mesh_node_dist']),
               loss_weights = data['loss_weights'],
+              k_hop = k_hop,
+              use_transformer = use_transformer,
+              num_attn_heads = num_attn_heads
         )
-    
-    
-    
-    def _init_task_config(self):
-        """Initialize the TaskConfig object used in the GraphCast code."""
-        self.task_config = WOFS_TASK_CONFIG
-        self.train_lead_times = train_lead_times
-        self.target_vars = TARGET_VARS
         
-    def _init_model_config(self):
+        if self.verbose > 2:
+            print(self.model_config)
+        
+    
+    def _init_task_config(self, task_config):
+        """Initialize the TaskConfig object used in the GraphCast code."""
+        self.task_config = task_config
+        
+        if hasattr(task_config, 'train_lead_times'):
+            self.train_lead_times = task_config.train_lead_times
+        else:
+            self.train_lead_times = None
+            
+        self.target_vars = task_config.target_variables
+        
+        
+        if self.verbose > 2:
+            print(self.task_config) 
+        
+        
+    def _init_model_config(self, mesh_size, latent_size, 
+                           gnn_msg_steps, hidden_layers, grid_to_mesh_node_dist, 
+                           loss_weights, k_hop, use_transformer, num_attn_heads
+                          ):
         # Weights used in the loss equation.
-        loss_weights = {v : 1.0 for v in self.target_vars}
+        if self.loss_weights is None:
+            loss_weights = {v : 1.0 for v in self.target_vars}
+        else:
+            loss_weights = self.loss_weights
+            
         #loss_weights['W'] = 2.0
         #loss_weights['UP_HELI_MAX'] = 2.0
         
         self.model_config = graphcast.ModelConfig(
               resolution=0,
-              mesh_size=self.mesh_size,
-              latent_size=self.latent_size,
-              gnn_msg_steps=self.gnn_msg_steps,
-              hidden_layers=self.hidden_layers,
-              grid_to_mesh_node_dist=self.grid_to_mesh_node_dist, 
-              loss_weights = loss_weights
+              mesh_size=mesh_size,
+              latent_size=latent_size,
+              gnn_msg_steps=gnn_msg_steps,
+              hidden_layers=hidden_layers,
+              grid_to_mesh_node_dist=grid_to_mesh_node_dist, 
+              loss_weights = loss_weights,
+              k_hop = k_hop,
+              use_transformer = use_transformer,
+              num_attn_heads = num_attn_heads
         )
+        
+        if self.verbose > 2:
+            print(self.model_config)
+        
     
     def _load_norm_stats(self, path):     
         mean_by_level = xarray.load_dataset(os.path.join(path, 'mean_by_level.nc'))

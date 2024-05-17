@@ -21,7 +21,7 @@ formatter = FileFormatter(n_jobs = 3, #35 for one timestep, 20 for multitimestep
                           timestep_minutes=10, 
                           offset = 60, 
                           domain_size =150, 
-                          out_path = '/work/mflora/wofs-cast-data/new_datasets_2hr',
+                          out_path = '/work/mflora/wofs-cast-data/full_domain_datasets',
                           debug=False)
 
 # Notes: 
@@ -48,7 +48,7 @@ mems = [9]
 
 
 
-process_multi_date = True
+process_multi_date = False
 
 file_paths_set = []
 if process_multi_date:
@@ -73,8 +73,8 @@ if process_multi_date:
     single_case=False
     
 else:    
-    year = '2020'
-    good_dates = ['20200513']
+    year = '2021'
+    good_dates = ['20210603']
     init_times = ['2200']
     mems = [9]
     base_path = os.path.join('/work2/wof/realtime/FCST/', year)
