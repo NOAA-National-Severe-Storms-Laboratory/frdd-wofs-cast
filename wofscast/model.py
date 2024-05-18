@@ -362,11 +362,6 @@ class WoFSCastModel:
                  loss_weights = None
                 ):
 
-        # Initialize the Weights & Biases project for logging and tracking 
-        # training loss and other metrics. 
-        project_name = os.path.basename(out_path).replace('.npz', '')
-        wandb.init(project=project_name) 
-        
         self.k_hop = k_hop
         self.loss_weights = loss_weights 
         
@@ -376,7 +371,16 @@ class WoFSCastModel:
         
         # Ensure not to overwrite an existing model!
         out_path = modify_path_if_exists(out_path)
-            
+        
+        
+        # Initialize the Weights & Biases project for logging and tracking 
+        # training loss and other metrics. 
+        project_name = os.path.basename(out_path).replace('.npz', '')
+        wandb.init(project='wofscast',
+                   name = project_name,
+                  ) 
+        
+        
         # Training Parameters. 
         self.n_epochs_phase1 = n_epochs_phase1
         self.n_epochs_phase2 = n_epochs_phase2
