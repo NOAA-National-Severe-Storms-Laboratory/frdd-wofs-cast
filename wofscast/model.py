@@ -32,7 +32,8 @@ from . import normalization
 from . import rollout
 from . import xarray_jax
 from . import xarray_tree
-from .data_generator import (load_wofscast_data, 
+from .data_generator import (WoFSCastDataGenerator,
+                             load_wofscast_data, 
                              wofscast_data_generator, 
                              wofscast_batch_generator, 
                              to_static_vars, 
@@ -349,8 +350,8 @@ class WoFSCastModel:
                  n_epochs_phase2 : int = 5,
                  n_epochs_phase3 : int = 10,
                  total_timesteps : int  = 12, 
-                 batch_size : int =200,
-                 generator_chunk_size : int =64, 
+                 cpu_batch_size : int = 512,
+                 gpu_batch_size : int = 16, 
                  checkpoint : bool =True,
                  norm_stats_path : str = '/work/mflora/wofs-cast-data/normalization_stats', 
                  out_path : str = '/work/mflora/wofs-cast-data/model/wofscast.npz',
@@ -372,7 +373,6 @@ class WoFSCastModel:
         # Ensure not to overwrite an existing model!
         out_path = modify_path_if_exists(out_path)
         
-        
         # Initialize the Weights & Biases project for logging and tracking 
         # training loss and other metrics. 
         project_name = os.path.basename(out_path).replace('.npz', '')
@@ -392,7 +392,10 @@ class WoFSCastModel:
         
         self.total_timesteps = total_timesteps
         self.checkpoint = checkpoint
-        self.generator_chunk_size = generator_chunk_size
+        self.checkpoint_interval= checkpoint_interval
+        
+        self.gpu_batch_size = gpu_batch_size
+        self.cpu_batch_size = cpu_batch_size
        
         # Initialize the GraphCast TaskConfig obj.
         if task_config is not None: 
@@ -409,14 +412,13 @@ class WoFSCastModel:
         self._load_norm_stats(norm_stats_path)
         
         self.out_path = out_path 
-        self.checkpoint_interval= checkpoint_interval
-        self.batch_size = batch_size
+
         
         self.clip_norm = 32 
         self.use_multi_gpus = use_multi_gpus 
     
     def fit_generator(self, file_paths, 
-                      model_params=None, state={}, opt_state=None, client=None):
+                      model_params=None, state={}, opt_state=None):
         """Fit the WoFSCast model using the 3-Phase method outlined in Lam et al.
         using a generator method. 
         
@@ -429,7 +431,7 @@ class WoFSCastModel:
             generator: A data generator that returns inputs, targets, forcings. 
         """
         # Ensure the file_paths are compatiable with the generator_chunk_size 
-        #file_paths = truncate_to_chunk_size(file_paths, chunk_size=self.generator_chunk_size)
+        #file_paths = truncate_to_chunk_size(file_paths, chunk_size=self.gpu_batch_size)
         
         self.num_devices = 1 
         if self.use_multi_gpus: 
@@ -488,10 +490,8 @@ class WoFSCastModel:
                            state, 
                            opt_state,
                            optimizer, 
-                           n_timesteps, 
                            epoch, 
                            phase_num,
-                            client 
                            )
                 
                 # Save the model ever so often!
@@ -511,10 +511,8 @@ class WoFSCastModel:
                    state, 
                    opt_state,
                    optimizer, 
-                   n_timesteps, 
                    epoch, 
                    phase_num, 
-                   client, 
                    ): 
         
         # Create mini-batches for the current epoch and compute gradients. 
@@ -522,75 +520,69 @@ class WoFSCastModel:
         batch_count = 0 
         total_diagnostics = {}
         
-        #TODO: Generator is hardcoded. Need to refactor to be more general. 
-        for inputs, targets, forcings in wofscast_data_generator(file_paths, 
-                                                                 self.train_lead_times, 
-                                                                 self.task_config, 
-                                                                 self.generator_chunk_size, 
-                                                                 client):
-            
-            for batch_inputs, batch_targets, batch_forcings in wofscast_batch_generator(
-                                                                    inputs, 
-                                                                    targets, 
-                                                                    forcings,                
-                                                                    self.batch_size, 
-                                                                    n_timesteps=n_timesteps
-                                                                              ):
-                
-                if model_params is None:
-                    # Initialize the model parameters
-                    model_params, state = self._init_model_params_and_state(batch_inputs, 
+        generator = WoFSCastDataGenerator(self.task_config,
+                                          self.cpu_batch_size,
+                                          self.gpu_batch_size)
+        
+        # Re-loaded with each epoch and re-shuffled. 
+        dataset = generator.open_mfdataset(file_paths)
+        
+        for batch_inputs, batch_targets, batch_forcings in generator(dataset): 
+            if model_params is None:
+                # Initialize the model parameters
+                model_params, state = self._init_model_params_and_state(batch_inputs, 
                                                                         batch_targets,
                                                                         batch_forcings, 
                                                                         optimizer
                                                                            )
 
-                if opt_state is None:
-                    # Initialize the optimizer state only at the beginning
-                    opt_state = optimizer.init(model_params)
+            if opt_state is None:
+                # Initialize the optimizer state only at the beginning
+                opt_state = optimizer.init(model_params)
                     
-                # Split the inputs, targets, forcings, model_params, state, opt_state 
-                # up to send to multiple GPUs.
-                batch_inputs_sharded = shard_xarray_dataset(batch_inputs, self.num_devices)
-                batch_targets_sharded = shard_xarray_dataset(batch_targets, self.num_devices)
-                batch_forcings_sharded = shard_xarray_dataset(batch_forcings, self.num_devices)
+            # Split the inputs, targets, forcings, model_params, state, opt_state 
+            # up to send to multiple GPUs.
+            batch_inputs_sharded = shard_xarray_dataset(batch_inputs, self.num_devices)
+            batch_targets_sharded = shard_xarray_dataset(batch_targets, self.num_devices)
+            batch_forcings_sharded = shard_xarray_dataset(batch_forcings, self.num_devices)
    
-                model_params_sharded = replicate_for_devices(model_params, self.num_devices)
-                state_sharded = replicate_for_devices(state, self.num_devices)
+            model_params_sharded = replicate_for_devices(model_params, self.num_devices)
+            state_sharded = replicate_for_devices(state, self.num_devices)
 
-                loss, diagnostics, state, grads = train_step_func(model_params_sharded, 
+            loss, diagnostics, state, grads = train_step_func(model_params_sharded, 
                                                               state_sharded,            
                                                               batch_inputs_sharded, 
                                                               batch_targets_sharded, 
                                                               batch_forcings_sharded,
                                                              )
                 
-                if self.verbose > 2:
-                    print(f'{loss=}')
+            if self.verbose > 2:
+                print(f'{loss=}')
 
-                # Update parameters
-                model_params, opt_state = self.update_step(optimizer, model_params, grads, opt_state)
+            # Update parameters
+            model_params, opt_state = self.update_step(optimizer, model_params, grads, opt_state)
             
-                # Unreplicate model_params 
-                # Like the loss, the leaves of params have an extra leading dimension,
-                # so we take the params from the first device.
-                model_params = jax.device_get(jax.tree_map(lambda x: x[0], model_params))
+            # Unreplicate model_params 
+            # Like the loss, the leaves of params have an extra leading dimension,
+            # so we take the params from the first device.
+            model_params = jax.device_get(jax.tree_map(lambda x: x[0], model_params))
             
-                loss_val = np.mean(np.asarray(loss)).item()
-                for k, v in diagnostics.items():
-                    total_diagnostics[k] = total_diagnostics.get(k, 0) + np.mean(np.asarray(v)).item()
+            loss_val = np.mean(np.asarray(loss)).item()
+            for k, v in diagnostics.items():
+                total_diagnostics[k] = total_diagnostics.get(k, 0) + np.mean(np.asarray(v)).item()
                 
-                if np.isnan(loss_val):
-                    raise ValueError('Loss includes NaN value. Ending the training...')
+            if np.isnan(loss_val):
+                raise ValueError('Loss includes NaN value. Ending the training...')
             
-                total_loss += loss_val 
+            total_loss += loss_val 
                 
-                del loss, diagnostics, grads
-                gc.collect() 
+            del loss, diagnostics, grads
+            gc.collect() 
             
-                if self.verbose > 1:
-                    print(f'SubEpoch : {batch_count}')
-                batch_count+=1
+            if self.verbose > 1:
+                print(f'SubEpoch : {batch_count}')
+                
+            batch_count+=1
         
         avg_diagnostics = {k: v / batch_count for k, v in total_diagnostics.items()}
     
@@ -599,7 +591,6 @@ class WoFSCastModel:
         
         self.training_loss[f'Phase {phase_num}'][epoch] = total_loss / batch_count 
 
-        
         # Log metrics to wandb
         wandb.log({
             f"Phase {phase_num} Loss": total_loss / batch_count,

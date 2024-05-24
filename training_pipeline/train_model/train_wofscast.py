@@ -11,42 +11,28 @@ import numpy as np
 import os
 
 
-'''
-# Deprecated
-dir_path = 'datasets_2hr' if fine_tune else 'datasets'
-data_paths = []
-for year in ['2019', '2020']:
-    data_paths.extend(glob(os.path.join(f'/work/mflora/wofs-cast-data/{dir_path}/{year}/wrf*.nc')))
-rs = np.random.RandomState(123)
-data_paths = rs.choice(data_paths, size=N_SAMPLES, replace=False)
-'''
-
 # Fine tuning. 
 # TODO: Load model_params or add loading the model params into the Trainer, 
 # for the fine tuning. 
     
 #TODO: Build a data loader based on the advice in this blog: https://earthmover.io/blog/cloud-native-dataloader/
-  
     
 # Using the Weights & Biases package: 
-
 # Create an account : https://docs.wandb.ai/quickstart
 
 # >>> python -m wandb login
-# 
 
-    
 if __name__ == '__main__':
     
     # Get the training file paths. 
     
     """ usage: stdbuf -oL python -u train_wofscast.py > & log_training & """
     
-    # Number of samples sent to the GPU at one time. 
-    # Note: When making this bigger, you may get an error about
-    # a conversion error. It's poor traceback and basical
-    batch_size = 32 
-    generator_chunk_size = 512 # Number of samples loaded into CPU memory from the parent Zarr file. 
+    # Data is preloaded into CPU memory @ cpu_batch_size
+    # subsets in size of gpu_batch_size are fed to the GPU 
+    # one at a time. 
+    cpu_batch_size = 128 
+    gpu_batch_size = 32  
 
 
     loss_weights = {
@@ -68,18 +54,18 @@ if __name__ == '__main__':
                                 }
 
     
-    loss_weights = {'COMPOSITE_REFL_10CM' : 10}
+    loss_weights = {'COMPOSITE_REFL_10CM' : 1.0}
     
     trainer = WoFSCastModel(
                  # The task config contains details like the input variables, 
                  # target variables, time step, etc.
                  task_config = DBZ_TASK_CONFIG, 
 
-                  mesh_size=5, 
+                 mesh_size=5, 
                  # Parameters for the MLPs
-                 latent_size=64, 
-                 gnn_msg_steps=4, # Increasing this allows for connecting information from farther away. 
-                 hidden_layers=1, 
+                 latent_size=256, 
+                 gnn_msg_steps=8, # Increasing this allows for connecting information from farther away. 
+                 hidden_layers=2, 
                  grid_to_mesh_node_dist=5, # Distance in grid points (5 * 3km = 15 km) 
                  
                  # Parameters if using a transformer layer for processor (mesh)
@@ -95,13 +81,16 @@ if __name__ == '__main__':
         
                  n_epochs_phase3 = 0, # Only use if fine tuning for > 1 step rollout. 
                  total_timesteps = 12, # 2+ hours of total rollout for training. 
-                 batch_size=batch_size,
-                 generator_chunk_size=generator_chunk_size,          
-                 checkpoint=True,
+                 
+                 cpu_batch_size = cpu_batch_size,
+                 gpu_batch_size = gpu_batch_size,          
+                 
+                 checkpoint=True, # Save the model periodically
+            
                  norm_stats_path = '/work/mflora/wofs-cast-data/normalization_stats',
                  # Path where the model is saved. The file name (os.path.basename)
                  # is the named used for the Weights & Biases project. 
-                 out_path = '/work/mflora/wofs-cast-data/model/wofscast_test.npz',
+                 out_path = '/work/mflora/wofs-cast-data/model/wofscast_dbz_weighted_loss.npz',
                  
                  checkpoint_interval = 5, # How often to save the weights (in terms of epochs) 
                  verbose=1, 
@@ -109,8 +98,11 @@ if __name__ == '__main__':
                  use_multi_gpus = True
     )
     
-    path = '/work/mflora/wofs-cast-data/wofcast_dataset_test1.zarr'
-    trainer.fit_generator(path, client=None)
+    base_path = '/work/mflora/wofs-cast-data/datasets_jsons'
+    years = ['2019', '2020']
+    paths = [join(base_path, year, file) for year in years for file in os.listdir(join(base_path, year))]
+    
+    trainer.fit_generator(paths)
 
     # Plot the training loss and diagnostics. 
     trainer.plot_training_loss()
