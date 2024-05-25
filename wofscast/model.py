@@ -562,7 +562,7 @@ class WoFSCastModel:
                                                               batch_forcings_sharded,
                                                              )
                 
-                if self.verbose > 2:
+            if self.verbose > 2:
                     print(f'loss={loss}')
 
             # Update parameters

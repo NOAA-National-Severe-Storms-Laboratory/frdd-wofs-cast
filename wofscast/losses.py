@@ -160,7 +160,7 @@ def custom_window_loss(
 
     all_wgts = mu_wgts+med_wgts+max_wgts
     all_wgts = all_wgts.copy()
-    mu_wgts = [0.5*wgt/sum(all_wgts) for wgt in mu_wgts]
+    mu_wgts = [wgt/sum(all_wgts) for wgt in mu_wgts]
     med_wgts = [wgt/sum(all_wgts) for wgt in med_wgts]
     max_wgts = [wgt/sum(all_wgts) for wgt in max_wgts]
 

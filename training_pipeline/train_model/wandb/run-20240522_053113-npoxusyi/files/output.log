@@ -1,6 +1,0 @@
-Starting Phase 1 learning
-Training with a linearly increasing learning rate
-Initializing a linear learning rate scheduler...
-Current Time:  2024-05-22 05:31:35.439527
-
-Loading Zarr Batch..:   0%|                                                                                                                                                                                                                 | 0/8 [00:00<?, ?it/s]WARNING:absl:Skipping gradient checkpointing for sequence length of 1

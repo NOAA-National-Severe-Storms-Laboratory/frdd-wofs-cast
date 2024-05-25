@@ -11,7 +11,6 @@ from glob import glob
 import numpy as np 
 import os
 
-
 # Fine tuning. 
 # TODO: Load model_params or add loading the model params into the Trainer, 
 # for the fine tuning. 
@@ -103,7 +102,7 @@ if __name__ == '__main__':
     #trainer.fit_generator(path, client=None)
     base_path = '/work/mflora/wofs-cast-data/datasets_jsons'
     years = ['2019', '2020']
-    paths = [join(base_path, year, file) for year in years for file in os.listdir(join(base_path, year))]
+    paths = [os.path.join(base_path, year, file) for year in years for file in os.listdir(os.path.join(base_path, year))]
     trainer.fit_generator(paths)
 
     # Plot the training loss and diagnostics. 
