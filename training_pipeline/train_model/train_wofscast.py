@@ -1,6 +1,7 @@
 # WoFSCast 
 import sys, os 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.getcwd())))
+#sys.path.insert('/home/cpotvin//home/Corey.Potvin/frdd-wofs-cast')
 
 from wofscast.model import WoFSCastModel
 from wofscast.wofscast_task_config import WOFS_TASK_CONFIG, DBZ_TASK_CONFIG
@@ -90,8 +91,8 @@ if __name__ == '__main__':
         
                  # Number of training epochs for the 2-phases (linearly increase;
                  # cosine decay).
-                 n_epochs_phase1 = 5, 
-                 n_epochs_phase2 = 5,
+                 n_epochs_phase1 = 10,#5, 
+                 n_epochs_phase2 = 10,#5,
         
                  n_epochs_phase3 = 0, # Only use if fine tuning for > 1 step rollout. 
                  total_timesteps = 12, # 2+ hours of total rollout for training. 
@@ -101,7 +102,7 @@ if __name__ == '__main__':
                  norm_stats_path = '/work/mflora/wofs-cast-data/normalization_stats',
                  # Path where the model is saved. The file name (os.path.basename)
                  # is the named used for the Weights & Biases project. 
-                 out_path = '/work/mflora/wofs-cast-data/model/wofscast_test.npz',
+                 out_path = '/work/cpotvin/WOFSCAST/model/wofscast_test.npz',
                  
                  checkpoint_interval = 5, # How often to save the weights (in terms of epochs) 
                  verbose=1, 
@@ -109,7 +110,7 @@ if __name__ == '__main__':
                  use_multi_gpus = True
     )
     
-    path = '/work/mflora/wofs-cast-data/wofcast_dataset_test1.zarr'
+    path = '/work/mflora/wofs-cast-data/wofcast_dataset.zarr'
     trainer.fit_generator(path, client=None)
 
     # Plot the training loss and diagnostics. 

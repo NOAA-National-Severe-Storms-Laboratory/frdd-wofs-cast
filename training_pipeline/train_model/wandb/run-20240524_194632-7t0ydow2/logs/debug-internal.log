@@ -1,0 +1,826 @@
+2024-05-24 19:46:32,856 INFO    StreamThr :3596286 [internal.py:wandb_internal():85] W&B internal server running at pid: 3596286, started at: 2024-05-24 19:46:32.855313
+2024-05-24 19:46:32,857 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status
+2024-05-24 19:46:32,858 INFO    WriterThread:3596286 [datastore.py:open_for_write():87] open: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/run-7t0ydow2.wandb
+2024-05-24 19:46:32,860 DEBUG   SenderThread:3596286 [sender.py:send():378] send: header
+2024-05-24 19:46:32,874 DEBUG   SenderThread:3596286 [sender.py:send():378] send: run
+2024-05-24 19:46:33,152 INFO    SenderThread:3596286 [dir_watcher.py:__init__():211] watching files in: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files
+2024-05-24 19:46:33,152 INFO    SenderThread:3596286 [sender.py:_start_run_threads():1123] run started: 7t0ydow2 with start time 1716597992.855861
+2024-05-24 19:46:33,161 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: check_version
+2024-05-24 19:46:33,161 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: check_version
+2024-05-24 19:46:33,321 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: run_start
+2024-05-24 19:46:33,352 DEBUG   HandlerThread:3596286 [system_info.py:__init__():26] System info init
+2024-05-24 19:46:33,352 DEBUG   HandlerThread:3596286 [system_info.py:__init__():41] System info init done
+2024-05-24 19:46:33,352 INFO    HandlerThread:3596286 [system_monitor.py:start():194] Starting system monitor
+2024-05-24 19:46:33,352 INFO    SystemMonitor:3596286 [system_monitor.py:_start():158] Starting system asset monitoring threads
+2024-05-24 19:46:33,353 INFO    HandlerThread:3596286 [system_monitor.py:probe():214] Collecting system info
+2024-05-24 19:46:33,353 INFO    SystemMonitor:3596286 [interfaces.py:start():188] Started cpu monitoring
+2024-05-24 19:46:33,354 INFO    SystemMonitor:3596286 [interfaces.py:start():188] Started disk monitoring
+2024-05-24 19:46:33,354 INFO    SystemMonitor:3596286 [interfaces.py:start():188] Started gpu monitoring
+2024-05-24 19:46:33,355 INFO    SystemMonitor:3596286 [interfaces.py:start():188] Started memory monitoring
+2024-05-24 19:46:33,355 INFO    SystemMonitor:3596286 [interfaces.py:start():188] Started network monitoring
+2024-05-24 19:46:33,388 DEBUG   HandlerThread:3596286 [system_info.py:probe():150] Probing system
+2024-05-24 19:46:33,391 DEBUG   HandlerThread:3596286 [system_info.py:_probe_git():135] Probing git
+2024-05-24 19:46:33,409 DEBUG   HandlerThread:3596286 [system_info.py:_probe_git():143] Probing git done
+2024-05-24 19:46:33,409 DEBUG   HandlerThread:3596286 [system_info.py:probe():198] Probing system done
+2024-05-24 19:46:33,409 DEBUG   HandlerThread:3596286 [system_monitor.py:probe():223] {'os': 'Linux-4.18.0-513.24.1.el8_9.x86_64-x86_64-with-glibc2.28', 'python': '3.10.13', 'heartbeatAt': '2024-05-25T00:46:33.388634', 'startedAt': '2024-05-25T00:46:32.841491', 'docker': None, 'cuda': None, 'args': (), 'state': 'running', 'program': '/home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/train_wofscast.py', 'codePathLocal': 'train_wofscast.py', 'codePath': 'training_pipeline/train_model/train_wofscast.py', 'git': {'remote': 'https://github.com/NOAA-National-Severe-Storms-Laboratory/frdd-wofs-cast.git', 'commit': '10fcfe4878d686255bf09b49d0b0d3c619c49c14'}, 'email': 'corey.potvin@noaa.gov', 'root': '/home/Corey.Potvin/frdd-wofs-cast', 'host': 'wof-epyc9.winstorm.nssl', 'username': 'corey.potvin', 'executable': '/work/mflora/miniconda3/envs/wofs-cast/bin/python', 'cpu_count': 128, 'cpu_count_logical': 128, 'cpu_freq': {'current': 2469.4068437499986, 'min': 0.0, 'max': 0.0}, 'cpu_freq_per_core': [{'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 3699.813, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 3699.761, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}], 'disk': {'/': {'total': 437.7861328125, 'used': 69.08350372314453}}, 'gpu': 'NVIDIA A100 80GB PCIe', 'gpu_count': 2, 'gpu_devices': [{'name': 'NVIDIA A100 80GB PCIe', 'memory_total': 85899345920}, {'name': 'NVIDIA A100 80GB PCIe', 'memory_total': 85899345920}], 'memory': {'total': 503.4249382019043}}
+2024-05-24 19:46:33,409 INFO    HandlerThread:3596286 [system_monitor.py:probe():224] Finished collecting system info
+2024-05-24 19:46:33,410 INFO    HandlerThread:3596286 [system_monitor.py:probe():227] Publishing system info
+2024-05-24 19:46:33,410 DEBUG   HandlerThread:3596286 [system_info.py:_save_conda():207] Saving list of conda packages installed into the current environment
+2024-05-24 19:46:34,153 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_created():271] file/dir created: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/conda-environment.yaml
+2024-05-24 19:46:41,887 DEBUG   HandlerThread:3596286 [system_info.py:_save_conda():222] Saving conda packages done
+2024-05-24 19:46:41,890 INFO    HandlerThread:3596286 [system_monitor.py:probe():229] Finished publishing system info
+2024-05-24 19:46:41,898 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:46:41,899 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: keepalive
+2024-05-24 19:46:41,899 DEBUG   SenderThread:3596286 [sender.py:send():378] send: files
+2024-05-24 19:46:41,899 INFO    SenderThread:3596286 [sender.py:_save_file():1389] saving file wandb-metadata.json with policy now
+2024-05-24 19:46:42,042 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: python_packages
+2024-05-24 19:46:42,042 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: python_packages
+2024-05-24 19:46:42,043 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: stop_status
+2024-05-24 19:46:42,044 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: stop_status
+2024-05-24 19:46:42,157 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/conda-environment.yaml
+2024-05-24 19:46:42,157 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_created():271] file/dir created: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/requirements.txt
+2024-05-24 19:46:42,157 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_created():271] file/dir created: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/wandb-metadata.json
+2024-05-24 19:46:42,206 DEBUG   SenderThread:3596286 [sender.py:send():378] send: telemetry
+2024-05-24 19:46:42,271 INFO    wandb-upload_0:3596286 [upload_job.py:push():130] Uploaded file /tmp/tmpmmxrsq6uwandb/5r8ac34b-wandb-metadata.json
+2024-05-24 19:46:43,158 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_created():271] file/dir created: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:46:43,387 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:46:45,160 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:46:47,161 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:46:49,199 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:46:54,200 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:46:57,044 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: stop_status
+2024-05-24 19:46:57,044 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: stop_status
+2024-05-24 19:47:00,179 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:47:05,181 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:47:06,175 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/config.yaml
+2024-05-24 19:47:09,177 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:47:10,354 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:47:12,043 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: stop_status
+2024-05-24 19:47:12,044 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: stop_status
+2024-05-24 19:47:16,280 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:47:17,183 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:47:21,281 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:47:23,187 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:47:27,043 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: stop_status
+2024-05-24 19:47:27,043 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: stop_status
+2024-05-24 19:47:27,227 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:47:31,193 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:47:32,858 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:47:33,356 DEBUG   SystemMonitor:3596286 [system_monitor.py:_start():172] Starting system metrics aggregation loop
+2024-05-24 19:47:33,357 DEBUG   SenderThread:3596286 [sender.py:send():378] send: stats
+2024-05-24 19:47:37,198 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:47:38,570 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:47:42,043 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: stop_status
+2024-05-24 19:47:42,043 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: stop_status
+2024-05-24 19:47:43,208 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:47:44,214 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:47:49,902 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:47:51,213 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:47:54,902 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:47:55,519 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: partial_history
+2024-05-24 19:47:55,519 DEBUG   SenderThread:3596286 [sender.py:send():378] send: history
+2024-05-24 19:47:55,519 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: summary_record
+2024-05-24 19:47:55,521 INFO    SenderThread:3596286 [sender.py:_save_file():1389] saving file wandb-summary.json with policy end
+2024-05-24 19:47:56,217 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_created():271] file/dir created: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/wandb-summary.json
+2024-05-24 19:47:57,160 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: stop_status
+2024-05-24 19:47:57,161 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: stop_status
+2024-05-24 19:47:57,219 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:48:00,280 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:48:03,236 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:48:03,358 DEBUG   SenderThread:3596286 [sender.py:send():378] send: stats
+2024-05-24 19:48:05,359 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:48:10,884 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:48:11,243 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:48:12,159 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: stop_status
+2024-05-24 19:48:12,160 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: stop_status
+2024-05-24 19:48:16,528 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:48:17,248 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:48:21,528 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:48:23,251 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:48:27,128 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:48:27,210 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: stop_status
+2024-05-24 19:48:27,210 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: stop_status
+2024-05-24 19:48:31,257 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:48:32,712 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:48:33,359 DEBUG   SenderThread:3596286 [sender.py:send():378] send: stats
+2024-05-24 19:48:37,261 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:48:38,344 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:48:42,209 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: stop_status
+2024-05-24 19:48:42,209 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: stop_status
+2024-05-24 19:48:43,265 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:48:44,325 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:48:48,425 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: partial_history
+2024-05-24 19:48:48,425 DEBUG   SenderThread:3596286 [sender.py:send():378] send: history
+2024-05-24 19:48:48,426 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: summary_record
+2024-05-24 19:48:48,427 INFO    SenderThread:3596286 [sender.py:_save_file():1389] saving file wandb-summary.json with policy end
+2024-05-24 19:48:49,270 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:48:49,270 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/wandb-summary.json
+2024-05-24 19:48:49,441 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:48:51,271 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:48:54,441 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:48:57,236 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: stop_status
+2024-05-24 19:48:57,236 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: stop_status
+2024-05-24 19:48:57,275 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:49:00,344 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:49:03,279 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:49:03,362 DEBUG   SenderThread:3596286 [sender.py:send():378] send: stats
+2024-05-24 19:49:05,363 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:49:09,283 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:49:11,099 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:49:12,235 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: stop_status
+2024-05-24 19:49:12,235 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: stop_status
+2024-05-24 19:49:16,720 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:49:17,290 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:49:22,336 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:49:23,294 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:49:27,254 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: stop_status
+2024-05-24 19:49:27,255 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: stop_status
+2024-05-24 19:49:27,393 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:49:29,299 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:49:33,014 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:49:33,362 DEBUG   SenderThread:3596286 [sender.py:send():378] send: stats
+2024-05-24 19:49:37,304 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:49:38,639 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:49:41,148 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: partial_history
+2024-05-24 19:49:41,149 DEBUG   SenderThread:3596286 [sender.py:send():378] send: history
+2024-05-24 19:49:41,149 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: summary_record
+2024-05-24 19:49:41,150 INFO    SenderThread:3596286 [sender.py:_save_file():1389] saving file wandb-summary.json with policy end
+2024-05-24 19:49:41,307 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/wandb-summary.json
+2024-05-24 19:49:42,302 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: stop_status
+2024-05-24 19:49:42,302 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: stop_status
+2024-05-24 19:49:43,309 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:49:44,426 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:49:49,314 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:49:49,661 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:49:55,158 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:49:55,319 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:49:57,301 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: stop_status
+2024-05-24 19:49:57,301 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: stop_status
+2024-05-24 19:50:00,385 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:50:03,326 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:50:03,363 DEBUG   SenderThread:3596286 [sender.py:send():378] send: stats
+2024-05-24 19:50:06,364 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:50:09,333 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:50:12,255 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:50:12,301 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: stop_status
+2024-05-24 19:50:12,301 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: stop_status
+2024-05-24 19:50:15,336 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:50:17,758 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:50:21,340 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:50:23,192 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:50:27,414 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: stop_status
+2024-05-24 19:50:27,415 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: stop_status
+2024-05-24 19:50:28,557 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:50:29,347 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:50:33,050 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: partial_history
+2024-05-24 19:50:33,051 DEBUG   SenderThread:3596286 [sender.py:send():378] send: history
+2024-05-24 19:50:33,051 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: summary_record
+2024-05-24 19:50:33,053 INFO    SenderThread:3596286 [sender.py:_save_file():1389] saving file wandb-summary.json with policy end
+2024-05-24 19:50:33,349 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/wandb-summary.json
+2024-05-24 19:50:33,364 DEBUG   SenderThread:3596286 [sender.py:send():378] send: stats
+2024-05-24 19:50:34,364 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:50:35,351 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:50:39,365 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:50:41,356 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:50:42,490 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: stop_status
+2024-05-24 19:50:42,490 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: stop_status
+2024-05-24 19:50:44,604 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:50:47,361 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:50:49,904 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:50:53,394 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:50:55,358 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:50:57,489 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: stop_status
+2024-05-24 19:50:57,489 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: stop_status
+2024-05-24 19:51:00,811 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:51:01,399 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:51:03,365 DEBUG   SenderThread:3596286 [sender.py:send():378] send: stats
+2024-05-24 19:51:06,275 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:51:07,404 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:51:11,276 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:51:12,590 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: stop_status
+2024-05-24 19:51:12,591 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: stop_status
+2024-05-24 19:51:13,409 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:51:16,743 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:51:19,421 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:51:22,235 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:51:24,634 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: partial_history
+2024-05-24 19:51:24,635 DEBUG   SenderThread:3596286 [sender.py:send():378] send: history
+2024-05-24 19:51:24,635 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: summary_record
+2024-05-24 19:51:24,637 INFO    SenderThread:3596286 [sender.py:_save_file():1389] saving file wandb-summary.json with policy end
+2024-05-24 19:51:25,425 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:51:25,425 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/wandb-summary.json
+2024-05-24 19:51:27,427 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:51:27,651 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:51:27,659 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: stop_status
+2024-05-24 19:51:27,660 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: stop_status
+2024-05-24 19:51:33,036 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:51:33,366 DEBUG   SenderThread:3596286 [sender.py:send():378] send: stats
+2024-05-24 19:51:33,433 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:51:38,456 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:51:39,438 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:51:42,659 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: stop_status
+2024-05-24 19:51:42,659 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: stop_status
+2024-05-24 19:51:43,822 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:51:45,443 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:51:48,917 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:51:51,448 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:51:54,416 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:51:57,744 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: stop_status
+2024-05-24 19:51:57,744 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: stop_status
+2024-05-24 19:51:59,454 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:51:59,908 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:52:03,367 DEBUG   SenderThread:3596286 [sender.py:send():378] send: stats
+2024-05-24 19:52:05,459 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:52:05,484 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:52:11,002 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:52:11,463 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:52:12,743 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: stop_status
+2024-05-24 19:52:12,743 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: stop_status
+2024-05-24 19:52:16,462 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:52:16,462 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: partial_history
+2024-05-24 19:52:16,462 DEBUG   SenderThread:3596286 [sender.py:send():378] send: history
+2024-05-24 19:52:16,463 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: summary_record
+2024-05-24 19:52:16,464 INFO    SenderThread:3596286 [sender.py:_save_file():1389] saving file wandb-summary.json with policy end
+2024-05-24 19:52:16,466 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/wandb-summary.json
+2024-05-24 19:52:17,467 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:52:21,485 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:52:25,474 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:52:26,924 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:52:27,846 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: stop_status
+2024-05-24 19:52:27,847 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: stop_status
+2024-05-24 19:52:31,478 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:52:32,362 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:52:33,368 DEBUG   SenderThread:3596286 [sender.py:send():378] send: stats
+2024-05-24 19:52:37,482 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:52:37,794 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:52:42,845 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: stop_status
+2024-05-24 19:52:42,846 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:52:42,846 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: stop_status
+2024-05-24 19:52:43,486 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:52:47,934 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:52:49,492 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:52:53,761 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:52:57,497 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:52:57,846 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: stop_status
+2024-05-24 19:52:57,846 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: stop_status
+2024-05-24 19:52:58,997 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:53:03,369 DEBUG   SenderThread:3596286 [sender.py:send():378] send: stats
+2024-05-24 19:53:03,503 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:53:04,370 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:53:08,244 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: partial_history
+2024-05-24 19:53:08,244 DEBUG   SenderThread:3596286 [sender.py:send():378] send: history
+2024-05-24 19:53:08,244 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: summary_record
+2024-05-24 19:53:08,246 INFO    SenderThread:3596286 [sender.py:_save_file():1389] saving file wandb-summary.json with policy end
+2024-05-24 19:53:08,506 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/wandb-summary.json
+2024-05-24 19:53:09,508 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:53:10,260 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:53:12,847 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: stop_status
+2024-05-24 19:53:12,847 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: stop_status
+2024-05-24 19:53:15,513 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:53:15,735 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:53:20,736 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:53:23,519 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:53:26,258 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:53:27,860 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: stop_status
+2024-05-24 19:53:27,860 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: stop_status
+2024-05-24 19:53:29,525 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:53:32,016 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:53:33,370 DEBUG   SenderThread:3596286 [sender.py:send():378] send: stats
+2024-05-24 19:53:35,530 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:53:37,812 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:53:42,965 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: stop_status
+2024-05-24 19:53:42,965 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: stop_status
+2024-05-24 19:53:43,136 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:53:43,537 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:53:48,905 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:53:49,541 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:53:53,906 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:53:55,548 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:53:57,964 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: stop_status
+2024-05-24 19:53:57,964 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: stop_status
+2024-05-24 19:53:59,072 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:54:00,942 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: partial_history
+2024-05-24 19:54:00,942 DEBUG   SenderThread:3596286 [sender.py:send():378] send: history
+2024-05-24 19:54:00,943 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: summary_record
+2024-05-24 19:54:00,946 INFO    SenderThread:3596286 [sender.py:_save_file():1389] saving file wandb-summary.json with policy end
+2024-05-24 19:54:01,553 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/wandb-summary.json
+2024-05-24 19:54:03,371 DEBUG   SenderThread:3596286 [sender.py:send():378] send: stats
+2024-05-24 19:54:03,555 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:54:04,372 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:54:09,391 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:54:09,559 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:54:12,964 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: stop_status
+2024-05-24 19:54:12,964 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: stop_status
+2024-05-24 19:54:14,896 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:54:15,563 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:54:19,897 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:54:21,567 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:54:25,354 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:54:27,572 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:54:27,964 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: stop_status
+2024-05-24 19:54:27,964 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: stop_status
+2024-05-24 19:54:31,038 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:54:33,372 DEBUG   SenderThread:3596286 [sender.py:send():378] send: stats
+2024-05-24 19:54:35,578 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:54:36,385 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:54:41,583 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:54:41,910 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:54:42,998 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: stop_status
+2024-05-24 19:54:42,998 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: stop_status
+2024-05-24 19:54:47,396 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:54:47,590 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:54:52,397 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:54:52,831 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: partial_history
+2024-05-24 19:54:52,831 DEBUG   SenderThread:3596286 [sender.py:send():378] send: history
+2024-05-24 19:54:52,832 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: summary_record
+2024-05-24 19:54:52,833 INFO    SenderThread:3596286 [sender.py:_save_file():1389] saving file wandb-summary.json with policy end
+2024-05-24 19:54:53,599 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:54:53,599 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/wandb-summary.json
+2024-05-24 19:54:55,602 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:54:57,848 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:54:58,116 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: stop_status
+2024-05-24 19:54:58,117 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: stop_status
+2024-05-24 19:55:01,607 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:55:03,245 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:55:03,373 DEBUG   SenderThread:3596286 [sender.py:send():378] send: stats
+2024-05-24 19:55:07,613 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:55:08,732 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:55:13,115 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: stop_status
+2024-05-24 19:55:13,116 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: stop_status
+2024-05-24 19:55:13,618 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:55:14,272 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:55:19,623 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:55:19,735 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:55:24,736 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:55:27,629 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:55:28,115 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: stop_status
+2024-05-24 19:55:28,116 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: stop_status
+2024-05-24 19:55:30,289 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:55:33,374 DEBUG   SenderThread:3596286 [sender.py:send():378] send: stats
+2024-05-24 19:55:33,633 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:55:35,375 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:55:39,637 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:55:40,471 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:55:43,115 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: stop_status
+2024-05-24 19:55:43,116 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: stop_status
+2024-05-24 19:55:44,939 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: partial_history
+2024-05-24 19:55:44,940 DEBUG   SenderThread:3596286 [sender.py:send():378] send: history
+2024-05-24 19:55:44,940 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: summary_record
+2024-05-24 19:55:44,942 INFO    SenderThread:3596286 [sender.py:_save_file():1389] saving file wandb-summary.json with policy end
+2024-05-24 19:55:45,642 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:55:45,642 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/wandb-summary.json
+2024-05-24 19:55:46,235 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:55:47,644 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:55:51,236 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:55:53,658 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:55:56,707 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:55:58,246 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: stop_status
+2024-05-24 19:55:58,247 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: stop_status
+2024-05-24 19:55:59,662 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:56:02,330 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:56:03,375 DEBUG   SenderThread:3596286 [sender.py:send():378] send: stats
+2024-05-24 19:56:07,368 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:56:07,668 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:56:12,867 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:56:13,217 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: stop_status
+2024-05-24 19:56:13,218 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: stop_status
+2024-05-24 19:56:13,674 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:56:18,382 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:56:19,679 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:56:23,420 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:56:25,685 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:56:28,314 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: stop_status
+2024-05-24 19:56:28,315 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: stop_status
+2024-05-24 19:56:28,432 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:56:33,377 DEBUG   SenderThread:3596286 [sender.py:send():378] send: stats
+2024-05-24 19:56:33,691 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:56:34,378 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:56:37,738 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: partial_history
+2024-05-24 19:56:37,738 DEBUG   SenderThread:3596286 [sender.py:send():378] send: history
+2024-05-24 19:56:37,738 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: summary_record
+2024-05-24 19:56:37,743 INFO    SenderThread:3596286 [sender.py:_save_file():1389] saving file wandb-summary.json with policy end
+2024-05-24 19:56:38,696 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/wandb-summary.json
+2024-05-24 19:56:39,698 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:56:39,760 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:56:43,418 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: stop_status
+2024-05-24 19:56:43,419 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: stop_status
+2024-05-24 19:56:45,175 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:56:45,705 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:56:50,176 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:56:51,710 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:56:55,638 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:56:58,418 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: stop_status
+2024-05-24 19:56:58,419 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: stop_status
+2024-05-24 19:56:59,716 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:57:01,520 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:57:03,377 DEBUG   SenderThread:3596286 [sender.py:send():378] send: stats
+2024-05-24 19:57:05,720 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:57:06,584 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:57:12,111 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:57:13,476 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: stop_status
+2024-05-24 19:57:13,476 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: stop_status
+2024-05-24 19:57:13,725 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:57:17,627 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:57:19,730 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:57:22,630 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:57:25,734 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:57:28,172 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:57:28,476 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: stop_status
+2024-05-24 19:57:28,476 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: stop_status
+2024-05-24 19:57:30,601 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: partial_history
+2024-05-24 19:57:30,601 DEBUG   SenderThread:3596286 [sender.py:send():378] send: history
+2024-05-24 19:57:30,601 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: summary_record
+2024-05-24 19:57:30,603 INFO    SenderThread:3596286 [sender.py:_save_file():1389] saving file wandb-summary.json with policy end
+2024-05-24 19:57:30,736 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/wandb-summary.json
+2024-05-24 19:57:31,737 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:57:33,378 DEBUG   SenderThread:3596286 [sender.py:send():378] send: stats
+2024-05-24 19:57:33,380 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:57:37,741 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:57:39,084 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:57:43,584 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: stop_status
+2024-05-24 19:57:43,585 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: stop_status
+2024-05-24 19:57:44,692 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:57:45,752 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:57:49,692 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:57:51,756 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:57:55,133 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:57:57,764 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:57:58,631 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: stop_status
+2024-05-24 19:57:58,631 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: stop_status
+2024-05-24 19:58:00,796 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:58:03,379 DEBUG   SenderThread:3596286 [sender.py:send():378] send: stats
+2024-05-24 19:58:05,769 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:58:06,380 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:58:11,773 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:58:11,778 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:58:13,691 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: stop_status
+2024-05-24 19:58:13,692 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: stop_status
+2024-05-24 19:58:17,340 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:58:17,777 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:58:22,341 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:58:22,788 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: partial_history
+2024-05-24 19:58:22,789 DEBUG   SenderThread:3596286 [sender.py:send():378] send: history
+2024-05-24 19:58:22,789 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: summary_record
+2024-05-24 19:58:22,791 INFO    SenderThread:3596286 [sender.py:_save_file():1389] saving file wandb-summary.json with policy end
+2024-05-24 19:58:23,781 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:58:23,781 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/wandb-summary.json
+2024-05-24 19:58:27,805 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:58:28,691 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: stop_status
+2024-05-24 19:58:28,692 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: stop_status
+2024-05-24 19:58:31,791 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:58:33,280 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:58:33,382 DEBUG   SenderThread:3596286 [sender.py:send():378] send: stats
+2024-05-24 19:58:37,796 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:58:38,821 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:58:43,728 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: stop_status
+2024-05-24 19:58:43,729 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: stop_status
+2024-05-24 19:58:43,799 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:58:43,858 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:58:48,859 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:58:49,812 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:58:54,103 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:58:57,817 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:58:58,848 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: stop_status
+2024-05-24 19:58:58,848 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: stop_status
+2024-05-24 19:58:59,981 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:59:03,381 DEBUG   SenderThread:3596286 [sender.py:send():378] send: stats
+2024-05-24 19:59:03,821 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:59:05,382 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:59:09,827 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:59:10,937 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:59:13,850 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: stop_status
+2024-05-24 19:59:13,850 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: stop_status
+2024-05-24 19:59:15,347 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: partial_history
+2024-05-24 19:59:15,347 DEBUG   SenderThread:3596286 [sender.py:send():378] send: history
+2024-05-24 19:59:15,347 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: summary_record
+2024-05-24 19:59:15,352 INFO    SenderThread:3596286 [sender.py:_save_file():1389] saving file wandb-summary.json with policy end
+2024-05-24 19:59:15,833 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/wandb-summary.json
+2024-05-24 19:59:16,363 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:59:17,835 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:59:21,363 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:59:23,840 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:59:26,797 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:59:28,849 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: stop_status
+2024-05-24 19:59:28,849 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: stop_status
+2024-05-24 19:59:29,843 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:59:31,988 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:59:33,383 DEBUG   SenderThread:3596286 [sender.py:send():378] send: stats
+2024-05-24 19:59:35,849 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:59:37,815 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:59:43,421 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:59:43,849 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: stop_status
+2024-05-24 19:59:43,849 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: stop_status
+2024-05-24 19:59:43,855 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:59:48,913 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:59:49,860 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:59:53,913 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 19:59:55,864 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 19:59:58,849 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: stop_status
+2024-05-24 19:59:58,849 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: stop_status
+2024-05-24 19:59:58,969 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 20:00:01,868 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 20:00:03,384 DEBUG   SenderThread:3596286 [sender.py:send():378] send: stats
+2024-05-24 20:00:04,384 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 20:00:07,481 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: partial_history
+2024-05-24 20:00:07,482 DEBUG   SenderThread:3596286 [sender.py:send():378] send: history
+2024-05-24 20:00:07,482 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: summary_record
+2024-05-24 20:00:07,529 INFO    SenderThread:3596286 [sender.py:_save_file():1389] saving file wandb-summary.json with policy end
+2024-05-24 20:00:07,872 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/wandb-summary.json
+2024-05-24 20:00:09,530 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 20:00:09,874 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 20:00:13,954 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: stop_status
+2024-05-24 20:00:13,954 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: stop_status
+2024-05-24 20:00:15,026 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 20:00:15,879 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 20:00:20,026 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 20:00:21,883 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 20:00:25,309 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 20:00:27,887 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 20:00:28,922 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: stop_status
+2024-05-24 20:00:28,922 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: stop_status
+2024-05-24 20:00:31,083 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 20:00:33,384 DEBUG   SenderThread:3596286 [sender.py:send():378] send: stats
+2024-05-24 20:00:35,893 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 20:00:36,385 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 20:00:41,897 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 20:00:41,968 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 20:00:43,922 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: stop_status
+2024-05-24 20:00:43,922 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: stop_status
+2024-05-24 20:00:47,487 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 20:00:47,902 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 20:00:52,487 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 20:00:53,935 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 20:00:58,083 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 20:00:58,922 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: stop_status
+2024-05-24 20:00:58,923 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: stop_status
+2024-05-24 20:00:59,604 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: partial_history
+2024-05-24 20:00:59,604 DEBUG   SenderThread:3596286 [sender.py:send():378] send: history
+2024-05-24 20:00:59,604 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: summary_record
+2024-05-24 20:00:59,606 INFO    SenderThread:3596286 [sender.py:_save_file():1389] saving file wandb-summary.json with policy end
+2024-05-24 20:00:59,940 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/wandb-summary.json
+2024-05-24 20:01:01,941 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 20:01:03,386 DEBUG   SenderThread:3596286 [sender.py:send():378] send: stats
+2024-05-24 20:01:03,386 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 20:01:07,945 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 20:01:09,117 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 20:01:13,922 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: stop_status
+2024-05-24 20:01:13,923 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: stop_status
+2024-05-24 20:01:13,950 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 20:01:15,009 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 20:01:19,954 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 20:01:20,185 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 20:01:25,185 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 20:01:27,958 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 20:01:28,922 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: stop_status
+2024-05-24 20:01:28,923 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: stop_status
+2024-05-24 20:01:31,092 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 20:01:33,387 DEBUG   SenderThread:3596286 [sender.py:send():378] send: stats
+2024-05-24 20:01:33,963 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 20:01:36,388 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 20:01:39,968 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 20:01:41,815 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 20:01:43,923 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: stop_status
+2024-05-24 20:01:43,923 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: stop_status
+2024-05-24 20:01:45,976 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 20:01:47,355 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 20:01:51,827 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: partial_history
+2024-05-24 20:01:51,828 DEBUG   SenderThread:3596286 [sender.py:send():378] send: history
+2024-05-24 20:01:51,828 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: summary_record
+2024-05-24 20:01:51,833 INFO    SenderThread:3596286 [sender.py:_save_file():1389] saving file wandb-summary.json with policy end
+2024-05-24 20:01:51,979 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/wandb-summary.json
+2024-05-24 20:01:52,844 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 20:01:53,981 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 20:01:57,845 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 20:01:59,032 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: stop_status
+2024-05-24 20:01:59,033 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: stop_status
+2024-05-24 20:01:59,985 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 20:02:03,092 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 20:02:03,388 DEBUG   SenderThread:3596286 [sender.py:send():378] send: stats
+2024-05-24 20:02:05,989 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 20:02:08,709 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 20:02:13,771 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 20:02:13,996 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 20:02:14,099 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: stop_status
+2024-05-24 20:02:14,100 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: stop_status
+2024-05-24 20:02:19,274 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 20:02:19,999 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 20:02:24,275 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 20:02:26,003 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 20:02:29,099 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: stop_status
+2024-05-24 20:02:29,099 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: stop_status
+2024-05-24 20:02:30,217 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 20:02:32,007 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 20:02:33,389 DEBUG   SenderThread:3596286 [sender.py:send():378] send: stats
+2024-05-24 20:02:35,390 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 20:02:40,012 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 20:02:40,783 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 20:02:44,170 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: stop_status
+2024-05-24 20:02:44,170 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: partial_history
+2024-05-24 20:02:44,170 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: stop_status
+2024-05-24 20:02:44,302 DEBUG   SenderThread:3596286 [sender.py:send():378] send: history
+2024-05-24 20:02:44,302 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: summary_record
+2024-05-24 20:02:44,304 INFO    SenderThread:3596286 [sender.py:_save_file():1389] saving file wandb-summary.json with policy end
+2024-05-24 20:02:45,015 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/wandb-summary.json
+2024-05-24 20:02:46,016 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 20:02:46,304 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 20:02:51,606 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 20:02:52,020 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 20:02:56,607 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 20:02:58,024 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 20:02:59,169 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: stop_status
+2024-05-24 20:02:59,169 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: stop_status
+2024-05-24 20:03:02,325 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 20:03:03,390 DEBUG   SenderThread:3596286 [sender.py:send():378] send: stats
+2024-05-24 20:03:06,030 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 20:03:07,595 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 20:03:12,034 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 20:03:13,156 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 20:03:14,169 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: stop_status
+2024-05-24 20:03:14,169 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: stop_status
+2024-05-24 20:03:18,038 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 20:03:18,685 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 20:03:24,042 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 20:03:24,085 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 20:03:29,085 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 20:03:29,169 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: stop_status
+2024-05-24 20:03:29,170 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: stop_status
+2024-05-24 20:03:30,045 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 20:03:33,391 DEBUG   SenderThread:3596286 [sender.py:send():378] send: stats
+2024-05-24 20:03:34,392 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 20:03:35,859 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: partial_history
+2024-05-24 20:03:35,859 DEBUG   SenderThread:3596286 [sender.py:send():378] send: history
+2024-05-24 20:03:35,859 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: summary_record
+2024-05-24 20:03:35,861 INFO    SenderThread:3596286 [sender.py:_save_file():1389] saving file wandb-summary.json with policy end
+2024-05-24 20:03:36,049 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/wandb-summary.json
+2024-05-24 20:03:38,050 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 20:03:39,875 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 20:03:44,054 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 20:03:44,170 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: stop_status
+2024-05-24 20:03:44,170 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: stop_status
+2024-05-24 20:03:45,318 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 20:03:50,058 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 20:03:50,570 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 20:03:56,025 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 20:03:56,063 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 20:03:59,211 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: stop_status
+2024-05-24 20:03:59,211 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: stop_status
+2024-05-24 20:04:01,285 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 20:04:02,066 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 20:04:03,393 DEBUG   SenderThread:3596286 [sender.py:send():378] send: stats
+2024-05-24 20:04:06,394 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 20:04:10,072 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 20:04:11,877 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 20:04:14,210 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: stop_status
+2024-05-24 20:04:14,211 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: stop_status
+2024-05-24 20:04:17,579 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 20:04:18,076 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 20:04:23,046 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 20:04:24,080 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 20:04:28,046 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 20:04:28,473 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: partial_history
+2024-05-24 20:04:28,473 DEBUG   SenderThread:3596286 [sender.py:send():378] send: history
+2024-05-24 20:04:28,474 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: summary_record
+2024-05-24 20:04:28,476 INFO    SenderThread:3596286 [sender.py:_save_file():1389] saving file wandb-summary.json with policy end
+2024-05-24 20:04:29,082 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/wandb-summary.json
+2024-05-24 20:04:29,179 DEBUG   SenderThread:3596286 [sender.py:send():378] send: exit
+2024-05-24 20:04:29,179 INFO    SenderThread:3596286 [sender.py:send_exit():585] handling exit code: 0
+2024-05-24 20:04:29,179 INFO    SenderThread:3596286 [sender.py:send_exit():587] handling runtime: 1075
+2024-05-24 20:04:29,195 INFO    SenderThread:3596286 [sender.py:_save_file():1389] saving file wandb-summary.json with policy end
+2024-05-24 20:04:29,195 INFO    SenderThread:3596286 [sender.py:send_exit():593] send defer
+2024-05-24 20:04:29,195 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: defer
+2024-05-24 20:04:29,195 INFO    HandlerThread:3596286 [handler.py:handle_request_defer():184] handle defer: 0
+2024-05-24 20:04:29,195 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: defer
+2024-05-24 20:04:29,195 INFO    SenderThread:3596286 [sender.py:send_request_defer():609] handle sender defer: 0
+2024-05-24 20:04:29,196 INFO    SenderThread:3596286 [sender.py:transition_state():613] send defer: 1
+2024-05-24 20:04:29,196 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: defer
+2024-05-24 20:04:29,196 INFO    HandlerThread:3596286 [handler.py:handle_request_defer():184] handle defer: 1
+2024-05-24 20:04:29,196 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: defer
+2024-05-24 20:04:29,196 INFO    SenderThread:3596286 [sender.py:send_request_defer():609] handle sender defer: 1
+2024-05-24 20:04:29,196 INFO    SenderThread:3596286 [sender.py:transition_state():613] send defer: 2
+2024-05-24 20:04:29,196 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: defer
+2024-05-24 20:04:29,196 INFO    HandlerThread:3596286 [handler.py:handle_request_defer():184] handle defer: 2
+2024-05-24 20:04:29,196 INFO    HandlerThread:3596286 [system_monitor.py:finish():203] Stopping system monitor
+2024-05-24 20:04:29,196 DEBUG   SystemMonitor:3596286 [system_monitor.py:_start():179] Finished system metrics aggregation loop
+2024-05-24 20:04:29,197 INFO    HandlerThread:3596286 [interfaces.py:finish():200] Joined cpu monitor
+2024-05-24 20:04:29,197 DEBUG   SystemMonitor:3596286 [system_monitor.py:_start():183] Publishing last batch of metrics
+2024-05-24 20:04:29,197 INFO    HandlerThread:3596286 [interfaces.py:finish():200] Joined disk monitor
+2024-05-24 20:04:29,484 INFO    HandlerThread:3596286 [interfaces.py:finish():200] Joined gpu monitor
+2024-05-24 20:04:29,484 INFO    HandlerThread:3596286 [interfaces.py:finish():200] Joined memory monitor
+2024-05-24 20:04:29,484 INFO    HandlerThread:3596286 [interfaces.py:finish():200] Joined network monitor
+2024-05-24 20:04:29,484 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: defer
+2024-05-24 20:04:29,484 INFO    SenderThread:3596286 [sender.py:send_request_defer():609] handle sender defer: 2
+2024-05-24 20:04:29,484 INFO    SenderThread:3596286 [sender.py:transition_state():613] send defer: 3
+2024-05-24 20:04:29,484 DEBUG   SenderThread:3596286 [sender.py:send():378] send: stats
+2024-05-24 20:04:29,485 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: defer
+2024-05-24 20:04:29,485 INFO    HandlerThread:3596286 [handler.py:handle_request_defer():184] handle defer: 3
+2024-05-24 20:04:29,485 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: defer
+2024-05-24 20:04:29,485 INFO    SenderThread:3596286 [sender.py:send_request_defer():609] handle sender defer: 3
+2024-05-24 20:04:29,485 INFO    SenderThread:3596286 [sender.py:transition_state():613] send defer: 4
+2024-05-24 20:04:29,485 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: defer
+2024-05-24 20:04:29,485 INFO    HandlerThread:3596286 [handler.py:handle_request_defer():184] handle defer: 4
+2024-05-24 20:04:29,485 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: defer
+2024-05-24 20:04:29,485 INFO    SenderThread:3596286 [sender.py:send_request_defer():609] handle sender defer: 4
+2024-05-24 20:04:29,485 INFO    SenderThread:3596286 [sender.py:transition_state():613] send defer: 5
+2024-05-24 20:04:29,486 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: defer
+2024-05-24 20:04:29,486 INFO    HandlerThread:3596286 [handler.py:handle_request_defer():184] handle defer: 5
+2024-05-24 20:04:29,486 DEBUG   SenderThread:3596286 [sender.py:send():378] send: summary
+2024-05-24 20:04:29,487 INFO    SenderThread:3596286 [sender.py:_save_file():1389] saving file wandb-summary.json with policy end
+2024-05-24 20:04:29,488 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: defer
+2024-05-24 20:04:29,488 INFO    SenderThread:3596286 [sender.py:send_request_defer():609] handle sender defer: 5
+2024-05-24 20:04:29,488 INFO    SenderThread:3596286 [sender.py:transition_state():613] send defer: 6
+2024-05-24 20:04:29,488 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: defer
+2024-05-24 20:04:29,488 INFO    HandlerThread:3596286 [handler.py:handle_request_defer():184] handle defer: 6
+2024-05-24 20:04:29,488 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: defer
+2024-05-24 20:04:29,488 INFO    SenderThread:3596286 [sender.py:send_request_defer():609] handle sender defer: 6
+2024-05-24 20:04:29,488 INFO    SenderThread:3596286 [sender.py:transition_state():613] send defer: 7
+2024-05-24 20:04:29,488 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 20:04:29,488 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: defer
+2024-05-24 20:04:29,488 INFO    HandlerThread:3596286 [handler.py:handle_request_defer():184] handle defer: 7
+2024-05-24 20:04:29,488 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: defer
+2024-05-24 20:04:29,488 INFO    SenderThread:3596286 [sender.py:send_request_defer():609] handle sender defer: 7
+2024-05-24 20:04:30,084 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 20:04:30,084 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/wandb-summary.json
+2024-05-24 20:04:30,179 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: poll_exit
+2024-05-24 20:04:31,718 INFO    SenderThread:3596286 [sender.py:transition_state():613] send defer: 8
+2024-05-24 20:04:31,718 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: poll_exit
+2024-05-24 20:04:31,718 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: defer
+2024-05-24 20:04:31,719 INFO    HandlerThread:3596286 [handler.py:handle_request_defer():184] handle defer: 8
+2024-05-24 20:04:31,719 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: defer
+2024-05-24 20:04:31,719 INFO    SenderThread:3596286 [sender.py:send_request_defer():609] handle sender defer: 8
+2024-05-24 20:04:31,719 INFO    SenderThread:3596286 [job_builder.py:build():432] Attempting to build job artifact
+2024-05-24 20:04:31,720 INFO    SenderThread:3596286 [job_builder.py:_get_source_type():565] is repo sourced job
+2024-05-24 20:04:31,760 INFO    SenderThread:3596286 [job_builder.py:build():541] adding wandb-job metadata file
+2024-05-24 20:04:31,765 INFO    SenderThread:3596286 [sender.py:transition_state():613] send defer: 9
+2024-05-24 20:04:31,766 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: defer
+2024-05-24 20:04:31,766 DEBUG   SenderThread:3596286 [sender.py:send():378] send: artifact
+2024-05-24 20:04:31,766 INFO    HandlerThread:3596286 [handler.py:handle_request_defer():184] handle defer: 9
+2024-05-24 20:04:32,085 INFO    Thread-12 :3596286 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 20:04:32,180 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: poll_exit
+2024-05-24 20:04:33,328 INFO    SenderThread:3596286 [sender.py:send_artifact():1467] sent artifact job-https___github.com_NOAA-National-Severe-Storms-Laboratory_frdd-wofs-cast.git_training_pipeline_train_model_train_wofscast.py - {'id': 'QXJ0aWZhY3Q6ODQ4ODM1ODQz', 'state': 'COMMITTED', 'artifactSequence': {'id': 'QXJ0aWZhY3RDb2xsZWN0aW9uOjE3NzM2Mzc3Mg==', 'latestArtifact': {'id': 'QXJ0aWZhY3Q6ODQ4ODg3MDk4', 'versionIndex': 6}}}
+2024-05-24 20:04:33,328 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: defer
+2024-05-24 20:04:33,328 INFO    SenderThread:3596286 [sender.py:send_request_defer():609] handle sender defer: 9
+2024-05-24 20:04:33,328 INFO    SenderThread:3596286 [dir_watcher.py:finish():358] shutting down directory watcher
+2024-05-24 20:04:34,086 INFO    SenderThread:3596286 [dir_watcher.py:finish():388] scan: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files
+2024-05-24 20:04:34,087 INFO    SenderThread:3596286 [dir_watcher.py:finish():402] scan save: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/config.yaml config.yaml
+2024-05-24 20:04:34,087 INFO    SenderThread:3596286 [dir_watcher.py:finish():402] scan save: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/conda-environment.yaml conda-environment.yaml
+2024-05-24 20:04:34,087 INFO    SenderThread:3596286 [dir_watcher.py:finish():402] scan save: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/wandb-metadata.json wandb-metadata.json
+2024-05-24 20:04:34,087 INFO    SenderThread:3596286 [dir_watcher.py:finish():402] scan save: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/requirements.txt requirements.txt
+2024-05-24 20:04:34,089 INFO    SenderThread:3596286 [dir_watcher.py:finish():402] scan save: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log output.log
+2024-05-24 20:04:34,090 INFO    SenderThread:3596286 [dir_watcher.py:finish():402] scan save: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/wandb-summary.json wandb-summary.json
+2024-05-24 20:04:34,094 INFO    SenderThread:3596286 [sender.py:transition_state():613] send defer: 10
+2024-05-24 20:04:34,094 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: poll_exit
+2024-05-24 20:04:34,094 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: defer
+2024-05-24 20:04:34,094 INFO    HandlerThread:3596286 [handler.py:handle_request_defer():184] handle defer: 10
+2024-05-24 20:04:34,095 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: defer
+2024-05-24 20:04:34,095 INFO    SenderThread:3596286 [sender.py:send_request_defer():609] handle sender defer: 10
+2024-05-24 20:04:34,095 INFO    SenderThread:3596286 [file_pusher.py:finish():169] shutting down file pusher
+2024-05-24 20:04:34,180 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: poll_exit
+2024-05-24 20:04:34,181 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: poll_exit
+2024-05-24 20:04:34,396 INFO    wandb-upload_0:3596286 [upload_job.py:push():130] Uploaded file /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/config.yaml
+2024-05-24 20:04:34,473 INFO    wandb-upload_3:3596286 [upload_job.py:push():130] Uploaded file /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/output.log
+2024-05-24 20:04:34,492 INFO    wandb-upload_2:3596286 [upload_job.py:push():130] Uploaded file /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/requirements.txt
+2024-05-24 20:04:34,492 INFO    wandb-upload_4:3596286 [upload_job.py:push():130] Uploaded file /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/wandb-summary.json
+2024-05-24 20:04:34,508 INFO    wandb-upload_1:3596286 [upload_job.py:push():130] Uploaded file /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/files/conda-environment.yaml
+2024-05-24 20:04:34,708 INFO    Thread-11 (_thread_body):3596286 [sender.py:transition_state():613] send defer: 11
+2024-05-24 20:04:34,709 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: defer
+2024-05-24 20:04:34,709 INFO    HandlerThread:3596286 [handler.py:handle_request_defer():184] handle defer: 11
+2024-05-24 20:04:34,709 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: defer
+2024-05-24 20:04:34,709 INFO    SenderThread:3596286 [sender.py:send_request_defer():609] handle sender defer: 11
+2024-05-24 20:04:34,709 INFO    SenderThread:3596286 [file_pusher.py:join():175] waiting for file pusher
+2024-05-24 20:04:34,710 INFO    SenderThread:3596286 [sender.py:transition_state():613] send defer: 12
+2024-05-24 20:04:34,710 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: defer
+2024-05-24 20:04:34,710 INFO    HandlerThread:3596286 [handler.py:handle_request_defer():184] handle defer: 12
+2024-05-24 20:04:34,710 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: defer
+2024-05-24 20:04:34,710 INFO    SenderThread:3596286 [sender.py:send_request_defer():609] handle sender defer: 12
+2024-05-24 20:04:34,710 INFO    SenderThread:3596286 [file_stream.py:finish():601] file stream finish called
+2024-05-24 20:04:34,780 INFO    SenderThread:3596286 [file_stream.py:finish():605] file stream finish is done
+2024-05-24 20:04:34,780 INFO    SenderThread:3596286 [sender.py:transition_state():613] send defer: 13
+2024-05-24 20:04:34,780 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: defer
+2024-05-24 20:04:34,780 INFO    HandlerThread:3596286 [handler.py:handle_request_defer():184] handle defer: 13
+2024-05-24 20:04:34,780 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: defer
+2024-05-24 20:04:34,780 INFO    SenderThread:3596286 [sender.py:send_request_defer():609] handle sender defer: 13
+2024-05-24 20:04:34,780 INFO    SenderThread:3596286 [sender.py:transition_state():613] send defer: 14
+2024-05-24 20:04:34,780 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: defer
+2024-05-24 20:04:34,780 INFO    HandlerThread:3596286 [handler.py:handle_request_defer():184] handle defer: 14
+2024-05-24 20:04:34,781 DEBUG   SenderThread:3596286 [sender.py:send():378] send: final
+2024-05-24 20:04:34,781 DEBUG   SenderThread:3596286 [sender.py:send():378] send: footer
+2024-05-24 20:04:34,781 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: defer
+2024-05-24 20:04:34,781 INFO    SenderThread:3596286 [sender.py:send_request_defer():609] handle sender defer: 14
+2024-05-24 20:04:34,781 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: poll_exit
+2024-05-24 20:04:34,781 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: poll_exit
+2024-05-24 20:04:34,781 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: poll_exit
+2024-05-24 20:04:34,781 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: poll_exit
+2024-05-24 20:04:34,782 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: server_info
+2024-05-24 20:04:34,782 DEBUG   SenderThread:3596286 [sender.py:send_request():405] send_request: server_info
+2024-05-24 20:04:34,783 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: get_summary
+2024-05-24 20:04:34,783 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: sampled_history
+2024-05-24 20:04:34,784 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: internal_messages
+2024-05-24 20:04:34,843 INFO    MainThread:3596286 [wandb_run.py:_footer_history_summary_info():3994] rendering history
+2024-05-24 20:04:34,844 INFO    MainThread:3596286 [wandb_run.py:_footer_history_summary_info():4026] rendering summary
+2024-05-24 20:04:34,844 INFO    MainThread:3596286 [wandb_run.py:_footer_sync_info():3953] logging synced files
+2024-05-24 20:04:34,844 DEBUG   HandlerThread:3596286 [handler.py:handle_request():158] handle_request: shutdown
+2024-05-24 20:04:34,844 INFO    HandlerThread:3596286 [handler.py:finish():882] shutting down handler
+2024-05-24 20:04:35,782 INFO    WriterThread:3596286 [datastore.py:close():296] close: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/wandb/run-20240524_194632-7t0ydow2/run-7t0ydow2.wandb
+2024-05-24 20:04:35,843 INFO    SenderThread:3596286 [sender.py:finish():1545] shutting down sender
+2024-05-24 20:04:35,844 INFO    SenderThread:3596286 [file_pusher.py:finish():169] shutting down file pusher
+2024-05-24 20:04:35,844 INFO    SenderThread:3596286 [file_pusher.py:join():175] waiting for file pusher

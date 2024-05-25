@@ -1,0 +1,25 @@
+/home/Corey.Potvin/frdd-wofs-cast/wofscast/data_generator.py:152: FutureWarning: The return type of `Dataset.dims` will be changed to return a set of dimension names in future, in order to be more consistent with `DataArray.dims`. To access a mapping from dimension names to lengths, please use `Dataset.sizes`.
+  ones_lat = xr.DataArray(np.ones(data.dims['lat']), dims=['lat'], coords={'lat': data.coords['lat']})
+/home/Corey.Potvin/frdd-wofs-cast/wofscast/rollout.py:166: FutureWarning: The return type of `Dataset.dims` will be changed to return a set of dimension names in future, in order to be more consistent with `DataArray.dims`. To access a mapping from dimension names to lengths, please use `Dataset.sizes`.
+  num_target_steps = targets_template.dims["time"]
+/home/Corey.Potvin/frdd-wofs-cast/wofscast/autoregressive_lam.py:352: FutureWarning: The return type of `Dataset.dims` will be changed to return a set of dimension names in future, in order to be more consistent with `DataArray.dims`. To access a mapping from dimension names to lengths, please use `Dataset.sizes`.
+  scan_length = targets_template.dims['time']
+WARNING:absl:Skipping gradient checkpointing for sequence length of 1
+/home/Corey.Potvin/frdd-wofs-cast/wofscast/autoregressive_lam.py:240: FutureWarning: The return type of `Dataset.dims` will be changed to return a set of dimension names in future, in order to be more consistent with `DataArray.dims`. To access a mapping from dimension names to lengths, please use `Dataset.sizes`.
+  num_inputs = inputs.dims['time']
+/home/Corey.Potvin/frdd-wofs-cast/wofscast/rollout.py:248: FutureWarning: The return type of `Dataset.dims` will be changed to return a set of dimension names in future, in order to be more consistent with `DataArray.dims`. To access a mapping from dimension names to lengths, please use `Dataset.sizes`.
+  num_inputs = prev_inputs.dims["time"]
+COMPOSITE_REFL_10CM float32
+COMPOSITE_REFL_10CM float32
+COMPOSITE_REFL_10CM float32
+COMPOSITE_REFL_10CM float32
+COMPOSITE_REFL_10CM float32
+COMPOSITE_REFL_10CM float32
+COMPOSITE_REFL_10CM float32
+COMPOSITE_REFL_10CM float32
+COMPOSITE_REFL_10CM float32
+COMPOSITE_REFL_10CM float32
+COMPOSITE_REFL_10CM float32
+COMPOSITE_REFL_10CM float32
+CPU times: user 23.7 s, sys: 15 s, total: 38.7 s
+Wall time: 18 s

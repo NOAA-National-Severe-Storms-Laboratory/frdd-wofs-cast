@@ -1,0 +1,76 @@
+Starting Phase 1 learning
+Training with a linearly increasing learning rate
+Initializing a linear learning rate scheduler...
+Current Time:  2024-05-24 08:04:30.009462
+Loading Zarr Batch..:   0%|                                                                                                                                                                                                                 | 0/8 [00:00<?, ?it/s]WARNING:absl:Skipping gradient checkpointing for sequence length of 1
+Num of Model Parameters: 219009
+
+
+
+
+
+
+Loading Zarr Batch..:  88%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████▉                         | 7/8 [01:04<00:07,  7.42s/it]
+Phase 1 Epoch: 0.....Loss: 9.95589
+Saving model...
+Loading Zarr Batch..: 100%|█████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 8/8 [01:10<00:00,  8.87s/it]
+
+
+
+
+
+
+
+Loading Zarr Batch..:  88%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████▉                         | 7/8 [00:47<00:06,  6.70s/it]
+Phase 1 Epoch: 1.....Loss: 9.52971
+Loading Zarr Batch..: 100%|█████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 8/8 [00:53<00:00,  6.71s/it]
+
+
+
+
+
+
+
+Loading Zarr Batch..:  88%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████▉                         | 7/8 [00:46<00:06,  6.56s/it]
+Phase 1 Epoch: 2.....Loss: 9.49881
+Loading Zarr Batch..: 100%|█████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 8/8 [00:52<00:00,  6.58s/it]
+
+
+
+
+
+
+
+Loading Zarr Batch..:  88%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████▉                         | 7/8 [00:45<00:06,  6.51s/it]
+Phase 1 Epoch: 3.....Loss: 9.38777
+Loading Zarr Batch..: 100%|█████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 8/8 [00:52<00:00,  6.54s/it]
+
+
+
+
+
+
+
+Loading Zarr Batch..:  88%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████▉                         | 7/8 [00:44<00:06,  6.45s/it]
+Phase 1 Epoch: 4.....Loss: 9.31311
+Starting Phase 2 learning...
+Training with a cosine decaying schedule...
+Initializing a cosine decay learning rate scheduler...
+Loading Zarr Batch..: 100%|█████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 8/8 [00:51<00:00,  6.41s/it]
+Loading Zarr Batch..:  12%|█████████████████████████▏                                                                                                                                                                               | 1/8 [00:06<00:46,  6.71s/it]
+Traceback (most recent call last):
+  File "/home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/train_wofscast.py", line 114, in <module>
+    trainer.fit_generator(path, client=None)
+  File "/home/Corey.Potvin/frdd-wofs-cast/wofscast/model.py", line 480, in fit_generator
+    model_params, state, opt_state = self._fit_batch(
+  File "/home/Corey.Potvin/frdd-wofs-cast/wofscast/model.py", line 522, in _fit_batch
+    for inputs, targets, forcings in wofscast_data_generator(file_paths,
+  File "/home/Corey.Potvin/frdd-wofs-cast/wofscast/data_generator.py", line 404, in wofscast_data_generator
+    inputs, targets, forcings = dask.compute(inputs, targets, forcings)
+  File "/work/mflora/miniconda3/envs/wofs-cast/lib/python3.10/site-packages/dask/base.py", line 665, in compute
+    results = schedule(dsk, keys, **kwargs)
+  File "/work/mflora/miniconda3/envs/wofs-cast/lib/python3.10/queue.py", line 171, in get
+    self.not_empty.wait()
+  File "/work/mflora/miniconda3/envs/wofs-cast/lib/python3.10/threading.py", line 320, in wait
+    waiter.acquire()
+KeyboardInterrupt

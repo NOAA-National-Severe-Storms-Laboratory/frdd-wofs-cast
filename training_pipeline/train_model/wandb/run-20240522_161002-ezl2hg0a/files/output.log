@@ -1,0 +1,36 @@
+Starting Phase 1 learning
+Training with a linearly increasing learning rate
+Initializing a linear learning rate scheduler...
+Current Time:  2024-05-22 16:10:11.770537
+Loading Zarr Batch..:   0%|                                                                                                                                                                                                                 | 0/8 [00:00<?, ?it/s]WARNING:absl:Skipping gradient checkpointing for sequence length of 1
+Num of Model Parameters: 219009
+
+
+
+
+
+
+Loading Zarr Batch..:  88%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████▉                         | 7/8 [00:50<00:06,  6.31s/it]
+Phase 1 Epoch: 0.....Loss: 10.00000
+Saving model...
+Loading Zarr Batch..: 100%|█████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 8/8 [00:56<00:00,  7.05s/it]
+
+
+
+Loading Zarr Batch..:  50%|████████████████████████████████████████████████████████████████████████████████████████████████████▌                                                                                                    | 4/8 [00:22<00:22,  5.68s/it]
+Traceback (most recent call last):
+  File "/home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/train_wofscast.py", line 114, in <module>
+    trainer.fit_generator(path, client=None)
+  File "/home/Corey.Potvin/frdd-wofs-cast/wofscast/model.py", line 480, in fit_generator
+    model_params, state, opt_state = self._fit_batch(
+  File "/home/Corey.Potvin/frdd-wofs-cast/wofscast/model.py", line 522, in _fit_batch
+    for inputs, targets, forcings in wofscast_data_generator(file_paths,
+  File "/home/Corey.Potvin/frdd-wofs-cast/wofscast/data_generator.py", line 404, in wofscast_data_generator
+    inputs, targets, forcings = dask.compute(inputs, targets, forcings)
+  File "/work/mflora/miniconda3/envs/wofs-cast/lib/python3.10/site-packages/dask/base.py", line 665, in compute
+    results = schedule(dsk, keys, **kwargs)
+  File "/work/mflora/miniconda3/envs/wofs-cast/lib/python3.10/queue.py", line 171, in get
+    self.not_empty.wait()
+  File "/work/mflora/miniconda3/envs/wofs-cast/lib/python3.10/threading.py", line 320, in wait
+    waiter.acquire()
+KeyboardInterrupt

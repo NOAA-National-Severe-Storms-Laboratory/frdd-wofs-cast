@@ -1,0 +1,44 @@
+Starting Phase 1 learning
+Training with a linearly increasing learning rate
+Initializing a linear learning rate scheduler...
+Current Time:  2024-05-22 14:12:32.833308
+Loading Zarr Batch..:   0%|                                                                                                                                                                                                                 | 0/8 [00:00<?, ?it/s]WARNING:absl:Skipping gradient checkpointing for sequence length of 1
+Num of Model Parameters: 219009
+
+
+
+
+
+
+Loading Zarr Batch..: 100%|█████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 8/8 [00:52<00:00,  6.50s/it]
+Loading Zarr Batch..:   0%|                                                                                                                                                                                                                 | 0/8 [00:00<?, ?it/s]
+Phase 1 Epoch: 0.....Loss: 0.00000
+Saving model...
+
+
+Loading Zarr Batch..:  25%|██████████████████████████████████████████████████▎                                                                                                                                                      | 2/8 [00:10<00:31,  5.31s/it]Exception ignored in: <function _xla_gc_callback at 0x14d6e265df30>
+Traceback (most recent call last):
+  File "/work/mflora/miniconda3/envs/wofs-cast/lib/python3.10/site-packages/jax/_src/lib/__init__.py", line 98, in _xla_gc_callback
+    def _xla_gc_callback(*args):
+KeyboardInterrupt:
+Loading Zarr Batch..:  25%|██████████████████████████████████████████████████▎                                                                                                                                                      | 2/8 [00:12<00:38,  6.50s/it]
+Traceback (most recent call last):
+  File "/home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/train_wofscast.py", line 114, in <module>
+    trainer.fit_generator(path, client=None)
+  File "/home/Corey.Potvin/frdd-wofs-cast/wofscast/model.py", line 480, in fit_generator
+    model_params, state, opt_state = self._fit_batch(
+  File "/home/Corey.Potvin/frdd-wofs-cast/wofscast/model.py", line 568, in _fit_batch
+    model_params, opt_state = self.update_step(optimizer, model_params, grads, opt_state)
+  File "/home/Corey.Potvin/frdd-wofs-cast/wofscast/model.py", line 761, in update_step
+    updates, opt_state = optimizer.update(grads, opt_state)
+  File "/work/mflora/miniconda3/envs/wofs-cast/lib/python3.10/site-packages/optax/_src/combine.py", line 59, in update_fn
+    updates, new_s = fn(updates, s, params, **extra_args)
+  File "/work/mflora/miniconda3/envs/wofs-cast/lib/python3.10/site-packages/optax/_src/base.py", line 337, in update
+    return tx.update(updates, state, params)
+  File "/work/mflora/miniconda3/envs/wofs-cast/lib/python3.10/site-packages/optax/_src/transform.py", line 362, in update_fn
+    count_inc = numerics.safe_int32_increment(state.count)
+  File "/work/mflora/miniconda3/envs/wofs-cast/lib/python3.10/site-packages/optax/_src/numerics.py", line 117, in safe_int32_increment
+    one = jnp.array(1, dtype=jnp.int32)
+  File "/work/mflora/miniconda3/envs/wofs-cast/lib/python3.10/site-packages/jax/_src/numpy/lax_numpy.py", line 2096, in array
+    @util.implements(np.array, lax_description=_ARRAY_DOC)
+KeyboardInterrupt

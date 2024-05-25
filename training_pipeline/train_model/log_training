@@ -1,0 +1,7 @@
+Traceback (most recent call last):
+  File "/home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/train_wofscast.py", line 5, in <module>
+    from wofscast.model import WoFSCastModel
+  File "<fstring>", line 1
+    (loss=)
+         ^
+SyntaxError: invalid syntax

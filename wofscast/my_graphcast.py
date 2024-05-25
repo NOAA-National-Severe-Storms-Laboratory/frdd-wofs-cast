@@ -437,7 +437,8 @@ class GraphCast(predictor_base.Predictor):
         forcings=forcings, 
         is_training=True)
     
-    loss = losses.weighted_mse_per_level(
+#    loss = losses.weighted_mse_per_level(
+    loss = losses.simple_FSS(
         predictions, targets, 
         per_variable_weights=self._loss_weights
        )

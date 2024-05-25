@@ -19,7 +19,12 @@ from . import xarray_tree
 import numpy as np
 from typing_extensions import Protocol
 import xarray
+from . import xarray_jax
 
+import jax
+import jax.numpy as jnp
+from jax.scipy.signal import convolve
+from jax import vmap, lax
 
 LossAndDiagnostics = tuple[xarray.DataArray, xarray.Dataset]
 
@@ -129,6 +134,260 @@ def custom_loss(predictions, targets):
 
     return _mean_preserving_batch(loss)
 
+def custom_window_loss(
+    predictions: xarray.Dataset,
+    targets: xarray.Dataset,
+    per_variable_weights: Mapping[str, float],
+) -> LossAndDiagnostics:
+
+    min_nbrhd=1
+    max_nbrhd=1
+    mu_nbrhds = range(min_nbrhd, max_nbrhd+1, 2)
+    wgts = [1.0 for nbrhd in mu_nbrhds] 
+    mu_wgts = [wgt/sum(wgts) for wgt in wgts]
+
+    min_nbrhd=0
+    max_nbrhd=-1
+    med_nbrhds = range(min_nbrhd, max_nbrhd+1, 2)
+    wgts = [1.0 for nbrhd in med_nbrhds]
+    med_wgts = [wgt/sum(wgts) for wgt in wgts]
+
+    min_nbrhd=3
+    max_nbrhd=5
+    max_nbrhds = range(min_nbrhd, max_nbrhd+1, 2)
+    wgts = [1.0 for nbrhd in max_nbrhds]
+    max_wgts = [wgt/sum(wgts) for wgt in wgts]
+
+    all_wgts = mu_wgts+med_wgts+max_wgts
+    all_wgts = all_wgts.copy()
+    mu_wgts = [0.5*wgt/sum(all_wgts) for wgt in mu_wgts]
+    med_wgts = [wgt/sum(all_wgts) for wgt in med_wgts]
+    max_wgts = [wgt/sum(all_wgts) for wgt in max_wgts]
+
+
+    def apply_uniform_filter(image, nbrhd):
+        kernel = jnp.ones((nbrhd,nbrhd)).astype(jnp.bfloat16)
+        kernel = kernel / kernel.size
+        kernel = kernel.reshape(1, 1, *kernel.shape)
+        return convolve(image, kernel, mode='same')
+    '''
+    def apply_percentile_filter(image, nbrhd, percentile):
+      padded_data = jnp.pad(image, ((0,0),(0,0),(nbrhd//2,nbrhd//2),(nbrhd//2,nbrhd//2)), mode='reflect')
+      result = jnp.zeros_like(image)
+      for i in range(image.shape[2]):
+        for j in range(image.shape[3]):
+          window = padded_data[:,:,i:i+nbrhd, j:j+nbrhd]
+          result = result.at[:,:,i,j].set(jnp.percentile(window, percentile))
+      return result
+    def apply_percentile_filter(image, nbrhd, percentile):
+      padded_data = jnp.pad(image, ((0,0),(0,0),(nbrhd//2,nbrhd//2),(nbrhd//2,nbrhd//2)), mode='reflect')
+      def process_slice(padded_slice):
+        def window_fn(idx):
+            i, j = idx
+            window = padded_slice[i:i+nbrhd, j:j+nbrhd]
+            return jnp.percentile(window, percentile)
+        indices = jnp.indices((image.shape[2], image.shape[3])).reshape(2, -1).T
+        return vmap(window_fn)(indices).reshape(image.shape[2], image.shape[3])
+      return vmap(vmap(process_slice, in_axes=0), in_axes=0)(padded_data)
+    '''
+
+
+    def apply_percentile_filter(image, nbrhd, percentile):
+      # Padding the image
+      pad_width = ((0, 0), (0, 0), (nbrhd//2, nbrhd//2), (nbrhd//2, nbrhd//2))
+      padded_data = jnp.pad(image, pad_width, mode='reflect')
+    
+      def process_pixel(batch, channel, i, j):
+        window = lax.dynamic_slice(padded_data, (batch, channel, i, j), (1, 1, nbrhd, nbrhd))
+        return jnp.percentile(window, percentile, axis=(-2, -1))
+
+      def process_channel(batch, channel):
+        height, width = image.shape[2], image.shape[3]
+        i_indices = jnp.arange(height)
+        j_indices = jnp.arange(width)
+        indices = jnp.array(jnp.meshgrid(i_indices, j_indices, indexing='ij')).reshape(2, -1).T
+        
+        # Map over all indices to process each pixel
+        def process_index(idx):
+            return process_pixel(batch, channel, idx[0], idx[1])
+        
+        return vmap(process_index)(indices).reshape(height, width)
+    
+      # Apply across batches and channels
+      def process_batch(batch):
+        return vmap(lambda channel: process_channel(batch, channel))(jnp.arange(image.shape[1]))
+    
+      processed_image = vmap(process_batch)(jnp.arange(image.shape[0]))
+      return processed_image
+
+    def max_pooling(image, nbrhd):
+      window_shape = (1, 1, nbrhd, nbrhd)
+      strides = (1, 1, 1, 1)
+      padding = 'VALID'
+      pooled_image = lax.reduce_window(image, -jnp.inf, lax.max, window_shape, strides, padding)
+      return pooled_image
+
+    def loss(prediction, target):
+
+      var = prediction.name
+      prediction = xarray_jax.jax_data(prediction)
+      target = xarray_jax.jax_data(target)
+
+      if len(mu_nbrhds) > 0:
+
+        mu_trues = [apply_uniform_filter(target, nbrhd) for nbrhd in mu_nbrhds]
+        mu_preds = [apply_uniform_filter(prediction, nbrhd) for nbrhd in mu_nbrhds]
+
+        diffs = [pred - true for true, pred in zip(mu_trues, mu_preds)] 
+        errors = [wgt * diff ** 2 for wgt, diff in zip(mu_wgts, diffs)]
+        loss = jnp.sum(jnp.stack(errors, axis=0), axis=0)#xr.concat(errors, dim='temp').sum(dim='temp')
+
+      if len(med_nbrhds) > 0:
+
+        med_trues = [apply_percentile_filter(target, nbrhd, 50) for nbrhd in med_nbrhds]
+        med_preds = [apply_percentile_filter(prediction, nbrhd, 50) for nbrhd in med_nbrhds]
+
+        diffs = [pred - true for true, pred in zip(med_trues, med_preds)]
+        errors = [wgt * diff ** 2 for wgt, diff in zip(med_wgts, diffs)]
+        try:
+          loss += jnp.sum(jnp.stack(errors, axis=0), axis=0)
+        except:
+          loss = jnp.sum(jnp.stack(errors, axis=0), axis=0)
+
+      if len(max_nbrhds) > 0:
+
+        max_trues = [apply_percentile_filter(target, nbrhd, 100) for nbrhd in max_nbrhds]
+        max_preds = [apply_percentile_filter(prediction, nbrhd, 100) for nbrhd in max_nbrhds]
+
+        diffs = [pred - true for true, pred in zip(max_trues, max_preds)]
+        errors = [wgt * diff ** 2 for wgt, diff in zip(max_wgts, diffs)]
+        try:
+          loss += jnp.sum(jnp.stack(errors, axis=0), axis=0)
+        except:
+          loss = jnp.sum(jnp.stack(errors, axis=0), axis=0)
+
+      loss = xarray_jax.DataArray(loss, dims=['batch', 'time', 'lat', 'lon'])
+
+      return _mean_preserving_batch(loss)
+
+    losses = xarray_tree.map_structure(loss, predictions, targets)
+
+    return sum_per_variable_losses(losses, per_variable_weights)
+ 
+def SSIM_loss(
+    predictions: xarray.Dataset,
+    targets: xarray.Dataset,
+    per_variable_weights: Mapping[str, float],
+) -> LossAndDiagnostics:
+
+
+    data_ranges = {'COMPOSITE_REFL_10CM': 100, 'RAINNC': 0.1}
+
+    window_size=11
+    sigma = 1.5
+    thres = 0.01
+
+    def loss(prediction, target):    
+
+      var = prediction.name
+      L = data_ranges[var]
+
+      prediction = xarray_jax.jax_data(prediction)
+      target = xarray_jax.jax_data(target)
+
+      def gaussian_kernel(window_size, sigma):
+        ax = jnp.arange(-window_size // 2 + 1., window_size // 2 + 1.)
+        xx, yy = jnp.meshgrid(ax, ax)
+        kernel = jnp.exp(-0.5 * (jnp.square(xx) + jnp.square(yy)) / jnp.square(sigma))
+        return kernel / jnp.sum(kernel)
+    
+      kernel = gaussian_kernel(window_size, sigma)
+      kernel = kernel.reshape(1, 1, *kernel.shape)
+      mu1 = convolve(prediction, kernel, mode='same')
+      mu2 = convolve(target, kernel, mode='same')
+
+      mu1_sq = mu1 ** 2
+      mu2_sq = mu2 ** 2
+      mu1_mu2 = mu1 * mu2
+    
+      sigma1_sq = convolve(prediction ** 2, kernel, mode='same') - mu1_sq
+      sigma2_sq = convolve(target ** 2, kernel, mode='same') - mu2_sq
+      sigma12 = convolve(prediction * target, kernel, mode='same') - mu1_mu2
+    
+      C1 = (0.01*L) ** 2
+      C2 = (0.03*L) ** 2
+    
+      ssim_map = ((2 * mu1_mu2 + C1) * (2 * sigma12 + C2)) / ((mu1_sq + mu2_sq + C1) * (sigma1_sq + sigma2_sq + C2))
+      ssim_map = jnp.where(((jnp.absolute(mu1) > thres) | (jnp.absolute(mu2) > thres)), ssim_map, jnp.nan)
+
+      loss = 1 - jnp.nanmean(ssim_map, axis=(2,3))
+
+      loss = xarray_jax.DataArray(loss, dims=['batch', 'time'])
+
+      return _mean_preserving_batch(loss.astype(jnp.bfloat16))
+
+    losses = xarray_tree.map_structure(loss, predictions, targets)
+
+    return sum_per_variable_losses(losses, per_variable_weights)
+
+def simple_FSS(
+    predictions: xarray.Dataset,
+    targets: xarray.Dataset,
+    per_variable_weights: Mapping[str, float],
+) -> LossAndDiagnostics:
+
+    def create_uniform_filter_kernel(nbrhd):
+        kernel = jnp.ones(nbrhd).astype(jnp.bfloat16)
+        kernel = kernel / kernel.size
+        return kernel
+
+    def apply_neighborhood_filter(binary_fcst, nbrhd):
+        kernel = create_uniform_filter_kernel((nbrhd, nbrhd))
+        kernel = kernel.reshape(1, 1, *kernel.shape)  # Add dimensions for batch and channels
+        return convolve(binary_fcst, kernel, mode='same')
+
+    def loss(prediction, target):
+
+      var = prediction.name
+
+      obs_thres = 0.01#all_obs_thres[var]
+      model_thres = 0.01#all_model_thres[var]
+      nbrhd = 5
+      buf_width = 0
+      min_points = 0
+      # Compute FSS for a single threshold
+      # Required inputs: 2D obs/truth field ('obs'), 2D model/analysis field ('fcst'), FSS scale ('nbrhd_rad'), FSS threshold ('thres')
+      # Optional inputs: FSS computations excluded from within 'buf_width' of domain boundary; FSS not computed if number of obs and fcst points exceeding 'thres' is less than 'min_points'
+
+      total=0; total2=0; count=0
+      nbrhd = int(nbrhd)
+      buf_width = int(buf_width)
+      if buf_width==0:
+        buf_width = (nbrhd-1) // 2
+
+      prediction = xarray_jax.jax_data(prediction)
+      target = xarray_jax.jax_data(target)
+
+      binary_fcst = (prediction >= model_thres).astype(jnp.bfloat16)
+      binary_obs  = (target >= obs_thres).astype(jnp.bfloat16)
+
+      NP_fcst = apply_neighborhood_filter(binary_fcst, nbrhd)
+      NP_obs = apply_neighborhood_filter(binary_obs, nbrhd)
+
+      NP_fcst = NP_fcst[:,:,buf_width:-buf_width, buf_width:-buf_width]
+      NP_obs = NP_obs[:,:,buf_width:-buf_width, buf_width:-buf_width]
+
+      mse = jnp.mean((NP_fcst - NP_obs) ** 2, axis=(2,3))
+      potential_mse = jnp.mean(NP_fcst**2 + NP_obs**2, axis=(2,3))
+
+      loss = jnp.where(potential_mse == 0, jnp.nan, (mse / potential_mse).astype(jnp.bfloat16)) 
+      loss = xarray_jax.DataArray(loss, dims=['batch', 'time'])
+
+      return _mean_preserving_batch(loss)
+
+    losses = xarray_tree.map_structure(loss, predictions, targets)
+
+    return sum_per_variable_losses(losses, per_variable_weights)
 
 def weighted_mse_per_level(
     predictions: xarray.Dataset,
@@ -155,7 +414,7 @@ def weighted_mse_per_level(
 
 
 def _mean_preserving_batch(x: xarray.DataArray) -> xarray.DataArray:
-    return x.mean([d for d in x.dims if d != "batch"], skipna=False)
+    return x.mean([d for d in x.dims if d != "batch"], skipna=True)
 
 
 def sum_per_variable_losses(
@@ -178,7 +437,6 @@ def sum_per_variable_losses(
     total = xarray.concat(
         weighted_per_variable_losses.values(), dim="variable", join="exact"
     ).sum("variable", skipna=False)
-    
     return total, per_variable_losses  # pytype: disable=bad-return-type
 
 

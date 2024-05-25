@@ -1,0 +1,119 @@
+Starting Phase 1 learning
+Training with a linearly increasing learning rate
+Initializing a linear learning rate scheduler...
+Current Time:  2024-05-22 10:01:02.721041
+Loading Zarr Batch..:   0%|                                                                                                                                                                                                                 | 0/8 [00:00<?, ?it/s]WARNING:absl:Skipping gradient checkpointing for sequence length of 1
+Num of Model Parameters: 219009
+<xarray.DataArray 'COMPOSITE_REFL_10CM' (batch: 16, time: 1, lat: 150, lon: 150)>
+xarray_jax.JaxArrayWrapper(Traced<ShapedArray(bfloat16[16,1,150,150])>with<JVPTrace(level=2/1)> with
+  primal = Traced<ShapedArray(bfloat16[16,1,150,150])>with<DynamicJaxprTrace(level=0/1)>
+  tangent = Traced<ShapedArray(bfloat16[16,1,150,150])>with<JaxprTrace(level=1/1)> with
+    pval = (ShapedArray(bfloat16[16,1,150,150]), None)
+    recipe = JaxprEqnRecipe(eqn_id=<object object at 0x14bc60b61ad0>, in_tracers=(Traced<ShapedArray(bfloat16[16,150,150,1]):JaxprTrace(level=1/1)>,), out_tracer_refs=[<weakref at 0x14bc607b9440; to 'JaxprTracer' at 0x14bc607b93f0>], out_avals=[ShapedArray(bfloat16[16,1,150,150])], primitive=transpose, params={'permutation': (0, 3, 1, 2)}, effects=frozenset(), source_info=SourceInfo(traceback=<jaxlib.xla_extension.Traceback object at 0x14bc60c28f30>, name_stack=NameStack(stack=(Transform(name='jvp'),)))))
+Coordinates:
+  * lat      (lat) float32 32.12 32.15 32.17 32.2 ... 36.11 36.14 36.17 36.19
+  * lon      (lon) float32 79.53 79.56 79.59 79.62 ... 84.09 84.12 84.16 84.19
+  * time     (time) timedelta64[ns] 00:10:00
+Dimensions without coordinates: batch
+<xarray.DataArray 'COMPOSITE_REFL_10CM' (batch: 16, time: 1, lat: 150, lon: 150)>
+xarray_jax.JaxArrayWrapper(Traced<ShapedArray(bfloat16[16,1,150,150])>with<JVPTrace(level=2/1)> with
+  primal = Traced<ShapedArray(bfloat16[16,1,150,150])>with<DynamicJaxprTrace(level=0/1)>
+  tangent = Traced<ShapedArray(bfloat16[16,1,150,150])>with<JaxprTrace(level=1/1)> with
+    pval = (ShapedArray(bfloat16[16,1,150,150]), None)
+    recipe = JaxprEqnRecipe(eqn_id=<object object at 0x14bc60b61ad0>, in_tracers=(Traced<ShapedArray(bfloat16[16,150,150,1]):JaxprTrace(level=1/1)>,), out_tracer_refs=[<weakref at 0x14bc607b9440; to 'JaxprTracer' at 0x14bc607b93f0>], out_avals=[ShapedArray(bfloat16[16,1,150,150])], primitive=transpose, params={'permutation': (0, 3, 1, 2)}, effects=frozenset(), source_info=SourceInfo(traceback=<jaxlib.xla_extension.Traceback object at 0x14bc60c28f30>, name_stack=NameStack(stack=(Transform(name='jvp'),)))))
+Coordinates:
+  * lat      (lat) float32 32.12 32.15 32.17 32.2 ... 36.11 36.14 36.17 36.19
+  * lon      (lon) float32 79.53 79.56 79.59 79.62 ... 84.09 84.12 84.16 84.19
+  * time     (time) timedelta64[ns] 00:10:00
+Dimensions without coordinates: batch
+Loading Zarr Batch..:   0%|                                                                                                                                                                                                                 | 0/8 [00:04<?, ?it/s]
+Traceback (most recent call last):
+  File "/home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/train_wofscast.py", line 114, in <module>
+    trainer.fit_generator(path, client=None)
+  File "/home/Corey.Potvin/frdd-wofs-cast/wofscast/model.py", line 480, in fit_generator
+    model_params, state, opt_state = self._fit_batch(
+  File "/home/Corey.Potvin/frdd-wofs-cast/wofscast/model.py", line 557, in _fit_batch
+    loss, diagnostics, state, grads = train_step_func(model_params_sharded,
+  File "/home/Corey.Potvin/frdd-wofs-cast/wofscast/xarray_jax.py", line 599, in result_fn
+    flat_result = pmapped_fn(*flat_args)
+  File "/work/mflora/miniconda3/envs/wofs-cast/lib/python3.10/site-packages/jax/_src/traceback_util.py", line 179, in reraise_with_filtered_traceback
+    return fun(*args, **kwargs)
+  File "/work/mflora/miniconda3/envs/wofs-cast/lib/python3.10/site-packages/jax/_src/api.py", line 1804, in cache_miss
+    execute = pxla.xla_pmap_impl_lazy(fun_, *tracers, **params)
+  File "/work/mflora/miniconda3/envs/wofs-cast/lib/python3.10/site-packages/jax/_src/interpreters/pxla.py", line 285, in xla_pmap_impl_lazy
+    compiled_fun, fingerprint = parallel_callable(
+  File "/work/mflora/miniconda3/envs/wofs-cast/lib/python3.10/site-packages/jax/_src/linear_util.py", line 349, in memoized_fun
+    ans = call(fun, *args)
+  File "/work/mflora/miniconda3/envs/wofs-cast/lib/python3.10/site-packages/jax/_src/interpreters/pxla.py", line 570, in parallel_callable
+    pmap_computation = lower_parallel_callable(
+  File "/work/mflora/miniconda3/envs/wofs-cast/lib/python3.10/site-packages/jax/_src/profiler.py", line 336, in wrapper
+    return func(*args, **kwargs)
+  File "/work/mflora/miniconda3/envs/wofs-cast/lib/python3.10/site-packages/jax/_src/interpreters/pxla.py", line 727, in lower_parallel_callable
+    jaxpr, consts, replicas, shards = stage_parallel_callable(pci, fun)
+  File "/work/mflora/miniconda3/envs/wofs-cast/lib/python3.10/site-packages/jax/_src/interpreters/pxla.py", line 659, in stage_parallel_callable
+    jaxpr, out_sharded_avals, consts = pe.trace_to_jaxpr_final(
+  File "/work/mflora/miniconda3/envs/wofs-cast/lib/python3.10/site-packages/jax/_src/profiler.py", line 336, in wrapper
+    return func(*args, **kwargs)
+  File "/work/mflora/miniconda3/envs/wofs-cast/lib/python3.10/site-packages/jax/_src/interpreters/partial_eval.py", line 2392, in trace_to_jaxpr_final
+    jaxpr, out_avals, consts, () = trace_to_subjaxpr_dynamic(
+  File "/work/mflora/miniconda3/envs/wofs-cast/lib/python3.10/site-packages/jax/_src/interpreters/partial_eval.py", line 2336, in trace_to_subjaxpr_dynamic
+    ans = fun.call_wrapped(*in_tracers_)
+  File "/work/mflora/miniconda3/envs/wofs-cast/lib/python3.10/site-packages/jax/_src/linear_util.py", line 191, in call_wrapped
+    ans = self.f(*args, **dict(self.params, **kwargs))
+  File "/home/Corey.Potvin/frdd-wofs-cast/wofscast/xarray_jax.py", line 583, in fn_passed_to_pmap
+    result = fn(*args)
+  File "/home/Corey.Potvin/frdd-wofs-cast/wofscast/model.py", line 191, in grads_fn_parallel
+    (loss, (diagnostics, next_state)), grads = jax.value_and_grad(compute_loss, has_aux=True)(params, state,
+  File "/work/mflora/miniconda3/envs/wofs-cast/lib/python3.10/site-packages/jax/_src/traceback_util.py", line 179, in reraise_with_filtered_traceback
+    return fun(*args, **kwargs)
+  File "/work/mflora/miniconda3/envs/wofs-cast/lib/python3.10/site-packages/jax/_src/api.py", line 741, in value_and_grad_f
+    ans, vjp_py, aux = _vjp(
+  File "/work/mflora/miniconda3/envs/wofs-cast/lib/python3.10/site-packages/jax/_src/api.py", line 2234, in _vjp
+    out_primal, out_vjp, aux = ad.vjp(
+  File "/work/mflora/miniconda3/envs/wofs-cast/lib/python3.10/site-packages/jax/_src/interpreters/ad.py", line 144, in vjp
+    out_primals, pvals, jaxpr, consts, aux = linearize(traceable, *primals, has_aux=True)
+  File "/work/mflora/miniconda3/envs/wofs-cast/lib/python3.10/site-packages/jax/_src/interpreters/ad.py", line 131, in linearize
+    jaxpr, out_pvals, consts = pe.trace_to_jaxpr_nounits(jvpfun_flat, in_pvals)
+  File "/work/mflora/miniconda3/envs/wofs-cast/lib/python3.10/site-packages/jax/_src/profiler.py", line 336, in wrapper
+    return func(*args, **kwargs)
+  File "/work/mflora/miniconda3/envs/wofs-cast/lib/python3.10/site-packages/jax/_src/interpreters/partial_eval.py", line 774, in trace_to_jaxpr_nounits
+    jaxpr, (out_pvals, consts, env) = fun.call_wrapped(pvals)
+  File "/work/mflora/miniconda3/envs/wofs-cast/lib/python3.10/site-packages/jax/_src/linear_util.py", line 191, in call_wrapped
+    ans = self.f(*args, **dict(self.params, **kwargs))
+  File "/home/Corey.Potvin/frdd-wofs-cast/wofscast/model.py", line 183, in compute_loss
+    (loss, diagnostics), next_state = loss_fn.apply(params, state,
+  File "/work/mflora/miniconda3/envs/wofs-cast/lib/python3.10/site-packages/haiku/_src/transform.py", line 456, in apply_fn
+    out = f(*args, **kwargs)
+  File "/home/Corey.Potvin/frdd-wofs-cast/wofscast/model.py", line 140, in loss_fn
+    loss, diagnostics = predictor.loss(inputs, targets, forcings)
+  File "/home/Corey.Potvin/frdd-wofs-cast/wofscast/autoregressive_lam.py", line 387, in loss
+    return self._predictor.loss(inputs, targets, forcings, **kwargs)
+  File "/home/Corey.Potvin/frdd-wofs-cast/wofscast/normalization.py", line 174, in loss
+    return self._predictor.loss(
+  File "/home/Corey.Potvin/frdd-wofs-cast/wofscast/casting.py", line 77, in loss
+    loss, scalars = self._predictor.loss(
+  File "/home/Corey.Potvin/frdd-wofs-cast/wofscast/graphcast_lam.py", line 329, in loss
+    loss, _ = self.loss_and_predictions(inputs,
+  File "/home/Corey.Potvin/frdd-wofs-cast/wofscast/graphcast_lam.py", line 317, in loss_and_predictions
+    loss = losses.simple_FSS(
+  File "/home/Corey.Potvin/frdd-wofs-cast/wofscast/losses.py", line 206, in simple_FSS
+    losses = xarray_tree.map_structure(loss, predictions, targets)
+  File "/home/Corey.Potvin/frdd-wofs-cast/wofscast/xarray_tree.py", line 56, in map_structure
+    data = {k: func(*[s[k] for s in structures]) for k in first.keys()}
+  File "/home/Corey.Potvin/frdd-wofs-cast/wofscast/xarray_tree.py", line 56, in <dictcomp>
+    data = {k: func(*[s[k] for s in structures]) for k in first.keys()}
+  File "/home/Corey.Potvin/frdd-wofs-cast/wofscast/losses.py", line 183, in loss
+    binary_fcst = (prediction >= model_thres).astype(jnp.bfloat16).values
+  File "/work/mflora/miniconda3/envs/wofs-cast/lib/python3.10/site-packages/xarray/core/dataarray.py", line 733, in values
+    return self.variable.values
+  File "/work/mflora/miniconda3/envs/wofs-cast/lib/python3.10/site-packages/xarray/core/variable.py", line 614, in values
+    return _as_array_or_item(self._data)
+  File "/work/mflora/miniconda3/envs/wofs-cast/lib/python3.10/site-packages/xarray/core/variable.py", line 314, in _as_array_or_item
+    data = np.asarray(data)
+  File "/home/Corey.Potvin/frdd-wofs-cast/wofscast/xarray_jax.py", line 484, in __array__
+    return np.asarray(self.jax_array, dtype=dtype)
+  File "/work/mflora/miniconda3/envs/wofs-cast/lib/python3.10/site-packages/jax/_src/core.py", line 710, in __array__
+    raise TracerArrayConversionError(self)
+jax.errors.TracerArrayConversionError: The numpy.ndarray conversion method __array__() was called on traced array with shape bfloat16[16,1,150,150].
+The error occurred while tracing the function fn_passed_to_pmap at /home/Corey.Potvin/frdd-wofs-cast/wofscast/xarray_jax.py:570 for pmap. This concrete value was not available in Python because it depends on the values of the arguments flat_args[0], flat_args[1], flat_args[2], flat_args[3], flat_args[4], flat_args[5], flat_args[6], flat_args[7], flat_args[8], flat_args[9], flat_args[10], flat_args[11], flat_args[12], flat_args[13], flat_args[14], flat_args[15], flat_args[16], flat_args[17], flat_args[18], flat_args[19], flat_args[20], flat_args[21], flat_args[22], flat_args[23], flat_args[24], flat_args[25], flat_args[26], flat_args[27], flat_args[28], flat_args[29], flat_args[30], flat_args[31], flat_args[32], flat_args[33], flat_args[34], flat_args[35], flat_args[36], flat_args[37], flat_args[38], flat_args[39], flat_args[40], flat_args[41], flat_args[42], flat_args[43], flat_args[44], flat_args[45], flat_args[46], flat_args[47], flat_args[48], flat_args[49], flat_args[50], flat_args[51], flat_args[56], flat_args[57], flat_args[58], flat_args[59], flat_args[60], flat_args[61], flat_args[62], flat_args[63], flat_args[64], flat_args[65], flat_args[66], flat_args[67], flat_args[68], flat_args[69], flat_args[70], flat_args[71], flat_args[72], flat_args[73], flat_args[74], flat_args[75], flat_args[76], flat_args[77], flat_args[78], flat_args[79], flat_args[80], flat_args[81], flat_args[82], flat_args[83], flat_args[84], flat_args[85], flat_args[86], flat_args[87], flat_args[88], flat_args[89], flat_args[90], flat_args[91], flat_args[92], flat_args[93], flat_args[94], flat_args[95], flat_args[96], flat_args[97], flat_args[98], flat_args[99], flat_args[100], flat_args[101], flat_args[102], flat_args[103], flat_args[104], flat_args[105], flat_args[106], flat_args[107], flat_args[108], flat_args[109], flat_args[110], flat_args[111], flat_args[112], flat_args[114], and flat_args[115].
+See https://jax.readthedocs.io/en/latest/errors.html#jax.errors.TracerArrayConversionError

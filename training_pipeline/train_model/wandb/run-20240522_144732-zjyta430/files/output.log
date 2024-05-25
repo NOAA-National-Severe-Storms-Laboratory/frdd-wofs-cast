@@ -1,0 +1,52 @@
+Starting Phase 1 learning
+Training with a linearly increasing learning rate
+Initializing a linear learning rate scheduler...
+Current Time:  2024-05-22 14:47:41.785889
+Loading Zarr Batch..:   0%|                                                                                                                                                                                                                 | 0/8 [00:00<?, ?it/s]WARNING:absl:Skipping gradient checkpointing for sequence length of 1
+Num of Model Parameters: 219009
+
+
+
+
+
+
+Loading Zarr Batch..:  88%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████▉                         | 7/8 [00:54<00:06,  6.42s/it]
+Phase 1 Epoch: 0.....Loss: 0.00000
+Saving model...
+Loading Zarr Batch..: 100%|█████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 8/8 [01:00<00:00,  7.52s/it]
+
+
+
+
+
+
+
+Loading Zarr Batch..:  88%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████▉                         | 7/8 [00:40<00:05,  5.82s/it]
+Phase 1 Epoch: 1.....Loss: 0.00000
+Loading Zarr Batch..: 100%|█████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 8/8 [00:46<00:00,  5.79s/it]
+
+
+
+Loading Zarr Batch..:  38%|███████████████████████████████████████████████████████████████████████████▍                                                                                                                             | 3/8 [00:21<00:36,  7.27s/it]
+Traceback (most recent call last):
+  File "/home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/train_wofscast.py", line 114, in <module>
+    trainer.fit_generator(path, client=None)
+  File "/home/Corey.Potvin/frdd-wofs-cast/wofscast/model.py", line 480, in fit_generator
+    model_params, state, opt_state = self._fit_batch(
+  File "/home/Corey.Potvin/frdd-wofs-cast/wofscast/model.py", line 573, in _fit_batch
+    model_params = jax.device_get(jax.tree_map(lambda x: x[0], model_params))
+  File "/work/mflora/miniconda3/envs/wofs-cast/lib/python3.10/site-packages/jax/_src/api.py", line 2729, in device_get
+    return tree_map(_device_get, x)
+  File "/work/mflora/miniconda3/envs/wofs-cast/lib/python3.10/site-packages/jax/_src/tree_util.py", line 244, in tree_map
+    return treedef.unflatten(f(*xs) for xs in zip(*all_leaves))
+  File "/work/mflora/miniconda3/envs/wofs-cast/lib/python3.10/site-packages/jax/_src/tree_util.py", line 244, in <genexpr>
+    return treedef.unflatten(f(*xs) for xs in zip(*all_leaves))
+  File "/work/mflora/miniconda3/envs/wofs-cast/lib/python3.10/site-packages/jax/_src/api.py", line 2690, in _device_get
+    return toarray()
+  File "/work/mflora/miniconda3/envs/wofs-cast/lib/python3.10/site-packages/jax/_src/array.py", line 407, in __array__
+    return np.asarray(self._value, dtype=dtype)
+  File "/work/mflora/miniconda3/envs/wofs-cast/lib/python3.10/site-packages/jax/_src/profiler.py", line 336, in wrapper
+    return func(*args, **kwargs)
+  File "/work/mflora/miniconda3/envs/wofs-cast/lib/python3.10/site-packages/jax/_src/array.py", line 606, in _value
+    self._npy_value = self._single_device_array_to_np_array()  # type: ignore
+KeyboardInterrupt

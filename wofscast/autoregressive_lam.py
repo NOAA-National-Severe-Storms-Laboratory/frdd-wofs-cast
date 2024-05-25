@@ -63,7 +63,7 @@ def predict_by_patch(model, all_inputs, target_template, forcings, **kwargs):
     lon_step = len(all_inputs.lon) // lon_patches
     lat_step = len(all_inputs.lat) // lat_patches
 
-    print(f'{lon_step=}, {lat_step=}')
+    print(f'lon_step={lon_step}, lat_step={lat_step}')
 
     # Initialize a nested list for patches (rows)
     patch_rows = []
@@ -78,7 +78,7 @@ def predict_by_patch(model, all_inputs, target_template, forcings, **kwargs):
             lon_start = j * lon_step
             lon_end = (j + 1) * lon_step if j < lon_patches - 1 else len(all_inputs.lon)
 
-            print(f'{i=}, {j=}, {lon_start=}, {lon_end=}, {lat_start=}, {lat_end=}')
+            print(f'{i}, {j}, {lon_start}, {lon_end}, {lat_start}, {lat_end}')
             
             # Extract the patch
             patch_inputs = all_inputs.isel(lon=slice(lon_start, lon_end), lat=slice(lat_start, lat_end))

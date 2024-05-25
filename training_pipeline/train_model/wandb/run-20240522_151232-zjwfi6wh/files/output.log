@@ -1,0 +1,49 @@
+Starting Phase 1 learning
+Training with a linearly increasing learning rate
+Initializing a linear learning rate scheduler...
+Current Time:  2024-05-22 15:12:41.616001
+Loading Zarr Batch..:   0%|                                                                                                                                                                                                                 | 0/8 [00:00<?, ?it/s]WARNING:absl:Skipping gradient checkpointing for sequence length of 1
+Num of Model Parameters: 219009
+BBBBBBBBBBB <xarray.DataArray 'COMPOSITE_REFL_10CM' (batch: 16)>
+xarray_jax.JaxArrayWrapper(Traced<ShapedArray(bfloat16[16])>with<DynamicJaxprTrace(level=0/1)>)
+Dimensions without coordinates: batch
+
+
+
+
+
+
+Loading Zarr Batch..:  88%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████▉                         | 7/8 [00:53<00:06,  6.23s/it]
+Phase 1 Epoch: 0.....Loss: 0.00000
+Saving model...
+Loading Zarr Batch..: 100%|█████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 8/8 [00:59<00:00,  7.44s/it]
+
+
+
+
+
+
+
+Loading Zarr Batch..:  88%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████▉                         | 7/8 [00:39<00:05,  5.57s/it]
+Phase 1 Epoch: 1.....Loss: 0.00000
+Loading Zarr Batch..: 100%|█████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 8/8 [00:44<00:00,  5.59s/it]
+
+Loading Zarr Batch..:  12%|█████████████████████████▏                                                                                                                                                                               | 1/8 [00:08<01:01,  8.78s/it]
+Traceback (most recent call last):
+  File "/home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/train_wofscast.py", line 114, in <module>
+    trainer.fit_generator(path, client=None)
+  File "/home/Corey.Potvin/frdd-wofs-cast/wofscast/model.py", line 480, in fit_generator
+    model_params, state, opt_state = self._fit_batch(
+  File "/home/Corey.Potvin/frdd-wofs-cast/wofscast/model.py", line 557, in _fit_batch
+    loss, diagnostics, state, grads = train_step_func(model_params_sharded,
+  File "/home/Corey.Potvin/frdd-wofs-cast/wofscast/xarray_jax.py", line 599, in result_fn
+    flat_result = pmapped_fn(*flat_args)
+  File "/work/mflora/miniconda3/envs/wofs-cast/lib/python3.10/site-packages/jax/_src/interpreters/pxla.py", line 114, in shard_arg
+    return shard_arg_handlers[type(arg)](arg, sharding)
+  File "/work/mflora/miniconda3/envs/wofs-cast/lib/python3.10/site-packages/jax/_src/array.py", line 923, in _array_shard_arg
+    return shard_device_array(x, devices, indices, sharding)
+  File "/work/mflora/miniconda3/envs/wofs-cast/lib/python3.10/site-packages/jax/_src/array.py", line 868, in shard_device_array
+    return pxla.batched_device_put(aval, sharding, shards, devices)
+  File "/work/mflora/miniconda3/envs/wofs-cast/lib/python3.10/site-packages/jax/_src/interpreters/pxla.py", line 174, in batched_device_put
+    return xc.batched_device_put(aval, sharding, xs, list(devices), committed)  # type: ignore
+KeyboardInterrupt

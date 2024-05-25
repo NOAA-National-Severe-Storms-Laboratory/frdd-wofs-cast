@@ -1,0 +1,140 @@
+2024-05-24 20:05:39,539 INFO    StreamThr :3607096 [internal.py:wandb_internal():85] W&B internal server running at pid: 3607096, started at: 2024-05-24 20:05:39.537723
+2024-05-24 20:05:39,540 DEBUG   HandlerThread:3607096 [handler.py:handle_request():158] handle_request: status
+2024-05-24 20:05:39,544 INFO    WriterThread:3607096 [datastore.py:open_for_write():87] open: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/evaluate_model/wandb/run-20240524_200539-l0wpdz84/run-l0wpdz84.wandb
+2024-05-24 20:05:39,545 DEBUG   SenderThread:3607096 [sender.py:send():378] send: header
+2024-05-24 20:05:39,565 DEBUG   SenderThread:3607096 [sender.py:send():378] send: run
+2024-05-24 20:05:39,815 INFO    SenderThread:3607096 [dir_watcher.py:__init__():211] watching files in: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/evaluate_model/wandb/run-20240524_200539-l0wpdz84/files
+2024-05-24 20:05:39,815 INFO    SenderThread:3607096 [sender.py:_start_run_threads():1123] run started: l0wpdz84 with start time 1716599139.539941
+2024-05-24 20:05:39,823 DEBUG   HandlerThread:3607096 [handler.py:handle_request():158] handle_request: check_version
+2024-05-24 20:05:39,823 DEBUG   SenderThread:3607096 [sender.py:send_request():405] send_request: check_version
+2024-05-24 20:05:40,141 DEBUG   HandlerThread:3607096 [handler.py:handle_request():158] handle_request: run_start
+2024-05-24 20:05:40,171 DEBUG   HandlerThread:3607096 [system_info.py:__init__():26] System info init
+2024-05-24 20:05:40,171 DEBUG   HandlerThread:3607096 [system_info.py:__init__():41] System info init done
+2024-05-24 20:05:40,171 INFO    HandlerThread:3607096 [system_monitor.py:start():194] Starting system monitor
+2024-05-24 20:05:40,171 INFO    SystemMonitor:3607096 [system_monitor.py:_start():158] Starting system asset monitoring threads
+2024-05-24 20:05:40,171 INFO    HandlerThread:3607096 [system_monitor.py:probe():214] Collecting system info
+2024-05-24 20:05:40,172 INFO    SystemMonitor:3607096 [interfaces.py:start():188] Started cpu monitoring
+2024-05-24 20:05:40,172 INFO    SystemMonitor:3607096 [interfaces.py:start():188] Started disk monitoring
+2024-05-24 20:05:40,173 INFO    SystemMonitor:3607096 [interfaces.py:start():188] Started gpu monitoring
+2024-05-24 20:05:40,174 INFO    SystemMonitor:3607096 [interfaces.py:start():188] Started memory monitoring
+2024-05-24 20:05:40,174 INFO    SystemMonitor:3607096 [interfaces.py:start():188] Started network monitoring
+2024-05-24 20:05:40,206 DEBUG   HandlerThread:3607096 [system_info.py:probe():150] Probing system
+2024-05-24 20:05:40,209 DEBUG   HandlerThread:3607096 [system_info.py:_probe_git():135] Probing git
+2024-05-24 20:05:40,228 DEBUG   HandlerThread:3607096 [system_info.py:_probe_git():143] Probing git done
+2024-05-24 20:05:40,228 DEBUG   HandlerThread:3607096 [system_info.py:probe():198] Probing system done
+2024-05-24 20:05:40,228 DEBUG   HandlerThread:3607096 [system_monitor.py:probe():223] {'os': 'Linux-4.18.0-513.24.1.el8_9.x86_64-x86_64-with-glibc2.28', 'python': '3.10.13', 'heartbeatAt': '2024-05-25T01:05:40.206950', 'startedAt': '2024-05-25T01:05:39.523555', 'docker': None, 'cuda': None, 'args': (), 'state': 'running', 'program': '<python with no main file>', 'codePathLocal': None, 'git': {'remote': 'https://github.com/NOAA-National-Severe-Storms-Laboratory/frdd-wofs-cast.git', 'commit': '10fcfe4878d686255bf09b49d0b0d3c619c49c14'}, 'email': 'corey.potvin@noaa.gov', 'root': '/home/Corey.Potvin/frdd-wofs-cast', 'host': 'wof-epyc9.winstorm.nssl', 'username': 'corey.potvin', 'executable': '/home/Corey.Potvin/anaconda3/envs/wofs-cast/bin/python', 'cpu_count': 128, 'cpu_count_logical': 128, 'cpu_freq': {'current': 2469.406273437498, 'min': 0.0, 'max': 0.0}, 'cpu_freq_per_core': [{'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 3699.809, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 3699.817, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}, {'current': 2449.877, 'min': 0.0, 'max': 0.0}], 'disk': {'/': {'total': 437.7861328125, 'used': 69.0516586303711}}, 'gpu': 'NVIDIA A100 80GB PCIe', 'gpu_count': 2, 'gpu_devices': [{'name': 'NVIDIA A100 80GB PCIe', 'memory_total': 85899345920}, {'name': 'NVIDIA A100 80GB PCIe', 'memory_total': 85899345920}], 'memory': {'total': 503.4249382019043}}
+2024-05-24 20:05:40,228 INFO    HandlerThread:3607096 [system_monitor.py:probe():224] Finished collecting system info
+2024-05-24 20:05:40,228 INFO    HandlerThread:3607096 [system_monitor.py:probe():227] Publishing system info
+2024-05-24 20:05:40,228 DEBUG   HandlerThread:3607096 [system_info.py:_save_conda():207] Saving list of conda packages installed into the current environment
+2024-05-24 20:05:40,816 INFO    Thread-12 :3607096 [dir_watcher.py:_on_file_created():271] file/dir created: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/evaluate_model/wandb/run-20240524_200539-l0wpdz84/files/conda-environment.yaml
+2024-05-24 20:05:49,758 DEBUG   HandlerThread:3607096 [system_info.py:_save_conda():222] Saving conda packages done
+2024-05-24 20:05:49,761 INFO    HandlerThread:3607096 [system_monitor.py:probe():229] Finished publishing system info
+2024-05-24 20:05:49,785 DEBUG   HandlerThread:3607096 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 20:05:49,785 DEBUG   HandlerThread:3607096 [handler.py:handle_request():158] handle_request: keepalive
+2024-05-24 20:05:49,786 DEBUG   SenderThread:3607096 [sender.py:send():378] send: files
+2024-05-24 20:05:49,786 INFO    SenderThread:3607096 [sender.py:_save_file():1389] saving file wandb-metadata.json with policy now
+2024-05-24 20:05:49,820 INFO    Thread-12 :3607096 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/evaluate_model/wandb/run-20240524_200539-l0wpdz84/files/conda-environment.yaml
+2024-05-24 20:05:49,821 INFO    Thread-12 :3607096 [dir_watcher.py:_on_file_created():271] file/dir created: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/evaluate_model/wandb/run-20240524_200539-l0wpdz84/files/wandb-metadata.json
+2024-05-24 20:05:50,150 INFO    wandb-upload_0:3607096 [upload_job.py:push():130] Uploaded file /tmp/tmpc40a4kfcwandb/s76053tu-wandb-metadata.json
+2024-05-24 20:05:50,204 DEBUG   HandlerThread:3607096 [handler.py:handle_request():158] handle_request: python_packages
+2024-05-24 20:05:50,204 DEBUG   SenderThread:3607096 [sender.py:send_request():405] send_request: python_packages
+2024-05-24 20:05:50,205 DEBUG   HandlerThread:3607096 [handler.py:handle_request():158] handle_request: stop_status
+2024-05-24 20:05:50,211 DEBUG   SenderThread:3607096 [sender.py:send_request():405] send_request: stop_status
+2024-05-24 20:05:50,211 DEBUG   HandlerThread:3607096 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 20:05:50,359 DEBUG   SenderThread:3607096 [sender.py:send():378] send: telemetry
+2024-05-24 20:05:50,821 INFO    Thread-12 :3607096 [dir_watcher.py:_on_file_created():271] file/dir created: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/evaluate_model/wandb/run-20240524_200539-l0wpdz84/files/requirements.txt
+2024-05-24 20:05:51,822 INFO    Thread-12 :3607096 [dir_watcher.py:_on_file_created():271] file/dir created: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/evaluate_model/wandb/run-20240524_200539-l0wpdz84/files/output.log
+2024-05-24 20:05:53,824 INFO    Thread-12 :3607096 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/evaluate_model/wandb/run-20240524_200539-l0wpdz84/files/output.log
+2024-05-24 20:05:55,501 DEBUG   HandlerThread:3607096 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 20:05:56,047 DEBUG   HandlerThread:3607096 [handler.py:handle_request():158] handle_request: pause
+2024-05-24 20:05:56,047 INFO    HandlerThread:3607096 [handler.py:handle_request_pause():724] stopping system metrics thread
+2024-05-24 20:05:56,047 INFO    HandlerThread:3607096 [system_monitor.py:finish():203] Stopping system monitor
+2024-05-24 20:05:56,048 INFO    HandlerThread:3607096 [interfaces.py:finish():200] Joined cpu monitor
+2024-05-24 20:05:56,048 INFO    HandlerThread:3607096 [interfaces.py:finish():200] Joined disk monitor
+2024-05-24 20:05:56,048 DEBUG   SystemMonitor:3607096 [system_monitor.py:_start():172] Starting system metrics aggregation loop
+2024-05-24 20:05:56,048 DEBUG   SystemMonitor:3607096 [system_monitor.py:_start():179] Finished system metrics aggregation loop
+2024-05-24 20:05:56,048 DEBUG   SystemMonitor:3607096 [system_monitor.py:_start():183] Publishing last batch of metrics
+2024-05-24 20:05:56,345 INFO    HandlerThread:3607096 [interfaces.py:finish():200] Joined gpu monitor
+2024-05-24 20:05:56,346 INFO    HandlerThread:3607096 [interfaces.py:finish():200] Joined memory monitor
+2024-05-24 20:05:56,346 INFO    HandlerThread:3607096 [interfaces.py:finish():200] Joined network monitor
+2024-05-24 20:05:56,346 DEBUG   HandlerThread:3607096 [handler.py:handle_request():158] handle_request: resume
+2024-05-24 20:05:56,346 INFO    HandlerThread:3607096 [handler.py:handle_request_resume():715] starting system metrics thread
+2024-05-24 20:05:56,346 INFO    HandlerThread:3607096 [system_monitor.py:start():194] Starting system monitor
+2024-05-24 20:05:56,346 DEBUG   SenderThread:3607096 [sender.py:send():378] send: stats
+2024-05-24 20:05:56,346 INFO    SystemMonitor:3607096 [system_monitor.py:_start():158] Starting system asset monitoring threads
+2024-05-24 20:05:56,347 DEBUG   HandlerThread:3607096 [handler.py:handle_request():158] handle_request: pause
+2024-05-24 20:05:56,348 INFO    HandlerThread:3607096 [handler.py:handle_request_pause():724] stopping system metrics thread
+2024-05-24 20:05:56,348 INFO    HandlerThread:3607096 [system_monitor.py:finish():203] Stopping system monitor
+2024-05-24 20:05:56,348 WARNING HandlerThread:3607096 [interfaces.py:finish():205] Failed to finish cpu monitoring: cannot join thread before it is started
+2024-05-24 20:05:56,348 INFO    SystemMonitor:3607096 [interfaces.py:start():188] Started cpu monitoring
+2024-05-24 20:05:56,349 DEBUG   SystemMonitor:3607096 [system_monitor.py:_start():172] Starting system metrics aggregation loop
+2024-05-24 20:05:56,349 DEBUG   SystemMonitor:3607096 [system_monitor.py:_start():179] Finished system metrics aggregation loop
+2024-05-24 20:05:56,349 DEBUG   SystemMonitor:3607096 [system_monitor.py:_start():183] Publishing last batch of metrics
+2024-05-24 20:05:56,349 DEBUG   HandlerThread:3607096 [handler.py:handle_request():158] handle_request: resume
+2024-05-24 20:05:56,349 INFO    HandlerThread:3607096 [handler.py:handle_request_resume():715] starting system metrics thread
+2024-05-24 20:05:56,349 INFO    HandlerThread:3607096 [system_monitor.py:start():194] Starting system monitor
+2024-05-24 20:05:56,350 INFO    SystemMonitor:3607096 [system_monitor.py:_start():158] Starting system asset monitoring threads
+2024-05-24 20:05:56,350 INFO    SystemMonitor:3607096 [interfaces.py:start():188] Started cpu monitoring
+2024-05-24 20:05:56,350 DEBUG   SenderThread:3607096 [sender.py:send():378] send: stats
+2024-05-24 20:05:56,351 INFO    SystemMonitor:3607096 [interfaces.py:start():188] Started disk monitoring
+2024-05-24 20:05:56,351 INFO    SystemMonitor:3607096 [interfaces.py:start():188] Started gpu monitoring
+2024-05-24 20:05:56,351 INFO    SystemMonitor:3607096 [interfaces.py:start():188] Started memory monitoring
+2024-05-24 20:05:56,352 INFO    SystemMonitor:3607096 [interfaces.py:start():188] Started network monitoring
+2024-05-24 20:05:57,828 INFO    Thread-12 :3607096 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/evaluate_model/wandb/run-20240524_200539-l0wpdz84/files/output.log
+2024-05-24 20:05:59,540 DEBUG   HandlerThread:3607096 [handler.py:handle_request():158] handle_request: pause
+2024-05-24 20:05:59,541 INFO    HandlerThread:3607096 [handler.py:handle_request_pause():724] stopping system metrics thread
+2024-05-24 20:05:59,541 INFO    HandlerThread:3607096 [system_monitor.py:finish():203] Stopping system monitor
+2024-05-24 20:05:59,541 DEBUG   SystemMonitor:3607096 [system_monitor.py:_start():172] Starting system metrics aggregation loop
+2024-05-24 20:05:59,541 DEBUG   SystemMonitor:3607096 [system_monitor.py:_start():179] Finished system metrics aggregation loop
+2024-05-24 20:05:59,541 DEBUG   SystemMonitor:3607096 [system_monitor.py:_start():183] Publishing last batch of metrics
+2024-05-24 20:05:59,542 INFO    HandlerThread:3607096 [interfaces.py:finish():200] Joined cpu monitor
+2024-05-24 20:05:59,542 INFO    HandlerThread:3607096 [interfaces.py:finish():200] Joined disk monitor
+2024-05-24 20:05:59,833 INFO    HandlerThread:3607096 [interfaces.py:finish():200] Joined gpu monitor
+2024-05-24 20:05:59,833 INFO    HandlerThread:3607096 [interfaces.py:finish():200] Joined memory monitor
+2024-05-24 20:05:59,833 INFO    HandlerThread:3607096 [interfaces.py:finish():200] Joined network monitor
+2024-05-24 20:05:59,833 DEBUG   SenderThread:3607096 [sender.py:send():378] send: stats
+2024-05-24 20:06:00,834 DEBUG   HandlerThread:3607096 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 20:06:05,205 DEBUG   HandlerThread:3607096 [handler.py:handle_request():158] handle_request: stop_status
+2024-05-24 20:06:05,205 DEBUG   SenderThread:3607096 [sender.py:send_request():405] send_request: stop_status
+2024-05-24 20:06:06,307 DEBUG   HandlerThread:3607096 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 20:06:11,310 DEBUG   HandlerThread:3607096 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 20:06:11,843 INFO    Thread-12 :3607096 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/evaluate_model/wandb/run-20240524_200539-l0wpdz84/files/config.yaml
+2024-05-24 20:06:16,398 DEBUG   HandlerThread:3607096 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 20:06:20,205 DEBUG   HandlerThread:3607096 [handler.py:handle_request():158] handle_request: stop_status
+2024-05-24 20:06:20,205 DEBUG   SenderThread:3607096 [sender.py:send_request():405] send_request: stop_status
+2024-05-24 20:06:22,311 DEBUG   HandlerThread:3607096 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 20:06:27,312 DEBUG   HandlerThread:3607096 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 20:06:32,312 DEBUG   HandlerThread:3607096 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 20:06:35,205 DEBUG   HandlerThread:3607096 [handler.py:handle_request():158] handle_request: stop_status
+2024-05-24 20:06:35,205 DEBUG   SenderThread:3607096 [sender.py:send_request():405] send_request: stop_status
+2024-05-24 20:06:37,368 DEBUG   HandlerThread:3607096 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 20:06:42,369 DEBUG   HandlerThread:3607096 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 20:06:47,369 DEBUG   HandlerThread:3607096 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 20:06:50,205 DEBUG   HandlerThread:3607096 [handler.py:handle_request():158] handle_request: stop_status
+2024-05-24 20:06:50,205 DEBUG   SenderThread:3607096 [sender.py:send_request():405] send_request: stop_status
+2024-05-24 20:06:53,324 DEBUG   HandlerThread:3607096 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 20:06:58,325 DEBUG   HandlerThread:3607096 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 20:07:03,326 DEBUG   HandlerThread:3607096 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 20:07:05,205 DEBUG   HandlerThread:3607096 [handler.py:handle_request():158] handle_request: stop_status
+2024-05-24 20:07:05,205 DEBUG   SenderThread:3607096 [sender.py:send_request():405] send_request: stop_status
+2024-05-24 20:07:09,291 DEBUG   HandlerThread:3607096 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 20:07:14,292 DEBUG   HandlerThread:3607096 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 20:07:19,292 DEBUG   HandlerThread:3607096 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 20:07:20,205 DEBUG   HandlerThread:3607096 [handler.py:handle_request():158] handle_request: stop_status
+2024-05-24 20:07:20,205 DEBUG   SenderThread:3607096 [sender.py:send_request():405] send_request: stop_status
+2024-05-24 20:07:25,278 DEBUG   HandlerThread:3607096 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 20:07:30,278 DEBUG   HandlerThread:3607096 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 20:07:35,205 DEBUG   HandlerThread:3607096 [handler.py:handle_request():158] handle_request: stop_status
+2024-05-24 20:07:35,206 DEBUG   SenderThread:3607096 [sender.py:send_request():405] send_request: stop_status
+2024-05-24 20:07:35,381 DEBUG   HandlerThread:3607096 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 20:07:40,382 DEBUG   HandlerThread:3607096 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 20:07:45,382 DEBUG   HandlerThread:3607096 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 20:07:50,205 DEBUG   HandlerThread:3607096 [handler.py:handle_request():158] handle_request: stop_status
+2024-05-24 20:07:50,206 DEBUG   SenderThread:3607096 [sender.py:send_request():405] send_request: stop_status
+2024-05-24 20:07:51,365 DEBUG   HandlerThread:3607096 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 20:07:56,366 DEBUG   HandlerThread:3607096 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 20:08:01,366 DEBUG   HandlerThread:3607096 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 20:08:05,205 DEBUG   HandlerThread:3607096 [handler.py:handle_request():158] handle_request: stop_status
+2024-05-24 20:08:05,206 DEBUG   SenderThread:3607096 [sender.py:send_request():405] send_request: stop_status
+2024-05-24 20:08:07,315 DEBUG   HandlerThread:3607096 [handler.py:handle_request():158] handle_request: status_report
+2024-05-24 20:08:10,163 INFO    MainThread:3607096 [internal.py:handle_exit():75] Internal process exited

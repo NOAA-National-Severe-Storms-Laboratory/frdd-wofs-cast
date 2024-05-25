@@ -1,0 +1,55 @@
+2024-05-22 16:20:56,754 INFO    MainThread:556293 [wandb_setup.py:_flush():76] Current SDK version is 0.17.0
+2024-05-22 16:20:56,754 INFO    MainThread:556293 [wandb_setup.py:_flush():76] Configure stats pid to 556293
+2024-05-22 16:20:56,754 INFO    MainThread:556293 [wandb_setup.py:_flush():76] Loading settings from /home/Corey.Potvin/.config/wandb/settings
+2024-05-22 16:20:56,754 INFO    MainThread:556293 [wandb_setup.py:_flush():76] Loading settings from /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/evaluate_model/wandb/settings
+2024-05-22 16:20:56,754 INFO    MainThread:556293 [wandb_setup.py:_flush():76] Loading settings from environment variables: {}
+2024-05-22 16:20:56,754 INFO    MainThread:556293 [wandb_setup.py:_flush():76] Applying setup settings: {'_disable_service': False}
+2024-05-22 16:20:56,754 INFO    MainThread:556293 [wandb_setup.py:_flush():76] Inferring run settings from compute environment: {'program': '<python with no main file>'}
+2024-05-22 16:20:56,754 INFO    MainThread:556293 [wandb_setup.py:_flush():76] Applying login settings: {}
+2024-05-22 16:20:56,754 INFO    MainThread:556293 [wandb_init.py:_log_setup():520] Logging user logs to /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/evaluate_model/wandb/run-20240522_162056-mg1evff1/logs/debug.log
+2024-05-22 16:20:56,754 INFO    MainThread:556293 [wandb_init.py:_log_setup():521] Logging internal logs to /home/Corey.Potvin/frdd-wofs-cast/training_pipeline/evaluate_model/wandb/run-20240522_162056-mg1evff1/logs/debug-internal.log
+2024-05-22 16:20:56,754 INFO    MainThread:556293 [wandb_init.py:init():560] calling init triggers
+2024-05-22 16:20:56,754 INFO    MainThread:556293 [wandb_init.py:init():567] wandb.init called with sweep_config: {}
+config: {}
+2024-05-22 16:20:56,754 INFO    MainThread:556293 [wandb_init.py:init():585] re-initializing run, found existing run on stack: 1sovsw5j
+2024-05-22 16:20:56,755 ERROR   MainThread:556293 [wandb_init.py:init():1174] error in wandb.init()
+Traceback (most recent call last):
+  File "/home/Corey.Potvin/anaconda3/envs/wofs-cast/lib/python3.10/site-packages/wandb/sdk/wandb_init.py", line 1164, in init
+    return wi.init()
+  File "/home/Corey.Potvin/anaconda3/envs/wofs-cast/lib/python3.10/site-packages/wandb/sdk/wandb_init.py", line 595, in init
+    latest_run.finish()
+  File "/home/Corey.Potvin/anaconda3/envs/wofs-cast/lib/python3.10/site-packages/wandb/sdk/wandb_run.py", line 449, in wrapper
+    return func(self, *args, **kwargs)
+  File "/home/Corey.Potvin/anaconda3/envs/wofs-cast/lib/python3.10/site-packages/wandb/sdk/wandb_run.py", line 390, in wrapper
+    return func(self, *args, **kwargs)
+  File "/home/Corey.Potvin/anaconda3/envs/wofs-cast/lib/python3.10/site-packages/wandb/sdk/wandb_run.py", line 2094, in finish
+    return self._finish(exit_code, quiet)
+  File "/home/Corey.Potvin/anaconda3/envs/wofs-cast/lib/python3.10/site-packages/wandb/sdk/wandb_run.py", line 2101, in _finish
+    with telemetry.context(run=self) as tel:
+  File "/home/Corey.Potvin/anaconda3/envs/wofs-cast/lib/python3.10/site-packages/wandb/sdk/lib/telemetry.py", line 42, in __exit__
+    self._run._telemetry_callback(self._obj)
+  File "/home/Corey.Potvin/anaconda3/envs/wofs-cast/lib/python3.10/site-packages/wandb/sdk/wandb_run.py", line 792, in _telemetry_callback
+    self._telemetry_flush()
+  File "/home/Corey.Potvin/anaconda3/envs/wofs-cast/lib/python3.10/site-packages/wandb/sdk/wandb_run.py", line 803, in _telemetry_flush
+    self._backend.interface._publish_telemetry(self._telemetry_obj)
+  File "/home/Corey.Potvin/anaconda3/envs/wofs-cast/lib/python3.10/site-packages/wandb/sdk/interface/interface_shared.py", line 101, in _publish_telemetry
+    self._publish(rec)
+  File "/home/Corey.Potvin/anaconda3/envs/wofs-cast/lib/python3.10/site-packages/wandb/sdk/interface/interface_sock.py", line 51, in _publish
+    self._sock_client.send_record_publish(record)
+  File "/home/Corey.Potvin/anaconda3/envs/wofs-cast/lib/python3.10/site-packages/wandb/sdk/lib/sock_client.py", line 221, in send_record_publish
+    self.send_server_request(server_req)
+  File "/home/Corey.Potvin/anaconda3/envs/wofs-cast/lib/python3.10/site-packages/wandb/sdk/lib/sock_client.py", line 155, in send_server_request
+    self._send_message(msg)
+  File "/home/Corey.Potvin/anaconda3/envs/wofs-cast/lib/python3.10/site-packages/wandb/sdk/lib/sock_client.py", line 152, in _send_message
+    self._sendall_with_error_handle(header + data)
+  File "/home/Corey.Potvin/anaconda3/envs/wofs-cast/lib/python3.10/site-packages/wandb/sdk/lib/sock_client.py", line 130, in _sendall_with_error_handle
+    sent = self._sock.send(data)
+BrokenPipeError: [Errno 32] Broken pipe
+2024-05-22 16:20:57,312 INFO    MainThread:556293 [jupyter.py:save_ipynb():373] not saving jupyter notebook
+2024-05-22 16:20:57,312 INFO    MainThread:556293 [wandb_init.py:_pause_backend():431] pausing backend
+2024-05-22 16:20:57,358 INFO    MainThread:556293 [wandb_init.py:_resume_backend():436] resuming backend
+2024-05-22 16:20:57,385 INFO    MainThread:556293 [jupyter.py:save_ipynb():373] not saving jupyter notebook
+2024-05-22 16:20:57,385 INFO    MainThread:556293 [wandb_init.py:_pause_backend():431] pausing backend
+2024-05-22 16:20:57,423 INFO    MainThread:556293 [wandb_init.py:_resume_backend():436] resuming backend
+2024-05-22 16:21:00,952 INFO    MainThread:556293 [jupyter.py:save_ipynb():373] not saving jupyter notebook
+2024-05-22 16:21:00,952 INFO    MainThread:556293 [wandb_init.py:_pause_backend():431] pausing backend

@@ -1,0 +1,24 @@
+Starting Phase 1 learning
+Training with a linearly increasing learning rate
+Initializing a linear learning rate scheduler...
+Current Time:  2024-05-22 05:24:39.196162
+Traceback (most recent call last):
+  File "/home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/train_wofscast.py", line 114, in <module>
+    trainer.fit_generator(path, client=None)
+  File "/home/Corey.Potvin/frdd-wofs-cast/wofscast/model.py", line 480, in fit_generator
+    model_params, state, opt_state = self._fit_batch(
+  File "/home/Corey.Potvin/frdd-wofs-cast/wofscast/model.py", line 522, in _fit_batch
+    for inputs, targets, forcings in wofscast_data_generator(file_paths,
+  File "/home/Corey.Potvin/frdd-wofs-cast/wofscast/data_generator.py", line 371, in wofscast_data_generator
+    with xr.open_dataset(path,
+  File "/home/Corey.Potvin/anaconda3/envs/wofs-cast/lib/python3.10/site-packages/xarray/backends/api.py", line 577, in open_dataset
+    ds = _dataset_from_backend_dataset(
+  File "/home/Corey.Potvin/anaconda3/envs/wofs-cast/lib/python3.10/site-packages/xarray/backends/api.py", line 370, in _dataset_from_backend_dataset
+    ds = _chunk_ds(
+  File "/home/Corey.Potvin/anaconda3/envs/wofs-cast/lib/python3.10/site-packages/xarray/backends/api.py", line 335, in _chunk_ds
+    variables[name] = _maybe_chunk(
+  File "/home/Corey.Potvin/anaconda3/envs/wofs-cast/lib/python3.10/site-packages/xarray/core/dataset.py", line 301, in _maybe_chunk
+    chunked_array_type = guess_chunkmanager(
+  File "/home/Corey.Potvin/anaconda3/envs/wofs-cast/lib/python3.10/site-packages/xarray/namedarray/parallelcompat.py", line 126, in guess_chunkmanager
+    raise TypeError(
+TypeError: manager must be a string or instance of ChunkManagerEntrypoint, but received type <class 'xarray.core.daskmanager.DaskManager'>

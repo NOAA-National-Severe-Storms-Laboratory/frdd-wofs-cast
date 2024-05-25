@@ -1,0 +1,44 @@
+Starting Phase 1 learning
+Training with a linearly increasing learning rate
+Initializing a linear learning rate scheduler...
+Current Time:  2024-05-22 05:41:22.522182
+Loading Zarr Batch..:   0%|                                                                                                                                                                                                                 | 0/8 [00:00<?, ?it/s]WARNING:absl:Skipping gradient checkpointing for sequence length of 1
+Num of Model Parameters: 219009
+
+
+
+
+
+
+Loading Zarr Batch..:  88%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████▉                         | 7/8 [02:09<00:17, 17.37s/it]
+Phase 1 Epoch: 0.....Loss: 14.14334
+Saving model...
+Loading Zarr Batch..: 100%|█████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 8/8 [02:26<00:00, 18.32s/it]
+
+
+
+
+
+Loading Zarr Batch..:  62%|█████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████▋                                                                           | 5/8 [00:37<00:22,  7.49s/it]
+Traceback (most recent call last):
+  File "/home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/train_wofscast.py", line 114, in <module>
+    trainer.fit_generator(path, client=None)
+  File "/home/Corey.Potvin/frdd-wofs-cast/wofscast/model.py", line 480, in fit_generator
+    model_params, state, opt_state = self._fit_batch(
+  File "/home/Corey.Potvin/frdd-wofs-cast/wofscast/model.py", line 568, in _fit_batch
+    model_params, opt_state = self.update_step(optimizer, model_params, grads, opt_state)
+  File "/home/Corey.Potvin/frdd-wofs-cast/wofscast/model.py", line 762, in update_step
+    new_params = optax.apply_updates(params, updates)
+  File "/work/mflora/miniconda3/envs/wofs-cast/lib/python3.10/site-packages/optax/_src/update.py", line 42, in apply_updates
+    return jax.tree_util.tree_map(
+  File "/work/mflora/miniconda3/envs/wofs-cast/lib/python3.10/site-packages/jax/_src/tree_util.py", line 244, in tree_map
+    return treedef.unflatten(f(*xs) for xs in zip(*all_leaves))
+  File "/work/mflora/miniconda3/envs/wofs-cast/lib/python3.10/site-packages/jax/_src/tree_util.py", line 244, in <genexpr>
+    return treedef.unflatten(f(*xs) for xs in zip(*all_leaves))
+  File "/work/mflora/miniconda3/envs/wofs-cast/lib/python3.10/site-packages/optax/_src/update.py", line 43, in <lambda>
+    lambda p, u: jnp.asarray(p + u).astype(jnp.asarray(p).dtype),
+  File "/work/mflora/miniconda3/envs/wofs-cast/lib/python3.10/site-packages/jax/_src/numpy/lax_numpy.py", line 2217, in asarray
+    return array(a, dtype=dtype, copy=bool(copy), order=order)  # type: ignore
+  File "/work/mflora/miniconda3/envs/wofs-cast/lib/python3.10/site-packages/jax/_src/numpy/lax_numpy.py", line 2127, in array
+    object = tree_map(lambda leaf: leaf.__jax_array__()
+KeyboardInterrupt

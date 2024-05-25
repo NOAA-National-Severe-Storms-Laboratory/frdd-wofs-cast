@@ -1,0 +1,33 @@
+Starting Phase 1 learning
+Training with a linearly increasing learning rate
+Initializing a linear learning rate scheduler...
+Current Time:  2024-05-23 14:33:29.418302
+Loading Zarr Batch..:   0%|                                                                                                                                                                                                                 | 0/8 [00:00<?, ?it/s]WARNING:absl:Skipping gradient checkpointing for sequence length of 1
+Num of Model Parameters: 219009
+
+
+
+
+
+
+Loading Zarr Batch..: 100%|█████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 8/8 [01:09<00:00,  8.72s/it]
+Loading Zarr Batch..:   0%|                                                                                                                                                                                                                 | 0/8 [00:00<?, ?it/s]
+Phase 1 Epoch: 0.....Loss: 0.00000
+Saving model...
+Loading Zarr Batch..:   0%|                                                                                                                                                                                                                 | 0/8 [00:05<?, ?it/s]
+Traceback (most recent call last):
+  File "/home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/train_wofscast.py", line 114, in <module>
+    trainer.fit_generator(path, client=None)
+  File "/home/Corey.Potvin/frdd-wofs-cast/wofscast/model.py", line 480, in fit_generator
+    model_params, state, opt_state = self._fit_batch(
+  File "/home/Corey.Potvin/frdd-wofs-cast/wofscast/model.py", line 550, in _fit_batch
+    batch_inputs_sharded = shard_xarray_dataset(batch_inputs, self.num_devices)
+  File "/home/Corey.Potvin/frdd-wofs-cast/wofscast/model.py", line 280, in shard_xarray_dataset
+    return xarray.concat(sharded_datasets, dim='devices')
+  File "/work/mflora/miniconda3/envs/wofs-cast/lib/python3.10/site-packages/xarray/core/concat.py", line 252, in concat
+    return _dataset_concat(
+  File "/work/mflora/miniconda3/envs/wofs-cast/lib/python3.10/site-packages/xarray/core/concat.py", line 508, in _dataset_concat
+    concat_over, equals, concat_dim_lengths = _calc_concat_over(
+  File "/work/mflora/miniconda3/envs/wofs-cast/lib/python3.10/site-packages/xarray/core/concat.py", line 409, in _calc_concat_over
+    process_subset_opt(coords, "coords")
+KeyboardInterrupt

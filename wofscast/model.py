@@ -440,10 +440,16 @@ class WoFSCastModel:
             train_step_func = jax.jit(with_configs(grads_fn, self, self.norm_stats))
 
         # 3-phase learning. 
+        total_phases = [1]
+        if self.n_epochs_phase2 > 0:
+          total_phases.append(2)
+        if self.n_epochs_phase3 > 0:
+          total_phases.append(3)
+        '''
         total_phases = [1,2,3]
         if self.n_epochs_phase3 < 1:
             total_phases = [1,2]
-        
+        ''' 
         for phase_num in total_phases:
             if phase_num==1:
                 if self.verbose > 0:
@@ -491,7 +497,7 @@ class WoFSCastModel:
                            )
                 
                 # Save the model ever so often!
-                if epoch % self.checkpoint_interval == 0 and self.checkpoint:
+                if (epoch % self.checkpoint_interval == 0 or (epoch+1) == getattr(self, f'n_epochs_phase{phase_num}')) and self.checkpoint:
                     if self.verbose > 1:
                         print('Saving model params....')
                     self.save(model_params, state)
@@ -562,7 +568,7 @@ class WoFSCastModel:
                                                              )
                 
                 if self.verbose > 2:
-                    print(f'{loss=}')
+                    print(f'loss={loss}')
 
                 # Update parameters
                 model_params, opt_state = self.update_step(optimizer, model_params, grads, opt_state)

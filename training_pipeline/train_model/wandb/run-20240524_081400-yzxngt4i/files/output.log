@@ -1,0 +1,68 @@
+Starting Phase 1 learning
+Training with a linearly increasing learning rate
+Initializing a linear learning rate scheduler...
+Current Time:  2024-05-24 08:14:10.358251
+Loading Zarr Batch..:   0%|                                                                                                                                                                                                                 | 0/8 [00:00<?, ?it/s]WARNING:absl:Skipping gradient checkpointing for sequence length of 1
+Num of Model Parameters: 219009
+
+
+
+
+
+
+Loading Zarr Batch..:  88%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████▉                         | 7/8 [01:05<00:07,  7.60s/it]
+Phase 1 Epoch: 0.....Loss: 3.47220
+Saving model...
+Loading Zarr Batch..: 100%|█████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 8/8 [01:12<00:00,  9.04s/it]
+
+
+
+
+
+
+
+Loading Zarr Batch..:  88%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████▉                         | 7/8 [00:48<00:06,  6.87s/it]
+Phase 1 Epoch: 1.....Loss: 1.34513
+Loading Zarr Batch..: 100%|█████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 8/8 [00:54<00:00,  6.85s/it]
+
+
+
+
+
+
+
+Loading Zarr Batch..:  88%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████▉                         | 7/8 [00:47<00:06,  6.81s/it]
+Phase 1 Epoch: 2.....Loss: 1.04629
+Loading Zarr Batch..: 100%|█████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 8/8 [00:54<00:00,  6.75s/it]
+
+
+
+
+
+
+
+Loading Zarr Batch..:  88%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████▉                         | 7/8 [00:48<00:07,  7.07s/it]
+Phase 1 Epoch: 3.....Loss: 0.89644
+Loading Zarr Batch..: 100%|█████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 8/8 [00:56<00:00,  7.09s/it]
+
+
+
+
+
+
+
+Loading Zarr Batch..: 100%|█████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 8/8 [00:56<00:00,  7.04s/it]
+Traceback (most recent call last):
+  File "/home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/train_wofscast.py", line 114, in <module>
+    trainer.fit_generator(path, client=None)
+  File "/home/Corey.Potvin/frdd-wofs-cast/wofscast/model.py", line 459, in fit_generator
+    scheduler = self._init_learning_rate_scheduler(phase_num)
+  File "/home/Corey.Potvin/frdd-wofs-cast/wofscast/model.py", line 749, in _init_learning_rate_scheduler
+    scheduler = optax.cosine_decay_schedule(init_value=1e-3,
+  File "/work/mflora/miniconda3/envs/wofs-cast/lib/python3.10/site-packages/optax/schedules/_schedule.py", line 236, in cosine_decay_schedule
+    raise ValueError('The cosine_decay_schedule requires positive decay_steps!')
+ValueError: The cosine_decay_schedule requires positive decay_steps!
+Phase 1 Epoch: 4.....Loss: 0.85585
+Starting Phase 2 learning...
+Training with a cosine decaying schedule...
+Initializing a cosine decay learning rate scheduler...
