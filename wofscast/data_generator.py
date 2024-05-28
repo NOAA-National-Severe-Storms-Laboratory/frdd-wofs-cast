@@ -17,7 +17,7 @@ from tqdm import tqdm
 from dask.diagnostics import ProgressBar
 import dask
 from dask import delayed, compute
-from dask.distributed import Client
+from dask.distributed import Client, LocalCluster
 import gc 
 
 #from numba import jit
@@ -32,6 +32,8 @@ import jax
 
 import fsspec
 
+from concurrent.futures import ThreadPoolExecutor
+from itertools import islice
 
 def to_static_vars(dataset):
     # Select the first time index for 'HGT' and 'XLAND' variables
@@ -45,137 +47,130 @@ def to_static_vars(dataset):
 
     return dataset
 
-class WoFSCastDataGenerator:
+
+def load_chunk(paths_chunk, concat_time=False, gpu_batch_size=32):
+    #@dask.delayed
+    def load_dataset_from_json(json_path):
+        """Load a dataset from a Kerchunk JSON descriptor."""
+        mapper = fsspec.get_mapper('reference://', fo=json_path, remote_protocol='file')
+        ds = xr.open_dataset(mapper, engine='zarr', consolidated=True, chunks={}, decode_times=False)
+        ds = add_local_solar_time(ds)
+        return ds
+
+    #@dask.delayed
+    def load_dataset_from_zarr(zarr_path):
+        """Load a dataset from a Zarr file"""
+        ds = xr.open_dataset(zarr_path, engine='zarr', consolidated=True, chunks={}, decode_times=False)
+        ds = add_local_solar_time(ds)
+        return ds
+
+    def load_and_concatenate(files, concat_dim):
+        """Load multiple datasets from JSON files and concatenate them along a specified dimension."""
+        if '.zarr' in files[0]:
+            load_func = load_dataset_from_zarr
+        else:
+            load_func = load_dataset_from_json
+
+        datasets = [load_func(file) for file in files]
+        combined_dataset = xr.concat(datasets, dim=concat_dim)
+        
+        for ds in datasets:
+            ds.close()
+        
+        return combined_dataset
+
+    if concat_time:
+        if not isinstance(paths_chunk, list) or not all(isinstance(i, list) for i in paths_chunk):
+            raise ValueError('paths must be a nested list if concatenating along a time dimension.')
+        datasets_per_time = [load_and_concatenate(p, concat_dim='Time') for p in paths_chunk]
+        dataset = xr.concat(datasets_per_time, dim='batch')
+        dataset = dataset.rename({'Time': 'time'})
+    else:
+        dataset = load_and_concatenate(paths_chunk, concat_dim='batch')
+
+    dataset = dataset.chunk({'batch': gpu_batch_size})   
+        
+    return dataset
+
+
+def dataset_to_input(dataset, task_config):
+    
+    dims = ('batch', 'time', 'lat', 'lon', 'level')
+    inputs, targets, forcings = data_utils.extract_inputs_targets_forcings(
+                    dataset,
+                    target_lead_times=task_config.train_lead_times,
+                    **dataclasses.asdict(task_config)
+                )
+        
+    inputs = to_static_vars(inputs)
+        
+    inputs = inputs.transpose(*dims, missing_dims='ignore')
+    targets = targets.transpose(*dims, missing_dims='ignore')
+    forcings = forcings.transpose(*dims, missing_dims='ignore')
+    
+    return inputs, targets, forcings
+
+
+class ZarrDataGenerator:
     """
-    Generates batches from a WoFS dataset for training/testing machine learning models.
+    Generates batches from individual Zarr files. For a given CPU batch size, 
+    data is lazily load into memory; largely metadata for concatenation. Data is 
+    only loaded in GPU batch sizes using dask. 
     
     Attributes:
         task_config: TaskConfig object, including variables, pressure levels, etc.
                      Defined in graphcast_lam.py 
         cpu_batch_size : int : Number of samples to preload into CPU memory 
         gpu_batch_size : int : Numbe of samples sent to GPU at one time. 
-        seed : int : Random seed for the shuffling the dataset. 
     """
     
-    def __init__(self, task_config, cpu_batch_size=512, gpu_batch_size=32, seed=123):
+    def __init__(self, task_config, cpu_batch_size=512, gpu_batch_size=32):
         
         self.task_config = task_config
         self.cpu_batch_size = cpu_batch_size
         self.gpu_batch_size = gpu_batch_size 
-        
-        # Set the seed for reproducibility
-        np.random.seed(seed)
-    
-    def __call__(self, dataset):
+
+    def __call__(self, paths):
         """
         Args:
-            dataset : xarray.Dataset : lazily loaded dataset using open_mfdataset
-    
+            paths : list : list of file paths to load datasets from
+
         Yields:
             inputs, targets, forcings : xarray.Datasets 
-    
+
         Batcher for an xarray dataset using xbatcher. Useful for storing the full dataset in 
         CPU RAM and then offloading small subsets to the GPU RAM batch by batch.
         """
-        dims = ('batch', 'time', 'lat', 'lon', 'level')
-
-        total_samples = dataset.sizes['batch']
-        indices = np.arange(total_samples)
-             
         outer_start = 0
-
-        while outer_start < total_samples:
-            outer_end = min(outer_start + self.cpu_batch_size, total_samples)
-            chunk_indices = indices[outer_start:outer_end]
-
-            # Preload the chunk of batches
-            chunk = dataset.isel(batch=chunk_indices).compute()
+    
+        # Randomly shuffle paths; a new shuffle for each epoch. 
+        np.random.shuffle(paths)
+    
+        while outer_start < len(paths):
+            outer_end = min(outer_start + self.cpu_batch_size, len(paths))
+            paths_chunk = paths[outer_start:outer_end]
+        
+            # No threading. 
+            chunk = load_chunk(paths_chunk, gpu_batch_size=self.gpu_batch_size)
+        
+            total_samples = chunk.sizes['batch']
+            chunk_indices = np.arange(total_samples)
 
             inner_start = 0
             while inner_start < len(chunk_indices):
                 inner_end = min(inner_start + self.gpu_batch_size, len(chunk_indices))
+                
                 batch = chunk.isel(batch=slice(inner_start, inner_end))
-
-                inputs, targets, forcings = data_utils.extract_inputs_targets_forcings(
-                    batch,
-                    target_lead_times=self.task_config.train_lead_times,
-                    **dataclasses.asdict(self.task_config)
-                )
-            
-                inputs = to_static_vars(inputs)
-            
-                inputs = inputs.transpose(*dims, missing_dims='ignore')
-                targets = targets.transpose(*dims, missing_dims='ignore')
-                forcings = forcings.transpose(*dims, missing_dims='ignore')
-            
+                
+                inputs, targets, forcings = dataset_to_input(batch, self.task_config)
+                
+                inputs, targets, forcings = dask.compute(inputs, targets, forcings, scheduler='threads')
+        
                 yield inputs, targets, forcings
 
                 inner_start = inner_end
 
             outer_start = outer_end
-    
-    def is_nested_list(self, lst):
-        """
-        Check if a list is a nested list (i.e., contains other lists as elements).
-    
-        Args:
-            lst (list): The list to check.
-        
-        Returns:
-            bool: True if the list is a nested list, False otherwise.
-        """
-        return any(isinstance(i, list) for i in lst)
-    
-    def open_mfdataset(self, paths, concat_time=False):
-        """
-        Open multiple files as a single xarray dataset using Kerchunk JSON descriptors.
-        
-        Args:
-            paths (list of str): List of paths to the JSON files.
-            concat_time : bool : Whether to concatenate along a time dimension 
-                                 before concatenating along a batch dimension. 
-                                 Must pass a nested list. 
-        
-        Returns:
-            xarray.Dataset: The combined dataset.
-        """
-        @dask.delayed
-        def load_dataset_from_json(json_path):
-            """Load a dataset from a Kerchunk JSON descriptor."""
-            mapper = fsspec.get_mapper('reference://', fo=json_path, remote_protocol='file')
-            ds = xr.open_dataset(mapper, engine='zarr', consolidated=False, chunks={}, decode_times=False)
-            ds = add_local_solar_time(ds)
-            return ds
-
-        def load_and_concatenate(json_files, concat_dim):
-            """Load multiple datasets from JSON files and concatenate them along a specified dimension."""
-            datasets = [load_dataset_from_json(json_file) for json_file in json_files]
-            datasets = dask.compute(*datasets)
-            combined_dataset = xr.concat(datasets, dim=concat_dim)
-            for ds in datasets:
-                ds.close()
-            return combined_dataset
-
-        if concat_time:
-            if not self.is_nested_time(paths):
-                raise ValueError('paths must be a nested list if concatenating along a time dimension.')
-            datasets_per_time = [load_and_concatenate(p, concat_dim='Time') for p in paths]
-            dataset = xr.concat(datasets_per_time, dim='batch')
-            dataset = dataset.rename({'Time': 'time'})
-        else:
-            dataset = load_and_concatenate(paths, concat_dim='batch')
-
-        total_samples = dataset.sizes['batch']
-        indices = np.random.permutation(total_samples)  # Shuffle indices
-        
-        # Reorder the dataset based on shuffled indices
-        dataset = dataset.isel(batch=indices)    
-            
-        dataset = dataset.chunk({'batch': self.gpu_batch_size})
-        
-        return dataset
-
-
 
 class TOARadiationFlux:
     def __init__(self):
@@ -270,7 +265,6 @@ def add_local_solar_time(data: xr.Dataset) -> xr.Dataset:
 
     data = check_datetime_dtype(data)
     
-        
     # Calculate the local solar time adjustment
     local_hours = (data.coords['datetime'].dt.hour + data.coords['lon'] / 15.0) % 24
 

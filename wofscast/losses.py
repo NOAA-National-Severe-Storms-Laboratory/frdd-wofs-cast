@@ -21,10 +21,15 @@ from typing_extensions import Protocol
 import xarray
 from . import xarray_jax
 
+<<<<<<< HEAD
 import jax
 import jax.numpy as jnp
 from jax.scipy.signal import convolve
 from jax import vmap, lax
+=======
+import xarray
+
+>>>>>>> origin/master
 
 LossAndDiagnostics = tuple[xarray.DataArray, xarray.Dataset]
 
@@ -389,12 +394,30 @@ def simple_FSS(
 
     return sum_per_variable_losses(losses, per_variable_weights)
 
+def weighted_loss(predictions, targets):
+    # Calculate the element-wise squared error
+    mse_loss = (predictions - targets) ** 2
+
+    # Create a mask to ignore target values less than or equal to 10
+    mask = targets > 10
+
+    # Apply additional weighting where the target values are greater than 10
+    weight = xarray.where(mask, 10.0, 1.0).astype('bfloat16') 
+    weighted_mse_loss = mse_loss * weight
+
+    # Ignore the "correct" predictions of nothing (target <= 10)
+    final_loss = weighted_mse_loss.where(mask, 0.0)
+
+    return final_loss     
+            
+
 def weighted_mse_per_level(
     predictions: xarray.Dataset,
     targets: xarray.Dataset,
     per_variable_weights: Mapping[str, float],
 ) -> LossAndDiagnostics:
-    """Latitude- and pressure-level-weighted MSE loss."""    
+    """Latitude- and pressure-level-weighted MSE loss."""
+
     def loss(prediction, target):
         loss = (prediction - target) ** 2
 
@@ -407,8 +430,10 @@ def weighted_mse_per_level(
 
         return _mean_preserving_batch(loss)
 
-    losses = xarray_tree.map_structure(loss, predictions, targets)
+    # losses = xarray_tree.map_structure(loss, predictions, targets)
     # losses = xarray_tree.map_structure(custom_loss, predictions, targets)
+
+    losses = xarray_tree.map_structure(loss, predictions, targets)
 
     return sum_per_variable_losses(losses, per_variable_weights)
 
@@ -423,8 +448,8 @@ def sum_per_variable_losses(
 ) -> LossAndDiagnostics:
     """Weighted sum of per-variable losses."""
     if weights is None:
-        weights = {} 
-    
+        weights = {}
+
     if not set(weights.keys()).issubset(set(per_variable_losses.keys())):
         raise ValueError(
             "Passing a weight that does not correspond to any variable "
@@ -437,6 +462,10 @@ def sum_per_variable_losses(
     total = xarray.concat(
         weighted_per_variable_losses.values(), dim="variable", join="exact"
     ).sum("variable", skipna=False)
+<<<<<<< HEAD
+=======
+
+>>>>>>> origin/master
     return total, per_variable_losses  # pytype: disable=bad-return-type
 
 
