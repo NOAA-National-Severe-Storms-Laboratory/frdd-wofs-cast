@@ -1,9 +1,16 @@
 # WoFSCast 
+import warnings
+# Suppress the specific RuntimeWarning about os.fork(),  multithreaded code, and JAX
+warnings.filterwarnings("ignore", category=RuntimeWarning, message="os.fork() was called. os.fork() is incompatible with multithreaded code, and JAX is multithreaded, so this will likely lead to a deadlock.")
+
+
+
 import sys, os 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.getcwd())))
 
 from wofscast.model import WoFSCastModel
 from wofscast.wofscast_task_config import WOFS_TASK_CONFIG, DBZ_TASK_CONFIG
+from wofscast.data_generator import ZarrDataGenerator
 
 import os
 from os.path import join
@@ -24,15 +31,38 @@ def get_files_for_year(year):
     with os.scandir(year_path) as it:
         return [join(year_path, entry.name) for entry in it if entry.is_dir() and entry.name.endswith('.zarr')] 
 
+def truncate_to_chunk_size(input_list, chunk_size=512):
+    # Calculate the new length as the smallest multiple of chunk_size
+    # that is greater than or equal to the length of the list
+    new_length = ((len(input_list) + chunk_size - 1) // chunk_size) * chunk_size
+    # If the list is already a multiple of chunk_size, no need to truncate
+    if new_length > len(input_list):
+        new_length -= chunk_size
+    # Truncate the list
+    return input_list[:new_length]
+    
 if __name__ == '__main__':
     """ usage: stdbuf -oL python -u train_wofscast.py > & log_training & """
+    
+    # The task config contains details like the input variables, 
+    # target variables, time step, etc.
+    task_config = DBZ_TASK_CONFIG
     
     # Data is lazily loaded into CPU memory @ cpu_batch_size_factor * gpu_batch_size
     # sized subsets. gpu_batch_size'd batches are loaded and fed to 
     # the GPU. 
-    cpu_batch_size_factor = 4 
+    
+    # In my testing, factors ~ 2-4 were optimal. 
+    
+    cpu_batch_size_factor = 2 
     gpu_batch_size = 32  
-
+    n_workers = 16 
+    
+    generator_kwargs = dict(cpu_batch_size=cpu_batch_size_factor*gpu_batch_size, 
+                            gpu_batch_size=gpu_batch_size,
+                            n_workers = n_workers,
+                           )
+    
     loss_weights = {
                     # Any variables not specified here are weighted as 1.0.
                     'U' : 1.0, 
@@ -50,14 +80,11 @@ if __name__ == '__main__':
     loss_weights = {'COMPOSITE_REFL_10CM' : 1.0}
     
     trainer = WoFSCastModel(
-                 # The task config contains details like the input variables, 
-                 # target variables, time step, etc.
-                 task_config = WOFS_TASK_CONFIG, 
-
+                 task_config = task_config, 
                  mesh_size=5, # Number of Mesh refinements or more higher resolution layers. 
                  
                  # Parameters for the MLPs-------------------
-                 latent_size=128, 
+                 latent_size=64, 
                  gnn_msg_steps=8, # Increasing this allows for connecting information from farther away. 
                  hidden_layers=1, 
                  grid_to_mesh_node_dist=0.25, # Fraction of the maximum distance between mesh nodes on the 
@@ -72,15 +99,12 @@ if __name__ == '__main__':
         
                  # Number of training epochs for the 2-phases (linearly increase;
                  # cosine decay).
-                 n_epochs_phase1 = 5, 
-                 n_epochs_phase2 = 5,
+                 n_epochs_phase1 = 2, 
+                 n_epochs_phase2 = 2,
         
                  n_epochs_phase3 = 0, # Only use if fine tuning for > 1 step rollout. 
                  total_timesteps = 12, # 2+ hours of total rollout for training. 
-                 
-                 cpu_batch_size_factor = cpu_batch_size_factor,
-                 gpu_batch_size = gpu_batch_size,          
-                 
+                         
                  checkpoint=True, # Save the model periodically
             
                  norm_stats_path = '/work/mflora/wofs-cast-data/full_normalization_stats',
@@ -89,10 +113,13 @@ if __name__ == '__main__':
                  out_path = '/work/mflora/wofs-cast-data/model/wofscast_dbz_weighted_loss.npz',
                  
                  checkpoint_interval = 1, # How often to save the weights (in terms of epochs) 
-                 verbose=1, # Set to 3 to get all possible printouts
+                 verbose = 1, # Set to 3 to get all possible printouts
                  loss_weights = loss_weights,
-                 use_multi_gpus = True
+                 use_multi_gpus = True,
+                 generator_kwargs = generator_kwargs
     )
+    
+    N_SAMPLES = 512
     
     base_path = '/work/mflora/wofs-cast-data/datasets_zarr'
     years = ['2019', '2020']
@@ -101,10 +128,14 @@ if __name__ == '__main__':
         paths = []
         for files in executor.map(get_files_for_year, years):
             paths.extend(files)
-
-            
-    N_SAMPLES = 1024        
-            
+    
+    print(f'Current Number of Paths: {len(paths)}')
+    
+    # Ensure the file_paths are compatiable with the generator_chunk_size 
+    paths = truncate_to_chunk_size(paths, chunk_size=gpu_batch_size)
+    
+    print(f'New Number of Paths: {len(paths)}')
+    
     trainer.fit_generator(paths[:N_SAMPLES])
 
     # Plot the training loss and diagnostics. 

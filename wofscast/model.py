@@ -5,7 +5,7 @@ import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.getcwd())))
 
 # Set JAX_TRACEBACK_FILTERING to off for detailed traceback
-os.environ['JAX_TRACEBACK_FILTERING'] = 'off'
+#os.environ['JAX_TRACEBACK_FILTERING'] = 'on'
 
 
 # @title Imports
@@ -62,7 +62,6 @@ import time
 import wandb
 
 
-
 def add_diagnostics(accum_diagnostics, diagnostics, ind): 
     """Append the diagnostics from each epoch to running diagnostic dict"""
     for var, val in diagnostics.items():
@@ -92,7 +91,9 @@ def plot_diagnostics(accum_diag, ind):
                     color=line.get_color(), fontsize=6)
 
             
-    ax.set(xlabel='Epoch', ylabel='Loss', xlim=[0, x+5], title=f'Diagnostic Phase {ind}')
+    ax.set(xlabel='Epoch', 
+           ylabel='Loss', 
+           xlim=[0, x+5], title=f'Diagnostic Phase {ind}')
     ax.grid(alpha=0.5)
     
     # Remove top and right spines
@@ -207,16 +208,6 @@ def grads_fn_parallel(params, state, inputs, targets, forcings, model_config, ta
 
     return loss, diagnostics, next_state, clipped_grads
 
-def truncate_to_chunk_size(input_list, chunk_size=512):
-    # Calculate the new length as the smallest multiple of chunk_size
-    # that is greater than or equal to the length of the list
-    new_length = ((len(input_list) + chunk_size - 1) // chunk_size) * chunk_size
-    # If the list is already a multiple of chunk_size, no need to truncate
-    if new_length > len(input_list):
-        new_length -= chunk_size
-    # Truncate the list
-    return input_list[:new_length]
-    
 def modify_path_if_exists(original_path):
     """
     Modifies the given file path by appending a version number if the path already exists.
@@ -319,8 +310,6 @@ class WoFSCastModel:
     - n_epochs_phase1 (int): The number of training epochs for phase 1.
     - n_epochs_phase2 (int): The number of training epochs for phase 2.
     - n_epochs_phase3 (int): The number of training epochs for phase 3.
-    - cpu_batch_size_factor (int): The factor to multiply with gpu_batch_size to get the CPU batch size.
-    - gpu_batch_size (int): The batch size used for training on GPU.
     - total_timesteps (int): The total number of prediction timesteps.
     - batch_size (int): The batch size used for training.
     - checkpoint (bool): Whether to checkpoint the model during training.
@@ -349,8 +338,6 @@ class WoFSCastModel:
                  n_epochs_phase2 : int = 5 ,
                  n_epochs_phase3 : int = 10 ,
                  total_timesteps : int  = 12, 
-                 cpu_batch_size_factor : int = 4,
-                 gpu_batch_size : int = 16, 
                  checkpoint : bool =True,
                  norm_stats_path : str = '/work/mflora/wofs-cast-data/normalization_stats', 
                  out_path : str = '/work/mflora/wofs-cast-data/model/wofscast.npz',
@@ -359,7 +346,8 @@ class WoFSCastModel:
                  verbose=2, 
                  domain_size=None, 
                  tiling=None, 
-                 loss_weights = None
+                 loss_weights = None,
+                 generator_kwargs = {},
                 ):
 
         self.k_hop = k_hop
@@ -392,9 +380,6 @@ class WoFSCastModel:
         self.checkpoint = checkpoint
         self.checkpoint_interval= checkpoint_interval
         
-        self.gpu_batch_size = gpu_batch_size
-        self.cpu_batch_size = cpu_batch_size_factor * gpu_batch_size
-       
         # Initialize the GraphCast TaskConfig obj.
         if task_config is not None: 
             self._init_task_config(task_config)
@@ -411,11 +396,11 @@ class WoFSCastModel:
         
         self.out_path = out_path 
 
-        
+        self.generator_kwargs = generator_kwargs 
         self.clip_norm = 32 
         self.use_multi_gpus = use_multi_gpus 
     
-    def fit_generator(self, file_paths, 
+    def fit_generator(self, paths, 
                       model_params=None, state={}, opt_state=None):
         """Fit the WoFSCast model using the 3-Phase method outlined in Lam et al.
         using a generator method. 
@@ -428,9 +413,6 @@ class WoFSCastModel:
         ---------------
             generator: A data generator that returns inputs, targets, forcings. 
         """
-        # Ensure the file_paths are compatiable with the generator_chunk_size 
-        #file_paths = truncate_to_chunk_size(file_paths, chunk_size=self.gpu_batch_size)
-        
         self.num_devices = 1 
         if self.use_multi_gpus: 
             # Assume you have N GPUs
@@ -482,7 +464,7 @@ class WoFSCastModel:
                             n_timesteps = self.total_timesteps-1
                 
                 model_params, state, opt_state = self._fit_batch(
-                           file_paths,  
+                           paths,  
                            train_step_func, 
                            model_params, 
                            state, 
@@ -503,7 +485,7 @@ class WoFSCastModel:
         self.save(model_params, state)
         
     def _fit_batch(self, 
-                   file_paths, 
+                   paths, 
                    train_step_func, 
                    model_params, 
                    state, 
@@ -518,11 +500,11 @@ class WoFSCastModel:
         batch_count = 0 
         total_diagnostics = {}
         
-        generator = ZarrDataGenerator(self.task_config,
-                                          self.cpu_batch_size,
-                                          self.gpu_batch_size)
+        generator = ZarrDataGenerator( self.task_config,
+                                  **self.generator_kwargs
+                                 )(paths) 
         
-        for batch_inputs, batch_targets, batch_forcings in generator(file_paths): 
+        for batch_inputs, batch_targets, batch_forcings in generator: 
             if model_params is None:
                 # Initialize the model parameters
                 model_params, state = self._init_model_params_and_state(batch_inputs, 
@@ -563,6 +545,7 @@ class WoFSCastModel:
             model_params = jax.device_get(jax.tree_map(lambda x: x[0], model_params))
             
             loss_val = np.mean(np.asarray(loss)).item()
+            
             for k, v in diagnostics.items():
                 total_diagnostics[k] = total_diagnostics.get(k, 0) + np.mean(np.asarray(v)).item()
                 

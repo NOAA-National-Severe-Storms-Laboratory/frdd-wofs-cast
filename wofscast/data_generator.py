@@ -33,6 +33,8 @@ import jax
 import fsspec
 
 from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ProcessPoolExecutor, as_completed
+import multiprocessing as mp
 from itertools import islice
 
 def to_static_vars(dataset):
@@ -47,38 +49,32 @@ def to_static_vars(dataset):
 
     return dataset
 
+def load_dataset_from_json(json_path):
+    """Load a dataset from a Kerchunk JSON descriptor."""
+    mapper = fsspec.get_mapper('reference://', fo=json_path, remote_protocol='file')
+    ds = xr.open_dataset(mapper, engine='zarr', consolidated=True, chunks={}, decode_times=False)
+    ds = add_local_solar_time(ds)
+    return ds
+
+def load_dataset_from_zarr(zarr_path):
+    """Load a dataset from a Zarr file"""
+    ds = xr.open_dataset(zarr_path, engine='zarr', consolidated=True, chunks={}, decode_times=False)
+    ds = add_local_solar_time(ds)
+    return ds
+
+def load_and_concatenate(files, concat_dim):
+    """Load multiple datasets from JSON files and concatenate them along a specified dimension."""
+    if '.zarr' in files[0]:
+        load_func = load_dataset_from_zarr
+    else:
+        load_func = load_dataset_from_json
+
+    datasets = [load_func(file) for file in files]
+    combined_dataset = xr.concat(datasets, dim=concat_dim)
+    
+    return combined_dataset
 
 def load_chunk(paths_chunk, concat_time=False, gpu_batch_size=32):
-    #@dask.delayed
-    def load_dataset_from_json(json_path):
-        """Load a dataset from a Kerchunk JSON descriptor."""
-        mapper = fsspec.get_mapper('reference://', fo=json_path, remote_protocol='file')
-        ds = xr.open_dataset(mapper, engine='zarr', consolidated=True, chunks={}, decode_times=False)
-        ds = add_local_solar_time(ds)
-        return ds
-
-    #@dask.delayed
-    def load_dataset_from_zarr(zarr_path):
-        """Load a dataset from a Zarr file"""
-        ds = xr.open_dataset(zarr_path, engine='zarr', consolidated=True, chunks={}, decode_times=False)
-        ds = add_local_solar_time(ds)
-        return ds
-
-    def load_and_concatenate(files, concat_dim):
-        """Load multiple datasets from JSON files and concatenate them along a specified dimension."""
-        if '.zarr' in files[0]:
-            load_func = load_dataset_from_zarr
-        else:
-            load_func = load_dataset_from_json
-
-        datasets = [load_func(file) for file in files]
-        combined_dataset = xr.concat(datasets, dim=concat_dim)
-        
-        for ds in datasets:
-            ds.close()
-        
-        return combined_dataset
-
     if concat_time:
         if not isinstance(paths_chunk, list) or not all(isinstance(i, list) for i in paths_chunk):
             raise ValueError('paths must be a nested list if concatenating along a time dimension.')
@@ -88,10 +84,10 @@ def load_chunk(paths_chunk, concat_time=False, gpu_batch_size=32):
     else:
         dataset = load_and_concatenate(paths_chunk, concat_dim='batch')
 
-    dataset = dataset.chunk({'batch': gpu_batch_size})   
-        
+    # Chunk the dataset
+    dataset = dataset.chunk({'batch': gpu_batch_size})
+    
     return dataset
-
 
 def dataset_to_input(dataset, task_config):
     
@@ -110,68 +106,45 @@ def dataset_to_input(dataset, task_config):
     
     return inputs, targets, forcings
 
-
 class ZarrDataGenerator:
-    """
-    Generates batches from individual Zarr files. For a given CPU batch size, 
-    data is lazily load into memory; largely metadata for concatenation. Data is 
-    only loaded in GPU batch sizes using dask. 
-    
-    Attributes:
-        task_config: TaskConfig object, including variables, pressure levels, etc.
-                     Defined in graphcast_lam.py 
-        cpu_batch_size : int : Number of samples to preload into CPU memory 
-        gpu_batch_size : int : Numbe of samples sent to GPU at one time. 
-    """
-    
-    def __init__(self, task_config, cpu_batch_size=512, gpu_batch_size=32):
-        
+    def __init__(self, task_config, cpu_batch_size=512, gpu_batch_size=32, n_workers=8):
         self.task_config = task_config
         self.cpu_batch_size = cpu_batch_size
         self.gpu_batch_size = gpu_batch_size 
+        self.n_workers = n_workers 
 
     def __call__(self, paths):
-        """
-        Args:
-            paths : list : list of file paths to load datasets from
-
-        Yields:
-            inputs, targets, forcings : xarray.Datasets 
-
-        Batcher for an xarray dataset using xbatcher. Useful for storing the full dataset in 
-        CPU RAM and then offloading small subsets to the GPU RAM batch by batch.
-        """
         outer_start = 0
-    
-        # Randomly shuffle paths; a new shuffle for each epoch. 
         np.random.shuffle(paths)
-    
-        while outer_start < len(paths):
-            outer_end = min(outer_start + self.cpu_batch_size, len(paths))
-            paths_chunk = paths[outer_start:outer_end]
         
-            # No threading. 
-            chunk = load_chunk(paths_chunk, gpu_batch_size=self.gpu_batch_size)
-        
+        chunk_futures = []
+        loaded_chunks = []
+
+        # Using ProcessPoolExecutor for parallel loading
+        with ProcessPoolExecutor(max_workers=self.n_workers) as executor:
+            while outer_start < len(paths):
+                outer_end = min(outer_start + self.cpu_batch_size, len(paths))
+                paths_chunk = paths[outer_start:outer_end]
+                chunk_futures.append(executor.submit(load_chunk, paths_chunk))
+                outer_start = outer_end
+
+            for future in as_completed(chunk_futures):
+                chunk = future.result()
+                loaded_chunks.append(chunk)
+
+        # Sequentially process the loaded chunks
+        for chunk in loaded_chunks:
             total_samples = chunk.sizes['batch']
             chunk_indices = np.arange(total_samples)
 
             inner_start = 0
             while inner_start < len(chunk_indices):
                 inner_end = min(inner_start + self.gpu_batch_size, len(chunk_indices))
-                
                 batch = chunk.isel(batch=slice(inner_start, inner_end))
-                
                 inputs, targets, forcings = dataset_to_input(batch, self.task_config)
-                
                 inputs, targets, forcings = dask.compute(inputs, targets, forcings, scheduler='threads')
-        
                 yield inputs, targets, forcings
-
                 inner_start = inner_end
-
-            outer_start = outer_end
-
 class TOARadiationFlux:
     def __init__(self):
         # Solar constant in W/m^2
