@@ -500,7 +500,7 @@ class WoFSCastModel:
                            phase_num,
                            )
                 
-                # Save the model ever so often!
+                # Save the model at regular interval and at end of each training phase
                 if (epoch % self.checkpoint_interval == 0 or (epoch+1) == getattr(self, f'n_epochs_phase{phase_num}')) and self.checkpoint:
                     if self.verbose > 1:
                         print('Saving model params....')

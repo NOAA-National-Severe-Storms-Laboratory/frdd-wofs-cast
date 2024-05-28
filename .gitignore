@@ -1,5 +1,0 @@
-*.swp
-*__pycache__*
-*.gif
-training_pipeline/train_model/wandb
-training_pipeline/evaluate_model/wandb

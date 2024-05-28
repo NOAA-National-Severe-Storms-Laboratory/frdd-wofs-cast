@@ -1,4 +1,0 @@
-Traceback (most recent call last):
-  File "/home/Corey.Potvin/frdd-wofs-cast/training_pipeline/train_model/train_wofscast.py", line 4, in <module>
-    sys.path.insert('/home/cpotvin//home/Corey.Potvin/frdd-wofs-cast')
-TypeError: insert() takes exactly 2 arguments (1 given)
