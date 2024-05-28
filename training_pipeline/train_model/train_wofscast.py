@@ -31,7 +31,7 @@ if __name__ == '__main__':
     # sized subsets. gpu_batch_size'd batches are loaded and fed to 
     # the GPU. 
     cpu_batch_size_factor = 4 
-    gpu_batch_size = 32  
+    gpu_batch_size = 64  
 
     loss_weights = {
                     # Any variables not specified here are weighted as 1.0.
@@ -52,7 +52,7 @@ if __name__ == '__main__':
     trainer = WoFSCastModel(
                  # The task config contains details like the input variables, 
                  # target variables, time step, etc.
-                 task_config = WOFS_TASK_CONFIG, 
+                 task_config = DBZ_TASK_CONFIG, 
 
                  mesh_size=5, # Number of Mesh refinements or more higher resolution layers. 
                  
@@ -72,8 +72,8 @@ if __name__ == '__main__':
         
                  # Number of training epochs for the 2-phases (linearly increase;
                  # cosine decay).
-                 n_epochs_phase1 = 5, 
-                 n_epochs_phase2 = 5,
+                 n_epochs_phase1 = 10, 
+                 n_epochs_phase2 = 10,
         
                  n_epochs_phase3 = 0, # Only use if fine tuning for > 1 step rollout. 
                  total_timesteps = 12, # 2+ hours of total rollout for training. 
@@ -86,9 +86,9 @@ if __name__ == '__main__':
                  norm_stats_path = '/work/mflora/wofs-cast-data/full_normalization_stats',
                  # Path where the model is saved. The file name (os.path.basename)
                  # is the named used for the Weights & Biases project. 
-                 out_path = '/work/mflora/wofs-cast-data/model/wofscast_dbz_weighted_loss.npz',
+                 out_path = '/work/cpotvin/WOFSCAST/model/wofscast_test.npz',
                  
-                 checkpoint_interval = 1, # How often to save the weights (in terms of epochs) 
+                 checkpoint_interval = 5, # How often to save the weights (in terms of epochs) 
                  verbose=1, # Set to 3 to get all possible printouts
                  loss_weights = loss_weights,
                  use_multi_gpus = True
@@ -103,7 +103,7 @@ if __name__ == '__main__':
             paths.extend(files)
 
             
-    N_SAMPLES = 1024        
+    N_SAMPLES = 16384#1024        
             
     trainer.fit_generator(paths[:N_SAMPLES])
 
