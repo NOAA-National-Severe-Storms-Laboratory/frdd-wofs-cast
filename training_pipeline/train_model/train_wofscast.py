@@ -83,7 +83,7 @@ if __name__ == '__main__':
                  
                  checkpoint=True, # Save the model periodically
             
-                 norm_stats_path = '/work/mflora/wofs-cast-data/normalization_stats',
+                 norm_stats_path = '/work/mflora/wofs-cast-data/full_normalization_stats',
                  # Path where the model is saved. The file name (os.path.basename)
                  # is the named used for the Weights & Biases project. 
                  out_path = '/work/mflora/wofs-cast-data/model/wofscast_dbz_weighted_loss.npz',
