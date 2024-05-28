@@ -168,37 +168,70 @@ def custom_window_loss(
     def apply_uniform_filter(image, nbrhd):
         kernel = jnp.ones((nbrhd,nbrhd)).astype(jnp.bfloat16)
         kernel = kernel / kernel.size
-        kernel = kernel.reshape(1, 1, *kernel.shape)
+        if image.ndim==4:
+          kernel = kernel.reshape(1, 1, *kernel.shape)
+        else:
+          kernel = kernel.reshape(1, 1, 1, *kernel.shape)
         return convolve(image, kernel, mode='same')
-    '''
-    def apply_percentile_filter(image, nbrhd, percentile):
-      padded_data = jnp.pad(image, ((0,0),(0,0),(nbrhd//2,nbrhd//2),(nbrhd//2,nbrhd//2)), mode='reflect')
-      result = jnp.zeros_like(image)
-      for i in range(image.shape[2]):
-        for j in range(image.shape[3]):
-          window = padded_data[:,:,i:i+nbrhd, j:j+nbrhd]
-          result = result.at[:,:,i,j].set(jnp.percentile(window, percentile))
-      return result
-    def apply_percentile_filter(image, nbrhd, percentile):
-      padded_data = jnp.pad(image, ((0,0),(0,0),(nbrhd//2,nbrhd//2),(nbrhd//2,nbrhd//2)), mode='reflect')
-      def process_slice(padded_slice):
-        def window_fn(idx):
-            i, j = idx
-            window = padded_slice[i:i+nbrhd, j:j+nbrhd]
-            return jnp.percentile(window, percentile)
-        indices = jnp.indices((image.shape[2], image.shape[3])).reshape(2, -1).T
-        return vmap(window_fn)(indices).reshape(image.shape[2], image.shape[3])
-      return vmap(vmap(process_slice, in_axes=0), in_axes=0)(padded_data)
-    '''
 
+    def apply_percentile_filter(image, nbrhd, percentile):
+      # Determine pad width based on image dimensions
+      if image.ndim == 4:
+        pad_width = ((0, 0), (0, 0), (nbrhd // 2, nbrhd // 2), (nbrhd // 2, nbrhd // 2))
+      elif image.ndim == 5:
+        pad_width = ((0, 0), (0, 0), (0, 0), (nbrhd // 2, nbrhd // 2), (nbrhd // 2, nbrhd // 2))
+      else:
+        raise ValueError("Unsupported number of dimensions. Expected 4D or 5D image.")
 
+      padded_data = jnp.pad(image, pad_width, mode='reflect')
+
+      def process_pixel(batch, channel, level, i, j):
+        if image.ndim == 4:
+            window = lax.dynamic_slice(padded_data, (batch, channel, i, j), (1, 1, nbrhd, nbrhd))
+        else:
+            window = lax.dynamic_slice(padded_data, (batch, channel, level, i, j), (1, 1, 1, nbrhd, nbrhd))
+        return jnp.percentile(window, percentile, axis=(-2, -1))
+
+      def process_channel(batch, channel):
+        if image.ndim == 4:
+            height, width = image.shape[2], image.shape[3]
+        else:
+            height, width = image.shape[3], image.shape[4]
+
+        i_indices = jnp.arange(height)
+        j_indices = jnp.arange(width)
+        indices = jnp.array(jnp.meshgrid(i_indices, j_indices, indexing='ij')).reshape(2, -1).T
+
+        # Map over all indices to process each pixel
+        def process_index(idx):
+            if image.ndim == 4:
+                return process_pixel(batch, channel, None, idx[0], idx[1])
+            else:
+                return process_pixel(batch, channel, idx[0], idx[1], idx[2])
+
+        return vmap(process_index)(indices).reshape(height, width)
+
+    # Apply across batches and channels
+      def process_batch(batch):
+        return vmap(lambda channel: process_channel(batch, channel))(jnp.arange(image.shape[1]))
+
+    processed_image = vmap(process_batch)(jnp.arange(image.shape[0]))
+    return processed_image
+    '''
     def apply_percentile_filter(image, nbrhd, percentile):
       # Padding the image
-      pad_width = ((0, 0), (0, 0), (nbrhd//2, nbrhd//2), (nbrhd//2, nbrhd//2))
+      if image.ndim==4:
+        pad_width = ((0, 0), (0, 0), (nbrhd//2, nbrhd//2), (nbrhd//2, nbrhd//2))
+      else:
+        pad_width = ((0, 0), (0, 0), (0, 0), (nbrhd//2, nbrhd//2), (nbrhd//2, nbrhd//2))
+
       padded_data = jnp.pad(image, pad_width, mode='reflect')
     
-      def process_pixel(batch, channel, i, j):
-        window = lax.dynamic_slice(padded_data, (batch, channel, i, j), (1, 1, nbrhd, nbrhd))
+      def process_pixel(batch, channel, level, i, j):
+        if image.ndim==4:
+          window = lax.dynamic_slice(padded_data, (batch, channel, i, j), (1, 1, nbrhd, nbrhd))
+        else:
+          window = lax.dynamic_slice(padded_data, (batch, channel, level, i, j), (1, 1, 1, nbrhd, nbrhd))
         return jnp.percentile(window, percentile, axis=(-2, -1))
 
       def process_channel(batch, channel):
@@ -219,7 +252,7 @@ def custom_window_loss(
     
       processed_image = vmap(process_batch)(jnp.arange(image.shape[0]))
       return processed_image
-
+    '''
     def max_pooling(image, nbrhd):
       window_shape = (1, 1, nbrhd, nbrhd)
       strides = (1, 1, 1, 1)
