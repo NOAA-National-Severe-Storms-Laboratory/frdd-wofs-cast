@@ -232,11 +232,9 @@ class GraphCast(predictor_base.Predictor):
 
     # Obtain the query radius in absolute units for the unit-sphere for the
     # grid2mesh model, by rescaling the `radius_query_fraction_edge_length`.
-    #self._query_radius = (_get_max_edge_distance(self._finest_mesh)
-    #                      * model_config.radius_query_fraction_edge_length)
-    
-    self._query_radius = model_config.grid_to_mesh_node_dist
-    
+    self._query_radius = (_get_max_edge_distance(self._finest_mesh)
+                          * model_config.grid_to_mesh_node_dist)
+
     self._mesh2grid_edge_normalization_factor = (
         model_config.mesh2grid_edge_normalization_factor
     )

@@ -1,10 +1,8 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-
 import sys, os 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.getcwd())))
-
 
 # Set JAX_TRACEBACK_FILTERING to off for detailed traceback
 os.environ['JAX_TRACEBACK_FILTERING'] = 'off'
@@ -32,7 +30,7 @@ from . import normalization
 from . import rollout
 from . import xarray_jax
 from . import xarray_tree
-from .data_generator import (WoFSCastDataGenerator,
+from .data_generator import (ZarrDataGenerator,
                              load_wofscast_data, 
                              wofscast_data_generator, 
                              wofscast_batch_generator, 
@@ -64,14 +62,16 @@ import time
 import wandb
 
 
+
 def add_diagnostics(accum_diagnostics, diagnostics, ind): 
-    """Append the diagnostics from each epoch"""
+    """Append the diagnostics from each epoch to running diagnostic dict"""
     for var, val in diagnostics.items():
         accum_diagnostics[var][ind] = float(val)
   
     return accum_diagnostics
 
 def compute_avg_diagnostics(diag_list, target_vars):
+    """Compute the sub-epoch-average diagnostics (due to GPU parallelization)"""
     temp_dict = {v : [] for v in target_vars}
     for diag in diag_list: 
         for v in target_vars:
@@ -217,7 +217,6 @@ def truncate_to_chunk_size(input_list, chunk_size=512):
     # Truncate the list
     return input_list[:new_length]
     
-    
 def modify_path_if_exists(original_path):
     """
     Modifies the given file path by appending a version number if the path already exists.
@@ -246,7 +245,7 @@ def modify_path_if_exists(original_path):
             return new_path
         version += 1
 
-def shard_xarray_dataset(dataset, num_devices=None):
+def shard_xarray_dataset(dataset : xarray.Dataset, num_devices : int = None):
     """
     Shards an xarray.Dataset across multiple GPUs.
 
@@ -290,11 +289,6 @@ def replicate_for_devices(params, num_devices=None):
         
     return jax.tree_map(lambda x: jnp.array([x] * num_devices), params)
     
-def repeat_generator(original_generator, num_repeats):
-    for _ in range(num_repeats):
-        for data in original_generator:
-            yield data
-
 # Our models aren't stateful, so the state is always empty, so just return the
 # predictions. This is requiredy by our rollout code, and generally simpler.
 def drop_state(fn):
@@ -308,20 +302,25 @@ class WoFSCastModel:
     """
     A class for training the WoFSCast model, designed to predict weather phenomena using
     the same Graph Neural Network (GNN) approach for GraphCast. The training process is divided into three phases, 
-    each with its own number of epochs. The model supports multi-GPU training (unsupported at the moment) and periodic 
+    each with its own number of epochs. The model supports multi-GPU training and periodic 
     checkpointing.
 
     Parameters:
-    - mesh_size (int): The number of mesh subdivisions. Starting an initial 4 triangle mesh, continually 
-                        divide based on mesh_size
+    - mesh_size (int): The number of mesh subdivisions. The lowest resolution mesh divides the domain into 
+                       4 triangles meeting at the center of the domain. Each additional level divides the
+                       triangles into subsets. Typically between 4-6. 
     - latent_size (int): The size of the latent vectors in the GNN.
-    - gnn_msg_steps (int): The number of message passing steps in the GNN.
+    - gnn_msg_steps (int): The number of message passing steps in the GNN. 
+                           Each step is a new MLP or transformer layer.
     - hidden_layers (int): The number of hidden layers in the GNN. Each layer has the same latent_size
-    - grid_to_mesh_node_dist (int): The search distance linking grid points and mesh nodes for the first GNN. 
-                                    Value is grid point distance; not physical distance. 
+    - grid_to_mesh_node_dist (float): Fraction of the maximum distance between mesh nodes 
+                                      at the finest resolution. Acts the search distance linking grid points
+                                      to mesh nodes for the encoding GNN.  
     - n_epochs_phase1 (int): The number of training epochs for phase 1.
     - n_epochs_phase2 (int): The number of training epochs for phase 2.
     - n_epochs_phase3 (int): The number of training epochs for phase 3.
+    - cpu_batch_size_factor (int): The factor to multiply with gpu_batch_size to get the CPU batch size.
+    - gpu_batch_size (int): The batch size used for training on GPU.
     - total_timesteps (int): The total number of prediction timesteps.
     - batch_size (int): The batch size used for training.
     - checkpoint (bool): Whether to checkpoint the model during training.
@@ -337,20 +336,20 @@ class WoFSCastModel:
     """
     
     def __init__(self, 
-                 task_config = None, 
-                 mesh_size : int =3, 
+                 task_config : graphcast.TaskConfig = None, 
+                 mesh_size : int = 3, 
                  latent_size : int =32, 
                  gnn_msg_steps : int =4, 
                  hidden_layers: int =1, 
-                 grid_to_mesh_node_dist: int =5,
+                 grid_to_mesh_node_dist: float = 0.6,
                  use_transformer : bool = False, 
                  k_hop : int = 8, 
-                 num_attn_heads : int = 4, 
-                 n_epochs_phase1 : int = 5, 
-                 n_epochs_phase2 : int = 5,
-                 n_epochs_phase3 : int = 10,
+                 num_attn_heads : int = 4 , 
+                 n_epochs_phase1 : int = 5 , 
+                 n_epochs_phase2 : int = 5 ,
+                 n_epochs_phase3 : int = 10 ,
                  total_timesteps : int  = 12, 
-                 cpu_batch_size : int = 512,
+                 cpu_batch_size_factor : int = 4,
                  gpu_batch_size : int = 16, 
                  checkpoint : bool =True,
                  norm_stats_path : str = '/work/mflora/wofs-cast-data/normalization_stats', 
@@ -379,8 +378,7 @@ class WoFSCastModel:
         wandb.init(project='wofscast',
                    name = project_name,
                   ) 
-        
-        
+
         # Training Parameters. 
         self.n_epochs_phase1 = n_epochs_phase1
         self.n_epochs_phase2 = n_epochs_phase2
@@ -395,7 +393,7 @@ class WoFSCastModel:
         self.checkpoint_interval= checkpoint_interval
         
         self.gpu_batch_size = gpu_batch_size
-        self.cpu_batch_size = cpu_batch_size
+        self.cpu_batch_size = cpu_batch_size_factor * gpu_batch_size
        
         # Initialize the GraphCast TaskConfig obj.
         if task_config is not None: 
@@ -520,14 +518,11 @@ class WoFSCastModel:
         batch_count = 0 
         total_diagnostics = {}
         
-        generator = WoFSCastDataGenerator(self.task_config,
+        generator = ZarrDataGenerator(self.task_config,
                                           self.cpu_batch_size,
                                           self.gpu_batch_size)
         
-        # Re-loaded with each epoch and re-shuffled. 
-        dataset = generator.open_mfdataset(file_paths)
-        
-        for batch_inputs, batch_targets, batch_forcings in generator(dataset): 
+        for batch_inputs, batch_targets, batch_forcings in generator(file_paths): 
             if model_params is None:
                 # Initialize the model parameters
                 model_params, state = self._init_model_params_and_state(batch_inputs, 
