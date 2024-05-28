@@ -21,15 +21,10 @@ from typing_extensions import Protocol
 import xarray
 from . import xarray_jax
 
-<<<<<<< HEAD
 import jax
 import jax.numpy as jnp
 from jax.scipy.signal import convolve
 from jax import vmap, lax
-=======
-import xarray
-
->>>>>>> origin/master
 
 LossAndDiagnostics = tuple[xarray.DataArray, xarray.Dataset]
 
@@ -462,10 +457,7 @@ def sum_per_variable_losses(
     total = xarray.concat(
         weighted_per_variable_losses.values(), dim="variable", join="exact"
     ).sum("variable", skipna=False)
-<<<<<<< HEAD
-=======
 
->>>>>>> origin/master
     return total, per_variable_losses  # pytype: disable=bad-return-type
 
 
