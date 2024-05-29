@@ -11,14 +11,11 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.getcwd())))
 from wofscast.model import WoFSCastModel
 from wofscast.wofscast_task_config import WOFS_TASK_CONFIG, DBZ_TASK_CONFIG
 from wofscast.data_generator import ZarrDataGenerator
+from wofscast import checkpoint
 
 import os
 from os.path import join
 from concurrent.futures import ThreadPoolExecutor
-
-# Fine tuning. 
-# TODO: Load model_params or add loading the model params into the Trainer, 
-# for the fine tuning. 
     
 # Using the Weights & Biases package: 
 # Create an account : https://docs.wandb.ai/quickstart
@@ -44,9 +41,31 @@ def truncate_to_chunk_size(input_list, chunk_size=512):
 if __name__ == '__main__':
     """ usage: stdbuf -oL python -u train_wofscast.py > & log_training & """
     
+    # Whether to initialize the model with existing model weights 
+    # WARNING: Assumes the model.py args are the same and does not check! 
+    fine_tune = False
+    
+    # Where the model weights are stored
+    out_path = '/work/mflora/wofs-cast-data/model/wofscast_baseline.npz'
+    
+    model_params, state = None, {}
+    if fine_tune: 
+         # Warning about model parameters compatibility
+        warnings.warn("""User must ensure model parameters are compatible with the model.py args below! 
+        There is no check at the moment!""", UserWarning)
+        
+        # Load a checkpoint from an existing model. 
+        model_path = '/work/mflora/wofs-cast-data/model/wofscast_baseline.npz'
+        with open(model_path, 'rb') as f:
+            data = checkpoint.load(f, dict)
+            model_params, state = data['parameters'], {}
+        
+        # Do not want to replace the existing checkpoint! 
+        out_path = model_path.replace('.npz', '_fine_tune.npz') 
+    
     # The task config contains details like the input variables, 
     # target variables, time step, etc.
-    task_config = DBZ_TASK_CONFIG
+    task_config = WOFS_TASK_CONFIG
     
     # Data is lazily loaded into CPU memory @ cpu_batch_size_factor * gpu_batch_size
     # sized subsets. gpu_batch_size'd batches are loaded and fed to 
@@ -55,7 +74,7 @@ if __name__ == '__main__':
     # In my testing, factors ~ 2-4 were optimal. 
     
     cpu_batch_size_factor = 2 
-    gpu_batch_size = 32  
+    gpu_batch_size = 64  
     n_workers = 16 
     
     generator_kwargs = dict(cpu_batch_size=cpu_batch_size_factor*gpu_batch_size, 
@@ -71,25 +90,27 @@ if __name__ == '__main__':
                     'T': 1.0, 
                     'GEOPOT': 1.0, 
                     'QVAPOR': 1.0,
-                    'T2' : 0.1, 
-                    'COMPOSITE_REFL_10CM' : 0.1, 
-                    'UP_HELI_MAX' : 0.1,
-                    'RAIN_AMOUNT' : 0.1,
+                    'T2' : 0.5, 
+                    'COMPOSITE_REFL_10CM' : 0.5, 
+                    'UP_HELI_MAX' : 0.5,
+                    'RAIN_AMOUNT' : 0.5,
                     }
 
-    loss_weights = {'COMPOSITE_REFL_10CM' : 1.0}
+    #loss_weights = {'COMPOSITE_REFL_10CM' : 1.0}
     
     trainer = WoFSCastModel(
                  task_config = task_config, 
                  mesh_size=5, # Number of Mesh refinements or more higher resolution layers. 
                  
                  # Parameters for the MLPs-------------------
-                 latent_size=64, 
+                 latent_size=128, 
                  gnn_msg_steps=8, # Increasing this allows for connecting information from farther away. 
                  hidden_layers=1, 
-                 grid_to_mesh_node_dist=0.25, # Fraction of the maximum distance between mesh nodes on the 
+                 grid_to_mesh_node_dist=5,  # Fraction of the maximum distance between mesh nodes on the 
                                              # finest mesh level. @ level 5, max distance ~ 4.5 km, 
-                                             # so connecting to those grid points with 1-2 km
+                                             # so connecting to those grid points with 1-2 km 
+        
+                                             # OR integer as the distance 
                  #--------------------------------------------
                  # Parameters if using a transformer layer for processor (mesh)
                  # the transformer also relies on the latent_size arg above.
@@ -108,18 +129,17 @@ if __name__ == '__main__':
                  checkpoint=True, # Save the model periodically
             
                  norm_stats_path = '/work/mflora/wofs-cast-data/full_normalization_stats',
+        
                  # Path where the model is saved. The file name (os.path.basename)
                  # is the named used for the Weights & Biases project. 
-                 out_path = '/work/mflora/wofs-cast-data/model/wofscast_dbz_weighted_loss.npz',
+                 out_path = out_path,
                  
-                 checkpoint_interval = 1, # How often to save the weights (in terms of epochs) 
+                 checkpoint_interval = 5, # How often to save the weights (in terms of epochs) 
                  verbose = 1, # Set to 3 to get all possible printouts
                  loss_weights = loss_weights,
                  use_multi_gpus = True,
                  generator_kwargs = generator_kwargs
     )
-    
-    N_SAMPLES = 512
     
     base_path = '/work/mflora/wofs-cast-data/datasets_zarr'
     years = ['2019', '2020']
@@ -129,14 +149,14 @@ if __name__ == '__main__':
         for files in executor.map(get_files_for_year, years):
             paths.extend(files)
     
-    print(f'Current Number of Paths: {len(paths)}')
+    print(f'Number of Paths: {len(paths)}')
     
     # Ensure the file_paths are compatiable with the generator_chunk_size 
     paths = truncate_to_chunk_size(paths, chunk_size=gpu_batch_size)
     
-    print(f'New Number of Paths: {len(paths)}')
+    print(f'Number of Paths after truncation: {len(paths)}')
     
-    trainer.fit_generator(paths[:N_SAMPLES])
+    trainer.fit_generator(paths[:128], model_params=model_params, state=state)
 
     # Plot the training loss and diagnostics. 
     trainer.plot_training_loss()

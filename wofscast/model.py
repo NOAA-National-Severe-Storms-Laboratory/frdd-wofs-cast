@@ -333,12 +333,12 @@ class WoFSCastModel:
                  grid_to_mesh_node_dist: float = 0.6,
                  use_transformer : bool = False, 
                  k_hop : int = 8, 
-                 num_attn_heads : int = 4 , 
-                 n_epochs_phase1 : int = 5 , 
-                 n_epochs_phase2 : int = 5 ,
-                 n_epochs_phase3 : int = 10 ,
+                 num_attn_heads : int = 4, 
+                 n_epochs_phase1 : int = 5, 
+                 n_epochs_phase2 : int = 5,
+                 n_epochs_phase3 : int = 10,
                  total_timesteps : int  = 12, 
-                 checkpoint : bool =True,
+                 checkpoint : bool = True,
                  norm_stats_path : str = '/work/mflora/wofs-cast-data/normalization_stats', 
                  out_path : str = '/work/mflora/wofs-cast-data/model/wofscast.npz',
                  checkpoint_interval : int = 100,
@@ -436,6 +436,7 @@ class WoFSCastModel:
                     print('\nStarting Phase 1 learning')
                     print('Training with a linearly increasing learning rate')
                 n_timesteps = 1
+                
             elif phase_num==2:
                 if self.verbose > 0:
                     print('\nStarting Phase 2 learning...')
@@ -516,7 +517,7 @@ class WoFSCastModel:
             if opt_state is None:
                 # Initialize the optimizer state only at the beginning
                 opt_state = optimizer.init(model_params)
-                    
+            
             # Split the inputs, targets, forcings, model_params, state, opt_state 
             # up to send to multiple GPUs.
             batch_inputs_sharded = shard_xarray_dataset(batch_inputs, self.num_devices)
