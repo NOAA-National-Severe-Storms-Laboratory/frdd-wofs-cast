@@ -97,7 +97,7 @@ def get_hierarchy_of_triangular_meshes(
     if tiling:
         current_mesh = concatenate_meshes(tiling, domain_size)
     else:
-        current_mesh = get_tri_mesh(1, 1, domain_size)
+        current_mesh = get_tri_mesh(0, 0, domain_size, offset=2)
         
     output_meshes = [current_mesh]
     
@@ -108,7 +108,7 @@ def get_hierarchy_of_triangular_meshes(
     return output_meshes
 
 
-def get_tri_mesh(x_start, y_start, size) -> TriangularMesh:
+def get_tri_mesh(x_start, y_start, size, offset=0) -> TriangularMesh:
     """Returns a staggered triangular mesh.
   
     Returns:
@@ -120,18 +120,15 @@ def get_tri_mesh(x_start, y_start, size) -> TriangularMesh:
          the vertices adjacent to the face. Always with positive orientation (
          counterclock-wise when looking from the outside).
 
-    """
-    # Define vertices of the mesh (square + center point)
-    offset = 1 
-    
+    """    
     half_size = size // 2 
     
     vertices = np.array([
-        [x_start, y_start], # Bottom left corner
-        [x_start + size, y_start], # Bottom right corner
-        [x_start + size, y_start + size], # Top right corner
-        [x_start, y_start + size], # Top left corner 
-        [x_start + half_size, y_start + half_size]  # center point
+        [x_start+offset, y_start+offset], # Bottom left corner
+        [x_start + size - offset, y_start+offset], # Bottom right corner
+        [x_start + size - offset, y_start + size -offset], # Top right corner
+        [x_start + offset, y_start + size - offset], # Top left corner 
+        [x_start + half_size + offset, y_start + half_size + offset]  # center point
     ], dtype=np.float32)
     
     tri = Delaunay(vertices)
