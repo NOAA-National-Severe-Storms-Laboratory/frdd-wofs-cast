@@ -55,7 +55,7 @@ if __name__ == '__main__':
     # In my testing, factors ~ 2-4 were optimal. 
     
     cpu_batch_size_factor = 2 
-    gpu_batch_size = 32  
+    gpu_batch_size = 16#64  
     n_workers = 16 
     
     generator_kwargs = dict(cpu_batch_size=cpu_batch_size_factor*gpu_batch_size, 
@@ -81,13 +81,13 @@ if __name__ == '__main__':
     
     trainer = WoFSCastModel(
                  task_config = task_config, 
-                 mesh_size=5, # Number of Mesh refinements or more higher resolution layers. 
+                 mesh_size=6, # Number of Mesh refinements or more higher resolution layers. 
                  
                  # Parameters for the MLPs-------------------
                  latent_size=64, 
                  gnn_msg_steps=8, # Increasing this allows for connecting information from farther away. 
                  hidden_layers=1, 
-                 grid_to_mesh_node_dist=0.25, # Fraction of the maximum distance between mesh nodes on the 
+                 grid_to_mesh_node_dist=5,#0.5, # Fraction of the maximum distance between mesh nodes on the 
                                              # finest mesh level. @ level 5, max distance ~ 4.5 km, 
                                              # so connecting to those grid points with 1-2 km
                  #--------------------------------------------
@@ -99,8 +99,8 @@ if __name__ == '__main__':
         
                  # Number of training epochs for the 2-phases (linearly increase;
                  # cosine decay).
-                 n_epochs_phase1 = 2, 
-                 n_epochs_phase2 = 2,
+                 n_epochs_phase1 = 20, 
+                 n_epochs_phase2 = 100,
                  n_epochs_phase3 = 0, # Only use if fine tuning for > 1 step rollout. 
                  total_timesteps = 12, # 2+ hours of total rollout for training. 
                          
@@ -118,7 +118,7 @@ if __name__ == '__main__':
                  generator_kwargs = generator_kwargs
     )
     
-    N_SAMPLES = 512
+    N_SAMPLES = 4096#512
     
     base_path = '/work/mflora/wofs-cast-data/datasets_zarr'
     years = ['2019', '2020']

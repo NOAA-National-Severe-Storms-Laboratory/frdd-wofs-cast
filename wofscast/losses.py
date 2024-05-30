@@ -174,6 +174,7 @@ def custom_window_loss(
           kernel = kernel.reshape(1, 1, 1, *kernel.shape)
         return convolve(image, kernel, mode='same')
 
+    #'''
     def apply_percentile_filter(image, nbrhd, percentile):
       # Determine pad width based on image dimensions
       if image.ndim == 4:
@@ -215,8 +216,8 @@ def custom_window_loss(
       def process_batch(batch):
         return vmap(lambda channel: process_channel(batch, channel))(jnp.arange(image.shape[1]))
 
-    processed_image = vmap(process_batch)(jnp.arange(image.shape[0]))
-    return processed_image
+      processed_image = vmap(process_batch)(jnp.arange(image.shape[0]))
+      return processed_image
     '''
     def apply_percentile_filter(image, nbrhd, percentile):
       # Padding the image
@@ -252,7 +253,7 @@ def custom_window_loss(
     
       processed_image = vmap(process_batch)(jnp.arange(image.shape[0]))
       return processed_image
-    '''
+    #'''
     def max_pooling(image, nbrhd):
       window_shape = (1, 1, nbrhd, nbrhd)
       strides = (1, 1, 1, 1)
