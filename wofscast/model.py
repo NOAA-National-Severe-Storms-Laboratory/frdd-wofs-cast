@@ -21,7 +21,7 @@ import datetime
 
 import cartopy.crs as ccrs
 #from google.cloud import storage
-from . import autoregressive_lam as autoregressive
+from . import autoregressive #_lam as autoregressive
 from . import casting
 from . import checkpoint
 from . import data_utils
@@ -337,7 +337,6 @@ class WoFSCastModel:
                  n_epochs_phase1 : int = 5, 
                  n_epochs_phase2 : int = 5,
                  n_epochs_phase3 : int = 10,
-                 total_timesteps : int  = 12, 
                  checkpoint : bool = True,
                  norm_stats_path : str = '/work/mflora/wofs-cast-data/normalization_stats', 
                  out_path : str = '/work/mflora/wofs-cast-data/model/wofscast.npz',
@@ -359,24 +358,13 @@ class WoFSCastModel:
         
         # Ensure not to overwrite an existing model!
         out_path = modify_path_if_exists(out_path)
+        self.out_path = out_path 
         
-        # Initialize the Weights & Biases project for logging and tracking 
-        # training loss and other metrics. 
-        project_name = os.path.basename(out_path).replace('.npz', '')
-        wandb.init(project='wofscast',
-                   name = project_name,
-                  ) 
-
         # Training Parameters. 
         self.n_epochs_phase1 = n_epochs_phase1
         self.n_epochs_phase2 = n_epochs_phase2
         self.n_epochs_phase3 = n_epochs_phase3
         
-        self.epoch_interval_phase3 = n_epochs_phase3 // total_timesteps
-        if self.epoch_interval_phase3 < 1:
-            self.epoch_interval_phase3 = 1
-        
-        self.total_timesteps = total_timesteps
         self.checkpoint = checkpoint
         self.checkpoint_interval= checkpoint_interval
         
@@ -394,14 +382,36 @@ class WoFSCastModel:
         # Load the normalization statistics. 
         self._load_norm_stats(norm_stats_path)
         
-        self.out_path = out_path 
-
         self.generator_kwargs = generator_kwargs 
         self.clip_norm = 32 
         self.use_multi_gpus = use_multi_gpus 
     
-    def fit_generator(self, paths, 
-                      model_params=None, state={}, opt_state=None):
+    def get_epoch_phases(self, target_lead_times=None):
+        """
+        Determine whether training with phases 1 and 2 or finetuning
+        and using phase 3 
+        """
+        update_interval = 1
+        total_timesteps = 1
+        if target_lead_times is None:
+            total_phases = [1,2,3]
+            if self.n_epochs_phase3 < 1:
+                total_phases = [1,2]
+        else:
+            total_phases = [3]
+            total_timesteps = len(target_lead_times)
+            update_interval = self.n_epochs_phase3 // total_timesteps 
+
+        return total_phases, update_interval, total_timesteps  
+    
+    
+    def fit_generator(self, 
+                      paths, 
+                      model_params=None, 
+                      state={}, 
+                      opt_state=None, 
+                      target_lead_times=None):
+        
         """Fit the WoFSCast model using the 3-Phase method outlined in Lam et al.
         using a generator method. 
         
@@ -413,6 +423,14 @@ class WoFSCastModel:
         ---------------
             generator: A data generator that returns inputs, targets, forcings. 
         """
+        # Initialize the Weights & Biases project for logging and tracking 
+        # training loss and other metrics. 
+        project_name = os.path.basename(self.out_path).replace('.npz', '')
+        wandb.init(project='wofscast',
+                   name = project_name,
+                  ) 
+        
+        
         self.num_devices = 1 
         if self.use_multi_gpus: 
             # Assume you have N GPUs
@@ -426,27 +444,27 @@ class WoFSCastModel:
             train_step_func = jax.jit(with_configs(grads_fn, self, self.norm_stats))
 
         # 3-phase learning. 
-        total_phases = [1,2,3]
-        if self.n_epochs_phase3 < 1:
-            total_phases = [1,2]
+        total_phases, update_interval, total_timesteps  = self.get_epoch_phases(target_lead_times)
         
         for phase_num in total_phases:
             if phase_num==1:
                 if self.verbose > 0:
                     print('\nStarting Phase 1 learning')
                     print('Training with a linearly increasing learning rate')
-                n_timesteps = 1
                 
             elif phase_num==2:
                 if self.verbose > 0:
                     print('\nStarting Phase 2 learning...')
-                    print('Training with a cosine decaying schedule...')
-                n_timesteps = 1 
-           
+                    print('Training with a cosine decaying learning schedule...')
+            else: 
+                if self.verbose > 0:
+                    print('\nStarting Phase 3 or Fine tune learning...')
+                    print('Training with a low, but constant learning schedule...')
+            
             scheduler = self._init_learning_rate_scheduler(phase_num)
             
+            timestep_index = 0 
             for epoch in range(getattr(self, f'n_epochs_phase{phase_num}')):
-                
                 # Print the current datetime. 
                 print('Current Time: ', datetime.datetime.now())
                 
@@ -456,13 +474,16 @@ class WoFSCastModel:
                 # Init the optimiser
                 optimizer = self._init_optimizer(lr)
                 
+                target_lead_time = target_lead_times 
                 if phase_num == 3:
-                    # For the final phase, steadily increase the lead time evaluated. 
+                    # For the final, fine tuning phase, steadily increase the lead time evaluated. 
                     # Steadily increase the lead time evaluated. 
-                    if epoch % self.epoch_interval_phase3== 0: 
-                        n_timesteps+=1
-                        if n_timesteps > self.total_timesteps:
-                            n_timesteps = self.total_timesteps-1
+                    target_lead_time = target_lead_times[timestep_index]
+                    print(f'Current target lead time: {target_lead_time}')
+                    
+                    if (epoch + 1) % update_interval == 0 and timestep_index < total_timesteps - 1:
+                        timestep_index += 1
+                    
                 
                 model_params, state, opt_state = self._fit_batch(
                            paths,  
@@ -473,6 +494,7 @@ class WoFSCastModel:
                            optimizer, 
                            epoch, 
                            phase_num,
+                           target_lead_time
                            )
                 
                 # Save the model ever so often!
@@ -493,7 +515,8 @@ class WoFSCastModel:
                    opt_state,
                    optimizer, 
                    epoch, 
-                   phase_num, 
+                   phase_num,
+                   target_lead_time
                    ): 
         
         # Create mini-batches for the current epoch and compute gradients. 
@@ -501,8 +524,13 @@ class WoFSCastModel:
         batch_count = 0 
         total_diagnostics = {}
         
+        gen_kwargs = self.generator_kwargs.copy() 
+        gen_kwargs['target_lead_times'] = target_lead_time 
+        
+        print(f"{gen_kwargs['target_lead_times']=}")
+        
         generator = ZarrDataGenerator( self.task_config,
-                                  **self.generator_kwargs
+                                  **gen_kwargs
                                  )(paths) 
         
         for batch_inputs, batch_targets, batch_forcings in generator: 

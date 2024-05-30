@@ -43,13 +43,19 @@ if __name__ == '__main__':
     
     # Whether to initialize the model with existing model weights 
     # WARNING: Assumes the model.py args are the same and does not check! 
-    fine_tune = False
+    fine_tune = True
     
     # Where the model weights are stored
     out_path = '/work/mflora/wofs-cast-data/model/wofscast_baseline.npz'
     
     model_params, state = None, {}
+    
+    # Location of the dataset. 
+    base_path = '/work/mflora/wofs-cast-data/datasets_zarr'
+    target_lead_times= None # Defaults to target lead times in the TaskConfig.
+    
     if fine_tune: 
+        base_path = '/work/mflora/wofs-cast-data/datasets_2hr_zarr'
          # Warning about model parameters compatibility
         warnings.warn("""User must ensure model parameters are compatible with the model.py args below! 
         There is no check at the moment!""", UserWarning)
@@ -62,7 +68,9 @@ if __name__ == '__main__':
         
         # Do not want to replace the existing checkpoint! 
         out_path = model_path.replace('.npz', '_fine_tune.npz') 
-    
+        
+        target_lead_times = [slice('10min', '20min'), slice('10min', '30min'), slice('10min', '40min')]
+        
     # The task config contains details like the input variables, 
     # target variables, time step, etc.
     task_config = WOFS_TASK_CONFIG
@@ -74,12 +82,13 @@ if __name__ == '__main__':
     # In my testing, factors ~ 2-4 were optimal. 
     
     cpu_batch_size_factor = 2 
-    gpu_batch_size = 64  
+    gpu_batch_size = 16  
     n_workers = 16 
     
     generator_kwargs = dict(cpu_batch_size=cpu_batch_size_factor*gpu_batch_size, 
                             gpu_batch_size=gpu_batch_size,
                             n_workers = n_workers,
+                            
                            )
     
     loss_weights = {
@@ -123,9 +132,10 @@ if __name__ == '__main__':
                  n_epochs_phase1 = 2, 
                  n_epochs_phase2 = 2,
         
-                 n_epochs_phase3 = 0, # Only use if fine tuning for > 1 step rollout. 
-                 total_timesteps = 12, # 2+ hours of total rollout for training. 
-                         
+                 # Only used if fine tuning for > 1 step rollout.
+                 # if fine_tune, then only this phase is used. 
+                 n_epochs_phase3 = 20, 
+      
                  checkpoint=True, # Save the model periodically
             
                  norm_stats_path = '/work/mflora/wofs-cast-data/full_normalization_stats',
@@ -141,9 +151,8 @@ if __name__ == '__main__':
                  generator_kwargs = generator_kwargs
     )
     
-    base_path = '/work/mflora/wofs-cast-data/datasets_zarr'
-    years = ['2019', '2020']
     
+    years = ['2019', '2020']
     with ThreadPoolExecutor() as executor:
         paths = []
         for files in executor.map(get_files_for_year, years):
@@ -156,7 +165,7 @@ if __name__ == '__main__':
     
     print(f'Number of Paths after truncation: {len(paths)}')
     
-    trainer.fit_generator(paths[:128], model_params=model_params, state=state)
+    trainer.fit_generator(paths[:32], model_params=model_params, state=state, target_lead_times=target_lead_times)
 
     # Plot the training loss and diagnostics. 
     trainer.plot_training_loss()
