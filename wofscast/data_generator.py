@@ -89,29 +89,37 @@ def load_chunk(paths_chunk, concat_time=False, gpu_batch_size=32):
     
     return dataset
 
-def dataset_to_input(dataset, task_config):
+def dataset_to_input(dataset, task_config, target_lead_times=None):
     
-    dims = ('batch', 'time', 'lat', 'lon', 'level')
+    DIMS = ('batch', 'time', 'lat', 'lon', 'level')
+    
+    if target_lead_times is None:
+        target_lead_times = task_config.train_lead_times
+        
     inputs, targets, forcings = data_utils.extract_inputs_targets_forcings(
                     dataset,
-                    target_lead_times=task_config.train_lead_times,
+                    target_lead_times=target_lead_times,
                     **dataclasses.asdict(task_config)
                 )
-        
+    
+    if len(inputs.time) == 0:
+        raise IndexError('target_lead_times is too long for dataset and inputs are empty!')
+    
     inputs = to_static_vars(inputs)
         
-    inputs = inputs.transpose(*dims, missing_dims='ignore')
-    targets = targets.transpose(*dims, missing_dims='ignore')
-    forcings = forcings.transpose(*dims, missing_dims='ignore')
+    inputs = inputs.transpose(*DIMS, missing_dims='ignore')
+    targets = targets.transpose(*DIMS, missing_dims='ignore')
+    forcings = forcings.transpose(*DIMS, missing_dims='ignore')
     
     return inputs, targets, forcings
 
 class ZarrDataGenerator:
-    def __init__(self, task_config, cpu_batch_size=512, gpu_batch_size=32, n_workers=8):
+    def __init__(self, task_config, target_lead_times=None, cpu_batch_size=512, gpu_batch_size=32, n_workers=8):
         self.task_config = task_config
         self.cpu_batch_size = cpu_batch_size
         self.gpu_batch_size = gpu_batch_size 
         self.n_workers = n_workers 
+        self.target_lead_times = target_lead_times
 
     def __call__(self, paths):
         outer_start = 0
@@ -141,10 +149,11 @@ class ZarrDataGenerator:
             while inner_start < len(chunk_indices):
                 inner_end = min(inner_start + self.gpu_batch_size, len(chunk_indices))
                 batch = chunk.isel(batch=slice(inner_start, inner_end))
-                inputs, targets, forcings = dataset_to_input(batch, self.task_config)
+                inputs, targets, forcings = dataset_to_input(batch, self.task_config, target_lead_times=self.target_lead_times)
                 inputs, targets, forcings = dask.compute(inputs, targets, forcings, scheduler='threads')
                 yield inputs, targets, forcings
                 inner_start = inner_end
+                
 class TOARadiationFlux:
     def __init__(self):
         # Solar constant in W/m^2
