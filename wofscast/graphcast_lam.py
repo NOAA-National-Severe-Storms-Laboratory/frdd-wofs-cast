@@ -42,6 +42,7 @@ import jax.numpy as jnp
 import jraph
 import numpy as np
 import xarray
+import math 
 
 from . import graph_transformer
 
@@ -236,7 +237,7 @@ class GraphCast(predictor_base.Predictor):
     if isinstance(model_config.grid_to_mesh_node_dist, int):
         self._query_radius = model_config.grid_to_mesh_node_dist
     else:
-        self._query_radius = (_get_max_edge_distance(self._finest_mesh)
+        self._query_radius = math.ceil(_get_max_edge_distance(self._finest_mesh)
                           * model_config.grid_to_mesh_node_dist)
 
     self._mesh2grid_edge_normalization_factor = (
