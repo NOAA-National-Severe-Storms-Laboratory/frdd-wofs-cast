@@ -65,7 +65,7 @@ if __name__ == '__main__':
     
     # The task config contains details like the input variables, 
     # target variables, time step, etc.
-    task_config = WOFS_TASK_CONFIG
+    task_config = DBZ_TASK_CONFIG
     
     # Data is lazily loaded into CPU memory @ cpu_batch_size_factor * gpu_batch_size
     # sized subsets. gpu_batch_size'd batches are loaded and fed to 
@@ -74,7 +74,7 @@ if __name__ == '__main__':
     # In my testing, factors ~ 2-4 were optimal. 
     
     cpu_batch_size_factor = 2 
-    gpu_batch_size = 16#64  
+    gpu_batch_size = 64  
     n_workers = 16 
     
     generator_kwargs = dict(cpu_batch_size=cpu_batch_size_factor*gpu_batch_size, 
@@ -96,17 +96,17 @@ if __name__ == '__main__':
                     'RAIN_AMOUNT' : 0.5,
                     }
 
-    #loss_weights = {'COMPOSITE_REFL_10CM' : 1.0}
+    loss_weights = {'COMPOSITE_REFL_10CM' : 1.0}
     
     trainer = WoFSCastModel(
                  task_config = task_config, 
-                 mesh_size=6, # Number of Mesh refinements or more higher resolution layers. 
+                 mesh_size=4, # Number of Mesh refinements or more higher resolution layers. 
                  
                  # Parameters for the MLPs-------------------
-                 latent_size=128, 
+                 latent_size=64, 
                  gnn_msg_steps=8, # Increasing this allows for connecting information from farther away. 
                  hidden_layers=1, 
-                 grid_to_mesh_node_dist=5,  # Fraction of the maximum distance between mesh nodes on the 
+                 grid_to_mesh_node_dist=0.99,  # Fraction of the maximum distance between mesh nodes on the 
                                              # finest mesh level. @ level 5, max distance ~ 4.5 km, 
                                              # so connecting to those grid points with 1-2 km 
         
@@ -140,7 +140,7 @@ if __name__ == '__main__':
                  generator_kwargs = generator_kwargs
     )
     
-    N_SAMPLES = 4096#512
+    N_SAMPLES = 1024#512
     
     base_path = '/work/mflora/wofs-cast-data/datasets_zarr'
     years = ['2019', '2020']
@@ -158,7 +158,7 @@ if __name__ == '__main__':
     
     print(f'Number of Paths after truncation: {len(paths)}')
     
-    trainer.fit_generator(paths[:128], model_params=model_params, state=state)
+    trainer.fit_generator(paths, model_params=model_params, state=state)
 
     # Plot the training loss and diagnostics. 
     trainer.plot_training_loss()
