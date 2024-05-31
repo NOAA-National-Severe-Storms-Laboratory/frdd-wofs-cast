@@ -23,6 +23,10 @@ import pandas as pd
 import xarray
 import dataclasses
 
+import dask 
+# Set the Dask configuration to silence the performance warning
+dask.config.set(**{'array.slicing.split_large_chunks': False})
+
 
 TimedeltaLike = Any  # Something convertible to pd.Timedelta.
 TimedeltaStr = str  # A string convertible to pd.Timedelta.
@@ -468,11 +472,12 @@ def batch_extract_inputs_targets_forcings(dataset: xarray.Dataset,
     targets = []
     forcings = [] 
 
-    n_total_steps=n_input_steps+n_target_steps # 2 input steps + 1 target step
+    n_steps = n_input_steps + n_target_steps # 2 input steps + 1 target step
+    n_time_steps = dataset.time.size 
 
-    for i in range(0, dataset.time.size-n_total_steps, n_total_steps+1):
+    for i in range(0, n_time_steps-n_steps, n_steps):
         _inputs, _targets, _forcings = extract_inputs_targets_forcings(
-                dataset.isel(time=slice(i, i+n_total_steps)), #, datetime=slice(i,i+n_total_steps)), 
+                dataset.isel(time=range(i, i+n_steps)),
                 target_lead_times=target_lead_times,
                 input_variables = input_variables, 
             target_variables=target_variables, 
@@ -480,13 +485,15 @@ def batch_extract_inputs_targets_forcings(dataset: xarray.Dataset,
             pressure_levels=pressure_levels, 
             input_duration=input_duration
             )
+        
         inputs.append(_inputs)
         targets.append(_targets)
         forcings.append(_forcings)
     
-    inputs = xr.concat(inputs, dim='batch')
-    targets = xr.concat(targets, dim='batch')
-    forcings = xr.concat(forcings, dim='batch')
+    
+    inputs = xarray.concat(inputs, dim='batch')
+    targets = xarray.concat(targets, dim='batch')
+    forcings = xarray.concat(forcings, dim='batch')
     
     return inputs, targets, forcings 
 

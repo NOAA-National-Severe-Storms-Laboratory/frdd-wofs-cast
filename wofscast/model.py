@@ -30,12 +30,8 @@ from . import normalization
 from . import rollout
 from . import xarray_jax
 from . import xarray_tree
-from .data_generator import (ZarrDataGenerator,
-                             load_wofscast_data, 
-                             wofscast_data_generator, 
-                             wofscast_batch_generator, 
-                             to_static_vars, 
-                             add_local_solar_time)
+from .data_generator import ZarrDataGenerator
+
 
 import haiku as hk
 import jax
@@ -526,8 +522,6 @@ class WoFSCastModel:
         
         gen_kwargs = self.generator_kwargs.copy() 
         gen_kwargs['target_lead_times'] = target_lead_time 
-        
-        print(f"{gen_kwargs['target_lead_times']=}")
         
         generator = ZarrDataGenerator( self.task_config,
                                   **gen_kwargs
