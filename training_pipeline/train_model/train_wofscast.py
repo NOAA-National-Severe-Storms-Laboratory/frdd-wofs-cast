@@ -43,7 +43,7 @@ if __name__ == '__main__':
     
     # Whether to initialize the model with existing model weights 
     # WARNING: Assumes the model.py args are the same and does not check! 
-    fine_tune = True
+    fine_tune = False#True
     
     # Where the model weights are stored
     out_path = '/work/cpotvin/WOFSCAST/model/wofscast_test.npz'
@@ -61,7 +61,7 @@ if __name__ == '__main__':
         There is no check at the moment!""", UserWarning)
         
         # Load a checkpoint from an existing model. 
-        model_path = '/work/mflora/wofs-cast-data/model/wofscast_baseline.npz'
+        model_path = '/work/cpotvin/WOFSCAST/model/wofscast_test_v86.npz'#'/work/mflora/wofs-cast-data/model/wofscast_baseline.npz'
         with open(model_path, 'rb') as f:
             data = checkpoint.load(f, dict)
             model_params, state = data['parameters'], {}
@@ -82,7 +82,7 @@ if __name__ == '__main__':
     # In my testing, factors ~ 2-4 were optimal. 
     
     cpu_batch_size_factor = 2 
-    gpu_batch_size = 16  
+    gpu_batch_size = 64 
     n_workers = 16 
     
     generator_kwargs = dict(cpu_batch_size=cpu_batch_size_factor*gpu_batch_size, 
@@ -109,13 +109,13 @@ if __name__ == '__main__':
     
     trainer = WoFSCastModel(
                  task_config = task_config, 
-                 mesh_size=4, # Number of Mesh refinements or more higher resolution layers. 
+                 mesh_size=5, # Number of Mesh refinements or more higher resolution layers. 
                  
                  # Parameters for the MLPs-------------------
-                 latent_size=64, 
+                 latent_size=256,#,128,#64, 
                  gnn_msg_steps=8, # Increasing this allows for connecting information from farther away. 
-                 hidden_layers=1, 
-                 grid_to_mesh_node_dist=0.99,  # Fraction of the maximum distance between mesh nodes on the 
+                 hidden_layers=2,#2,#1, 
+                 grid_to_mesh_node_dist=5,  # Fraction of the maximum distance between mesh nodes on the 
                                              # finest mesh level. @ level 5, max distance ~ 4.5 km, 
                                              # so connecting to those grid points with 1-2 km 
         
@@ -129,12 +129,12 @@ if __name__ == '__main__':
         
                  # Number of training epochs for the 2-phases (linearly increase;
                  # cosine decay).
-                 n_epochs_phase1 = 2, 
-                 n_epochs_phase2 = 2,
+                 n_epochs_phase1 = 20, 
+                 n_epochs_phase2 = 100,
         
                  # Only used if fine tuning for > 1 step rollout.
                  # if fine_tune, then only this phase is used. 
-                 n_epochs_phase3 = 20, 
+                 n_epochs_phase3 = 100, 
       
                  checkpoint=True, # Save the model periodically
             
@@ -151,7 +151,7 @@ if __name__ == '__main__':
                  generator_kwargs = generator_kwargs
     )
     
-    N_SAMPLES = 1024#512
+    N_SAMPLES = 8192#4096#512
     
     years = ['2019', '2020']
     with ThreadPoolExecutor() as executor:
@@ -167,7 +167,7 @@ if __name__ == '__main__':
     
     print(f'Number of Paths after truncation: {len(paths)}')
     
-    trainer.fit_generator(paths[:32], model_params=model_params, state=state, target_lead_times=target_lead_times)
+    trainer.fit_generator(paths, model_params=model_params, state=state, target_lead_times=target_lead_times)
 
     # Plot the training loss and diagnostics. 
     trainer.plot_training_loss()
