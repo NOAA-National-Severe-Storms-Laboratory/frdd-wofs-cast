@@ -107,7 +107,49 @@ def get_hierarchy_of_triangular_meshes(
     
     return output_meshes
 
+'''
+def generate_points(x_start, size, num_points, vertical_position):
+    """Generate points along a specified vertical position."""
+    x_positions = np.linspace(x_start, x_start + size, num_points)
+    y_position = vertical_position
+    return np.array([[x, y_position] for x in x_positions], dtype=np.float32)
 
+def get_tri_mesh(x_start, y_start, size, offset=0) -> TriangularMesh:
+    """
+    Returns a triangular mesh with 3 points at the top, center, and bottom.
+
+    Args:
+        x_start (float): The starting x-coordinate of the domain.
+        y_start (float): The starting y-coordinate of the domain.
+        size (float): The size of the domain.
+        offset (float, optional): Offset to apply to the points. Defaults to 0.
+
+    Returns:
+        TriangularMesh: The generated triangular mesh.
+    """
+    num_points = 3
+
+    # Generate top, center, and bottom points
+    top_points = generate_points(x_start, size, num_points, y_start + size - offset)
+    center_points = generate_points(x_start, size, num_points, y_start + 0.5 * size)
+    bottom_points = generate_points(x_start, size, num_points, y_start + offset)
+
+    # Combine all points
+    vertices = np.vstack([top_points, center_points, bottom_points])
+    faces = np.array([
+        [4,1,0], # Bottom, bottom left corner 
+        [4,0,3], # Top, bottom left corner
+        [4,3,6], # bottom, upper left corner 
+        [4,6,7], # top, upper left corner
+        [4,7,8], # top, upper right corner
+        [5,4,8], # bottom, upper right corner 
+        [2,4,5], # top, bottom right corner 
+        [1,4,2], # bottom, bottom right corner
+    ], dtype=np.int32)
+
+    return TriangularMesh(vertices=vertices, faces=faces)
+
+'''
 def get_tri_mesh(x_start, y_start, size, offset=0) -> TriangularMesh:
     """Returns a staggered triangular mesh.
   
@@ -136,36 +178,6 @@ def get_tri_mesh(x_start, y_start, size, offset=0) -> TriangularMesh:
     
     return TriangularMesh(vertices=vertices,
                         faces=np.array(faces, dtype=np.int32))
-    
-    '''
-    bdry = 1
-    
-    # Initialize the list of points
-    half_size = (size-(2*bdry)) // 2 
-    
-    # Points at the corners and center of the square domain
-    points = np.array([
-        [bdry, bdry],  # Bottom-left corner
-        [size - bdry, bdry],  # Bottom-right corner
-        [size - bdry, size - bdry],  # Top-right corner
-        [bdry, size - bdry],  # Top-left corner
-        [half_size, half_size]  # Center point
-    ])
-                
-    # x, y pairs.                
-    points = np.array(points)
-
-    # Step 3: Triangulate
-    tri = Delaunay(points)
-
-    # Step 4: Create the Mesh Data Structure
-    vertices = points  # The vertices are just the points on the grid
-    #print(f"{vertices=}")
-    faces = tri.simplices  # The faces are defined by the Delaunay triangulation
-
-    return TriangularMesh(vertices=vertices.astype(np.float32),
-                        faces=np.array(faces, dtype=np.int32))
-    '''
 
 def _two_split_triangle_faces(triangular_mesh: TriangularMesh) -> TriangularMesh:
     """Splits each triangular face into 4 triangles keeping the orientation."""

@@ -30,12 +30,8 @@ from . import normalization
 from . import rollout
 from . import xarray_jax
 from . import xarray_tree
-from .data_generator import (ZarrDataGenerator,
-                             load_wofscast_data, 
-                             wofscast_data_generator, 
-                             wofscast_batch_generator, 
-                             to_static_vars, 
-                             add_local_solar_time)
+from .data_generator import ZarrDataGenerator, add_local_solar_time, to_static_vars
+
 
 import haiku as hk
 import jax
@@ -54,8 +50,6 @@ import jax.numpy as jnp
 
 from jax import device_put
 from jax import pmap, device_put, local_device_count
-# Check available devices
-print("Available GPU devices:", jax.devices())
 from jax import tree_util
 
 import time 
@@ -129,7 +123,6 @@ def construct_wrapped_graphcast(model_config: graphcast.ModelConfig,
     
     return predictor
 
-
 # Function for deployment. Used to make predictions on new data and rollout. 
 @hk.transform_with_state
 def run_forward(model_config, task_config, norm_stats, inputs, targets_template, forcings):
@@ -147,40 +140,33 @@ def loss_fn(model_config, task_config, norm_stats, inputs, targets, forcings):
 # Jax doesn't seem to like passing configs as args through the jit. Passing it
 # in via partial (instead of capture by closure) forces jax to invalidate the
 # jit cache if you change configs.
-def with_configs(fn, model_obj, norm_stats):
+def with_configs(fn, model_obj, norm_stats,):
     return functools.partial(
-      fn, model_config=model_obj.model_config, task_config=model_obj.task_config, norm_stats=norm_stats)
+      fn, model_config=model_obj.model_config, 
+        task_config=model_obj.task_config, 
+        norm_stats=norm_stats,)
 
-'''
-def grads_fn(params, state, inputs, targets, forcings, model_config, task_config, norm_stats):
-    def compute_loss(params, state, inputs, targets, forcings):
-        (loss, diagnostics), next_state = loss_fn.apply(params, state, 
-                                                        jax.random.PRNGKey(0), 
-                                                        model_config, 
-                                                        task_config, norm_stats,
-                                                        inputs, targets, forcings)
-        
-        return loss, (diagnostics, next_state)
+# Our models aren't stateful, so the state is always empty, so just return the
+# predictions. This is requiredy by our rollout code, and generally simpler.
+def drop_state(fn):
+    return lambda **kw: fn(**kw)[0]
+
+# Always pass params and state, so the usage below are simpler
+def with_params(fn, model_obj):
+     return functools.partial(fn, params=model_obj.model_params, state=model_obj.state)
+            
+
+def train_step_parallel(params, 
+                        state, 
+                        opt_state,
+                        learning_rate,
+                        inputs, 
+                        targets, 
+                        forcings, 
+                        model_config, 
+                        task_config, 
+                        norm_stats):
     
-    # Compute gradients and auxiliary outputs
-    (loss, (diagnostics, next_state)), grads = jax.value_and_grad(compute_loss, has_aux=True)(params, state, 
-                                                                                              inputs, targets, 
-                                                                                              forcings)
-    
-    # Compute the global norm of all gradients
-    total_norm = jnp.sqrt(sum(jnp.sum(jnp.square(g)) for g in tree_util.tree_leaves(grads)))
-
-    # Clip gradients if the total norm exceeds the threshold
-    # Use the threshold from Lam et al. (GraphCast) 
-    def clip_grads(g, clip_norm=32):
-        return jnp.where(total_norm > clip_norm, g * clip_norm / total_norm, g)
-
-    clipped_grads = tree_util.tree_map(clip_grads, grads)
-
-    return loss, diagnostics, next_state, clipped_grads
-'''   
-
-def grads_fn_parallel(params, state, inputs, targets, forcings, model_config, task_config, norm_stats):
     def compute_loss(params, state, inputs, targets, forcings):
         (loss, diagnostics), next_state = loss_fn.apply(params, state, 
                                                         jax.random.PRNGKey(0), 
@@ -197,6 +183,9 @@ def grads_fn_parallel(params, state, inputs, targets, forcings, model_config, ta
     # Combine the gradient across all devices (by taking their mean).
     grads = jax.lax.pmean(grads, axis_name='devices')
 
+    # combine the loss across devices
+    loss = jax.lax.pmean(loss, axis_name='devices')
+    
     # Compute the global norm of all gradients
     total_norm = jnp.sqrt(sum(jnp.sum(jnp.square(g)) for g in tree_util.tree_leaves(grads)))
 
@@ -206,7 +195,21 @@ def grads_fn_parallel(params, state, inputs, targets, forcings, model_config, ta
 
     clipped_grads = tree_util.tree_map(clip_grads, grads)
 
-    return loss, diagnostics, next_state, clipped_grads
+    # Update params and state 
+    # Init the optimizer for the new learning rate. 
+    optimizer = optax.adamw(
+        learning_rate=learning_rate,
+        b1=0.9,
+        b2=0.95,
+        eps=1e-8,
+        weight_decay=0.1
+    )
+    
+    updates, opt_state = optimizer.update(clipped_grads, opt_state, params=params)
+    new_params = optax.apply_updates(params, updates)
+    
+    return new_params, opt_state, loss, diagnostics
+
 
 def modify_path_if_exists(original_path):
     """
@@ -279,16 +282,7 @@ def replicate_for_devices(params, num_devices=None):
         return params 
         
     return jax.tree_map(lambda x: jnp.array([x] * num_devices), params)
-    
-# Our models aren't stateful, so the state is always empty, so just return the
-# predictions. This is requiredy by our rollout code, and generally simpler.
-def drop_state(fn):
-    return lambda **kw: fn(**kw)[0]
 
-# Always pass params and state, so the usage below are simpler
-def with_params(fn, model_obj):
-     return functools.partial(fn, params=model_obj.model_params, state=model_obj.state)
-            
 class WoFSCastModel:
     """
     A class for training the WoFSCast model, designed to predict weather phenomena using
@@ -430,22 +424,23 @@ class WoFSCastModel:
                    name = project_name,
                   ) 
         
-        
         self.num_devices = 1 
         if self.use_multi_gpus: 
             # Assume you have N GPUs
             self.num_devices = jax.local_device_count()
             # Note: Using the GraphCast xarray-based JAX pmap; JAX documentation 
             # says we dont need to jit the function, pmap will handle it. 
-            train_step_func = xarray_jax.pmap(with_configs(grads_fn_parallel, self, self.norm_stats), 
+            train_step_func = xarray_jax.pmap(with_configs(train_step_parallel, self, self.norm_stats), 
                                               dim='devices', axis_name='devices')
       
         else:
-            train_step_func = jax.jit(with_configs(grads_fn, self, self.norm_stats))
+            raise ValueError('Code must have 2+ GPUs. Must set use_multi_gpus=True') 
+            #train_step_func = jax.jit(with_configs(grads_fn, self, self.norm_stats))
 
         # 3-phase learning. 
         total_phases, update_interval, total_timesteps  = self.get_epoch_phases(target_lead_times)
         
+ 
         for phase_num in total_phases:
             if phase_num==1:
                 if self.verbose > 0:
@@ -464,15 +459,29 @@ class WoFSCastModel:
             scheduler = self._init_learning_rate_scheduler(phase_num)
             
             timestep_index = 0 
+            
+            # Init the optimiser
+            optimizer = self._init_optimizer(scheduler)
+            
+            # Init the model params, state, and optimizer state (opt_state)
+            if model_params is None: 
+                model_params, state, opt_state = self._init_model_params_state_opt_state(paths, optimizer)
+            
+            
+            #Replicate the model_params 
+            model_params_sharded = replicate_for_devices(model_params, self.num_devices)
+            state_sharded = replicate_for_devices(state, self.num_devices)
+            opt_state_sharded = replicate_for_devices(opt_state, self.num_devices)
+            
             for epoch in range(getattr(self, f'n_epochs_phase{phase_num}')):
                 # Print the current datetime. 
                 print('Current Time: ', datetime.datetime.now())
                 
-                # Get the current learning rate from the scheduler 
-                lr = scheduler(epoch)
+                ## Get the current learning rate from the scheduler 
+                learning_rate = scheduler(epoch)
                 
                 # Init the optimiser
-                optimizer = self._init_optimizer(lr)
+                optimizer = self._init_optimizer(learning_rate)
                 
                 target_lead_time = target_lead_times 
                 if phase_num == 3:
@@ -484,14 +493,14 @@ class WoFSCastModel:
                     if (epoch + 1) % update_interval == 0 and timestep_index < total_timesteps - 1:
                         timestep_index += 1
                     
-                
-                model_params, state, opt_state = self._fit_batch(
+                model_params_sharded, state_sharded, opt_state_sharded = self._fit_batch(
                            paths,  
                            train_step_func, 
-                           model_params, 
-                           state, 
-                           opt_state,
-                           optimizer, 
+                           model_params_sharded, 
+                           state_sharded, 
+                           opt_state_sharded,
+                           optimizer,
+                           learning_rate,
                            epoch, 
                            phase_num,
                            target_lead_time
@@ -501,6 +510,7 @@ class WoFSCastModel:
                 if (epoch % self.checkpoint_interval == 0 or (epoch+1) == getattr(self, f'n_epochs_phase{phase_num}')) and self.checkpoint:
                     if self.verbose > 1:
                         print('Saving model params....')
+                        
                     self.save(model_params, state)
         
         # Save the final model params 
@@ -514,9 +524,10 @@ class WoFSCastModel:
                    state, 
                    opt_state,
                    optimizer, 
+                   learning_rate, 
                    epoch, 
                    phase_num,
-                   target_lead_time
+                   target_lead_time,
                    ): 
         
         # Create mini-batches for the current epoch and compute gradients. 
@@ -527,52 +538,34 @@ class WoFSCastModel:
         gen_kwargs = self.generator_kwargs.copy() 
         gen_kwargs['target_lead_times'] = target_lead_time 
         
-        print(f"{gen_kwargs['target_lead_times']=}")
-        
         generator = ZarrDataGenerator( self.task_config,
                                   **gen_kwargs
                                  )(paths) 
         
         for batch_inputs, batch_targets, batch_forcings in generator: 
-            if model_params is None:
-                # Initialize the model parameters
-                model_params, state = self._init_model_params_and_state(batch_inputs, 
-                                                                        batch_targets,
-                                                                        batch_forcings, 
-                                                                        optimizer
-                                                                           )
-
-            if opt_state is None:
-                # Initialize the optimizer state only at the beginning
-                opt_state = optimizer.init(model_params)
-            
-            # Split the inputs, targets, forcings, model_params, state, opt_state 
-            # up to send to multiple GPUs.
+            # Split the inputs, targets, forcings, and learning rate
+            # to sent to different GPUs.
             batch_inputs_sharded = shard_xarray_dataset(batch_inputs, self.num_devices)
             batch_targets_sharded = shard_xarray_dataset(batch_targets, self.num_devices)
             batch_forcings_sharded = shard_xarray_dataset(batch_forcings, self.num_devices)
-   
-            model_params_sharded = replicate_for_devices(model_params, self.num_devices)
-            state_sharded = replicate_for_devices(state, self.num_devices)
-
-            loss, diagnostics, state, grads = train_step_func(model_params_sharded, 
-                                                              state_sharded,            
-                                                              batch_inputs_sharded, 
-                                                              batch_targets_sharded, 
-                                                              batch_forcings_sharded,
-                                                             )
+            learning_rate_sharded = replicate_for_devices(learning_rate, self.num_devices)
+        
+            model_params, opt_state, loss, diagnostics = train_step_func(model_params, 
+                                                      state,
+                                                      opt_state,
+                                                      learning_rate_sharded,
+                                                      batch_inputs_sharded, 
+                                                      batch_targets_sharded, 
+                                                      batch_forcings_sharded,
+                                                      )
                 
             if self.verbose > 2:
+#<<<<<<< HEAD
                     print(f'loss={loss}')
+#=======
+#                print(f'\n{loss=}\n')
+#>>>>>>> origin/master
 
-            # Update parameters
-            model_params, opt_state = self.update_step(optimizer, model_params, grads, opt_state)
-            
-            # Unreplicate model_params 
-            # Like the loss, the leaves of params have an extra leading dimension,
-            # so we take the params from the first device.
-            model_params = jax.device_get(jax.tree_map(lambda x: x[0], model_params))
-            
             loss_val = np.mean(np.asarray(loss)).item()
             
             for k, v in diagnostics.items():
@@ -583,7 +576,7 @@ class WoFSCastModel:
             
             total_loss += loss_val 
                 
-            del loss, diagnostics, grads
+            del loss, diagnostics
             gc.collect() 
             
             if self.verbose > 1:
@@ -601,11 +594,11 @@ class WoFSCastModel:
         # Log metrics to wandb
         wandb.log({
             f"Phase {phase_num} Loss": total_loss / batch_count,
-            **{f"Phase {phase_num} {k}": v / batch_count for k, v in total_diagnostics.items()}
+            **{f"\n Phase {phase_num} {k}": v / batch_count for k, v in total_diagnostics.items()}
         })
         
         if self.verbose > 0:
-            print(f"Phase {phase_num} Epoch: {epoch}.....Loss: {total_loss/batch_count:.5f}")
+            print(f"\n Phase {phase_num} Epoch: {epoch}.....Loss: {total_loss/batch_count:.5f}")
         
         return model_params, state, opt_state
     
@@ -695,7 +688,18 @@ class WoFSCastModel:
 
         return predictions #, targets, inputs
 
-    def _init_model_params_and_state(self, inputs, targets, forcings, optimizer):
+    
+    def _init_model_params_state_opt_state(self, paths, optimizer):
+        """Initialize the model parameters, model state, and the optimizer state"""
+        gen_kwargs = self.generator_kwargs.copy() 
+        generator = ZarrDataGenerator( self.task_config,
+                                  **gen_kwargs
+                                 )(paths[:1]) 
+        
+        # Just load one sample for the model parameters. 
+        for inputs, targets, forcings in generator: 
+            break 
+        
         # Check that the norm stats haven't changed!!
         if 'level' in inputs.dims.keys(): 
             norm_stat_count = self.norm_stats['mean_by_level']['level'].shape[0]
@@ -714,13 +718,15 @@ class WoFSCastModel:
 
         num = count_total_parameters(model_params)
         if self.verbose > 0:
-            print(f'Num of Model Parameters: {num}')
-                  
-        return model_params, state
+            print(f'\n Num of Model Parameters: {num}\n')
+        
+        opt_state = optimizer.init(model_params)
+        
+        return model_params, state, opt_state 
   
-    def _init_optimizer(self, lr):
+    def _init_optimizer(self, learning_rate):
         # Setup optimizer with the current learning rate
-        return optax.adam(lr, b1=0.9, b2=0.95, eps=1e-8)
+        return optax.adamw(learning_rate, b1=0.9, b2=0.95, eps=1e-8, weight_decay=0.1)
         
     def _init_training_loss_diagnostics(self):
         self.training_loss = {'Phase 1' : np.zeros(self.n_epochs_phase1), 
@@ -738,7 +744,7 @@ class WoFSCastModel:
         if phase == 1:
             # Setup the learning rate schedule
             if self.verbose > 0:
-                print('Initializing a linear learning rate scheduler...')
+                print('\n Initializing a linear learning rate scheduler...')
             start_learning_rate = 1e-6  # Start from 0
             end_learning_rate = 1e-3  # Increase to 1e-3
             scheduler = optax.linear_schedule(init_value=start_learning_rate, 
@@ -747,7 +753,7 @@ class WoFSCastModel:
             
         elif phase == 2:
             if self.verbose > 0:
-                print('Initializing a cosine decay learning rate scheduler...')
+                print('\n Initializing a cosine decay learning rate scheduler...')
             scheduler = optax.cosine_decay_schedule(init_value=1e-3, 
                                                   decay_steps=self.n_epochs_phase2, 
                                                   alpha=0)  # alpha=0 makes it decay to 0    
@@ -758,11 +764,6 @@ class WoFSCastModel:
         
         return scheduler 
 
-    def update_step(self, optimizer, params, grads, opt_state):
-        """Performs a single update step by applying gradients to parameters."""
-        updates, opt_state = optimizer.update(grads, opt_state)
-        new_params = optax.apply_updates(params, updates)
-        return new_params, opt_state
 
     def _init_task_config_run(self, data): 
 
@@ -781,7 +782,7 @@ class WoFSCastModel:
           )
         
         if self.verbose > 2:
-            print(self.task_config)
+            print(f'\n TaskConfig {self.task_config}')
         
     
     def _init_model_config_run(self, data, **additional_model_config):
@@ -812,7 +813,7 @@ class WoFSCastModel:
         )
         
         if self.verbose > 2:
-            print(self.model_config)
+            print(f'\n ModelConfig: {self.model_config}')
         
     
     def _init_task_config(self, task_config):
@@ -828,7 +829,7 @@ class WoFSCastModel:
         
         
         if self.verbose > 2:
-            print(self.task_config) 
+            print(f'\n TaskConfig {self.task_config}') 
         
         
     def _init_model_config(self, mesh_size, latent_size, 
@@ -858,7 +859,7 @@ class WoFSCastModel:
         )
         
         if self.verbose > 2:
-            print(self.model_config)
+            print(f'\n ModelConfig: {self.model_config}')
         
     
     def _load_norm_stats(self, path):     
@@ -872,14 +873,17 @@ class WoFSCastModel:
                      }
         
     def save(self, model_params, state):
-        
-        model_data = {'parameters' : model_params, 
-                'state' : state,
+        """Checkpoint the model parameters including task and model configs."""
+        # Unreplicate model_params 
+        # Using the suggested change from https://github.com/google/jax/discussions/15972
+        # to limit increasing the memory. 
+        model_data = {'parameters' : jax.tree_map(lambda x: np.asarray(x[0]), model_params), 
+                'state' : jax.tree_map(lambda x: np.asarray(x[0]), state),
                 'model_config' : self.model_config, 
                 'task_config' : self.task_config, 
                }
         
-        print('Saving model...')
+        print('\n Checkpoint the model parameters...')
         with open(self.out_path, 'wb') as io_byte:
             checkpoint.dump(io_byte, model_data)
              

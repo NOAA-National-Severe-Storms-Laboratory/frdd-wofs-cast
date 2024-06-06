@@ -57,3 +57,17 @@ DBZ_TASK_CONFIG = graphcast.TaskConfig(
  )
 
 
+DBZ_TASK_CONFIG_1HR = graphcast.TaskConfig(
+      input_variables=INPUT_VARS_DBZ,
+      target_variables=TARGET_VARS_DBZ,
+      forcing_variables=FORCING_VARS,
+      pressure_levels=PRESSURE_LEVELS,
+      input_duration='120min',
+      n_vars_2D = len(VARS_2D),
+      domain_size = 150,
+      tiling=None,
+      train_lead_times = '60min',
+ )
+
+
+

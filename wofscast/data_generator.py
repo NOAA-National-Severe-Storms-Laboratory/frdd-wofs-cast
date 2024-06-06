@@ -12,30 +12,29 @@ import numpy as np
 import pandas as pd
 import dataclasses
 import random 
+import re 
 
 from tqdm import tqdm
-from dask.diagnostics import ProgressBar
 import dask
-from dask import delayed, compute
-from dask.distributed import Client, LocalCluster
 import gc 
 
 #from numba import jit
 import numpy as np
 from datetime import datetime, timedelta
 import math
-
-import jax.numpy as jnp 
-from jax import jit
-import jax
-
+import functools 
 
 import fsspec
+from jax import jit
+import jax.numpy as jnp 
 
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import ProcessPoolExecutor, as_completed
 import multiprocessing as mp
 from itertools import islice
+
+# Set the Dask configuration to silence the performance warning
+dask.config.set(**{'array.slicing.split_large_chunks': False})
 
 def to_static_vars(dataset):
     # Select the first time index for 'HGT' and 'XLAND' variables
@@ -49,58 +48,115 @@ def to_static_vars(dataset):
 
     return dataset
 
-def load_dataset_from_json(json_path):
-    """Load a dataset from a Kerchunk JSON descriptor."""
-    mapper = fsspec.get_mapper('reference://', fo=json_path, remote_protocol='file')
-    ds = xr.open_dataset(mapper, engine='zarr', consolidated=True, chunks={}, decode_times=False)
-    ds = add_local_solar_time(ds)
-    return ds
+def extract_datetime_from_path(zarr_path):
+    # Example string
+    filename = os.path.basename(zarr_path)
 
-def load_dataset_from_zarr(zarr_path):
+    # Regular expression to match the datetime part
+    datetime_pattern = r"\d{4}-\d{2}-\d{2}_\d{2}:\d{2}:\d{2}"
+
+    # Use re.search to find the pattern in the string
+    match = re.search(datetime_pattern, filename)
+
+    # Extract the matched part
+    if match:
+        datetime_str = match.group(0)
+        datetime_str = datetime_str.replace("_", " ")
+    else:
+        raise ValueError(f'datetime_pattern {datetime_pattern} is not found in {zarr_path}')
+        
+    return datetime_str
+
+def open_zarr(zarr_path):
+    return xr.open_dataset(zarr_path, 
+                           engine='zarr', consolidated=True, 
+                           chunks={}, decode_times=False)
+
+def load_dataset_from_zarr(path):
     """Load a dataset from a Zarr file"""
-    ds = xr.open_dataset(zarr_path, engine='zarr', consolidated=True, chunks={}, decode_times=False)
+    if path.endswith('.json'):
+        path = fsspec.get_mapper('reference://', fo=path, remote_protocol='file')
+
+    ds = open_zarr(path) 
+    
+    # Check if the datetime coordinate exists; need for the local solar time calculation. 
+    if 'datetime' not in ds.coords:
+        # Extract the datetime from the path
+        datetime_str = extract_datetime_from_path(path)
+        datetime = pd.to_datetime(datetime_str)
+        ds = ds.assign_coords(datetime=[datetime])
+
     ds = add_local_solar_time(ds)
+    
     return ds
 
 def load_and_concatenate(files, concat_dim):
-    """Load multiple datasets from JSON files and concatenate them along a specified dimension."""
-    if '.zarr' in files[0]:
-        load_func = load_dataset_from_zarr
-    else:
-        load_func = load_dataset_from_json
-
-    datasets = [load_func(file) for file in files]
+    """Load multiple datasets and concatenate them along a specified dimension."""
+    datasets = [load_dataset_from_zarr(file) for file in files]
     combined_dataset = xr.concat(datasets, dim=concat_dim)
     
+    if concat_dim != 'batch': 
+        # Add timing coordinates. Setting the time coordinate after time 
+        # in nanoseconds since the first time entry. Neccesary 
+        # for the inputs, targets, forcings extraction code. 
+        try:
+            combined_dataset = combined_dataset.rename({'Time': 'time'})
+        except:
+            print('Did not convert time dimension name.')  
+        
+        combined_dataset['time'] = combined_dataset['datetime'].values
+        time_deltas = (combined_dataset['time'] - combined_dataset['time'][0]).astype('timedelta64[ns]')
+        combined_dataset['time'] = time_deltas
+        
+        combined_dataset = combined_dataset.drop_vars('datetime', errors='ignore')
+       
     return combined_dataset
 
-def load_chunk(paths_chunk, concat_time=False, gpu_batch_size=32):
-    if concat_time:
+def load_chunk(paths_chunk, batch_over_time=False, gpu_batch_size=32, preprocess_fn=None):
+    if batch_over_time:
         if not isinstance(paths_chunk, list) or not all(isinstance(i, list) for i in paths_chunk):
             raise ValueError('paths must be a nested list if concatenating along a time dimension.')
         datasets_per_time = [load_and_concatenate(p, concat_dim='Time') for p in paths_chunk]
-        dataset = xr.concat(datasets_per_time, dim='batch')
-        dataset = dataset.rename({'Time': 'time'})
+        
+        # Apply preprocessing to the individual datasets. 
+        if preprocess_fn:
+            datasets_per_time = [preprocess_fn(ds) for ds in datasets_per_time]
+        
+        dataset = xr.concat(datasets_per_time, dim='batch')  
     else:
         dataset = load_and_concatenate(paths_chunk, concat_dim='batch')
 
+        # Apply preprocessing to the dataset. 
+        if preprocess_fn:
+            dataset = preprocess_fn(dataset)     
+        
     # Chunk the dataset
     dataset = dataset.chunk({'batch': gpu_batch_size})
     
     return dataset
 
-def dataset_to_input(dataset, task_config, target_lead_times=None):
+def dataset_to_input(dataset, task_config, target_lead_times=None, 
+                     batch_over_time=False, n_target_steps=1):
     
     DIMS = ('batch', 'time', 'lat', 'lon', 'level')
     
     if target_lead_times is None:
         target_lead_times = task_config.train_lead_times
-        
-    inputs, targets, forcings = data_utils.extract_inputs_targets_forcings(
+    
+    if batch_over_time:
+        inputs, targets, forcings = data_utils.batch_extract_inputs_targets_forcings(
+            dataset, 
+            n_input_steps=2, 
+            n_target_steps=n_target_steps, 
+            target_lead_times=target_lead_times,
+            **dataclasses.asdict(task_config)
+        )
+    else:
+        inputs, targets, forcings = data_utils.extract_inputs_targets_forcings(
                     dataset,
                     target_lead_times=target_lead_times,
                     **dataclasses.asdict(task_config)
-                )
+        )
     
     if len(inputs.time) == 0:
         raise IndexError('target_lead_times is too long for dataset and inputs are empty!')
@@ -114,26 +170,90 @@ def dataset_to_input(dataset, task_config, target_lead_times=None):
     return inputs, targets, forcings
 
 class ZarrDataGenerator:
-    def __init__(self, task_config, target_lead_times=None, cpu_batch_size=512, gpu_batch_size=32, n_workers=8):
+    """
+    A generator class to load and preprocess data from Zarr files for machine learning tasks.
+
+    Parameters:
+    -----------
+    task_config : graphcast_lam.TaskConfig object
+        Configuration dictionary for the task, containing parameters required for data processing.
+    target_lead_times : list, optional
+        List of lead times for the target variable. Default is None.
+        If default, the target_lead_times in task_config is used. See the dataset_to_input function
+        for more details. 
+    n_target_steps : int, optional
+        Number of target steps to predict. Default is 1. Used in the batch_extract_inputs_targets_forcings 
+        funtion in the data_utils.py. 
+    batch_over_time : bool, optional
+        If True, batch data over time. Default is False. When providing a nested list of paths, where
+        the inner nests are datasets to be concatenated over time, set to True. 
+    preprocess_fn : function, optional
+        A function to preprocess the data. Default is None. Useful option for processing 
+        data after the concatenation over time. 
+    cpu_batch_size : int, optional
+        Batch size for loading data in parallel on CPU. Default is None. In which, 
+        it is 2*gpu_batch_size.
+    gpu_batch_size : int, optional
+        Batch size for processing data on GPU. Default is 32.
+    n_workers : int, optional
+        Number of parallel workers for data loading. Default is 8.
+    """
+    
+    def __init__(self, task_config, 
+                 target_lead_times=None, 
+                 n_target_steps : int =1, 
+                 batch_over_time : bool =False,
+                 preprocess_fn=None, 
+                 cpu_batch_size=None, gpu_batch_size : int =32, 
+                 n_workers : int = 8):
+        
         self.task_config = task_config
-        self.cpu_batch_size = cpu_batch_size
+        if cpu_batch_size:
+            self.cpu_batch_size = cpu_batch_size
+        else:
+            self.cpu_batch_size = 2 * gpu_batch_size
+            
         self.gpu_batch_size = gpu_batch_size 
         self.n_workers = n_workers 
         self.target_lead_times = target_lead_times
+        self.batch_over_time = batch_over_time 
+        self.n_target_steps = n_target_steps 
+        self.preprocess_fn = preprocess_fn
 
     def __call__(self, paths):
+        """
+        Generates batches of data from the provided paths.
+
+        Parameters:
+        -----------
+        paths : list
+            List of file paths to the Zarr files.
+
+        Yields:
+        -------
+        tuple
+            A tuple containing inputs, targets, and forcings for each batch.
+        """
         outer_start = 0
         np.random.shuffle(paths)
         
         chunk_futures = []
         loaded_chunks = []
 
+        def with_params(fn, batch_over_time, gpu_batch_size, preprocess_fn):
+            return functools.partial(fn, batch_over_time=batch_over_time, 
+                                     gpu_batch_size=gpu_batch_size, 
+                                     preprocess_fn=preprocess_fn)
+        
+        load_chunk_ = with_params(load_chunk, self.batch_over_time, 
+                                  self.gpu_batch_size, self.preprocess_fn)
+
         # Using ProcessPoolExecutor for parallel loading
         with ProcessPoolExecutor(max_workers=self.n_workers) as executor:
             while outer_start < len(paths):
                 outer_end = min(outer_start + self.cpu_batch_size, len(paths))
                 paths_chunk = paths[outer_start:outer_end]
-                chunk_futures.append(executor.submit(load_chunk, paths_chunk))
+                chunk_futures.append(executor.submit(load_chunk_, paths_chunk))
                 outer_start = outer_end
 
             for future in as_completed(chunk_futures):
@@ -149,10 +269,15 @@ class ZarrDataGenerator:
             while inner_start < len(chunk_indices):
                 inner_end = min(inner_start + self.gpu_batch_size, len(chunk_indices))
                 batch = chunk.isel(batch=slice(inner_start, inner_end))
-                inputs, targets, forcings = dataset_to_input(batch, self.task_config, target_lead_times=self.target_lead_times)
+                inputs, targets, forcings = dataset_to_input(batch, self.task_config, 
+                                                             target_lead_times=self.target_lead_times,
+                                                             batch_over_time=self.batch_over_time,
+                                                             n_target_steps=self.n_target_steps 
+                                                            )
                 inputs, targets, forcings = dask.compute(inputs, targets, forcings, scheduler='threads')
                 yield inputs, targets, forcings
                 inner_start = inner_end
+
                 
 class TOARadiationFlux:
     def __init__(self):
@@ -287,65 +412,6 @@ def add_local_solar_time(data: xr.Dataset) -> xr.Dataset:
     '''
     return data
 
-def load_wofscast_data(paths, lead_times, task_config, client): 
-    """Loads a large number of netcdf files into memory using dask.distributed.
-    Useful storing the full dataset in CPU RAM and then offloading small subsets
-    to the GPU RAM batch by batch. 
-    
-    paths: list of paths: Path to my custom wrfwof files 
-    lead_times: slice of shortest to longest lead time in the wrfwof files
-    task_config: graphcast.TaskConfig: An object containing useful variables for the input/target building
-    client: dask.distributed.Client
-    
-    """
-    # Load all the data into memory. 
-    dataset = xr.open_mfdataset(paths, 
-                                concat_dim='batch', 
-                                parallel=True, 
-                                combine='nested',
-                                preprocess=add_local_solar_time
-                                    ) 
-    
-    inputs, targets, forcings = data_utils.extract_inputs_targets_forcings(dataset,
-                                                        target_lead_times=lead_times,
-                                                        **dataclasses.asdict(task_config))
-        
-    # Convert the constant fields to time-independent (drop time dim) and transpose as needed
-    inputs = to_static_vars(inputs)
-        
-    # Perform computation efficiently with dask.
-    with ProgressBar():
-        inputs, targets, forcings = dask.compute(inputs, targets, forcings)
-        
-    inputs = inputs.transpose('batch', 'time', 'lat', 'lon', 'level')
-    targets = targets.transpose('batch', 'time', 'lat', 'lon', 'level')
-    forcings = forcings.transpose('batch', 'time', 'lat', 'lon')
-            
-    return inputs, targets, forcings 
-
-
-def wofscast_batch_generator(inputs, targets, forcings, batch_size=32, n_timesteps=1, seed=123):
-    """Batcher for an xarray dataset. Useful for storing the full dataset in CPU RAM and then offloading small subsets
-    to the GPU RAM batch by batch. Assumes 'inputs' and 'targets' are xarray DataArrays or Datasets."""
-    ###np.random.seed(seed)  # Set the seed for reproducibility
-    
-    total_samples = len(inputs.batch)
-    total_batches = total_samples // batch_size + (1 if total_samples % batch_size > 0 else 0)
-    
-    indices = np.random.permutation(total_samples)  # Shuffle indices
-    
-    targets = targets.isel(time=slice(0, n_timesteps))  # Pre-select timesteps
-    forcings = forcings.isel(time=slice(0, n_timesteps))
-    
-    for batch_num in range(total_batches):
-        batch_indices = indices[batch_num * batch_size : min((batch_num + 1) * batch_size, total_samples)]
-        
-        batch_inputs = inputs.isel(batch=batch_indices)
-        batch_targets = targets.isel(batch=batch_indices)
-        batch_forcings = forcings.isel(batch=batch_indices)
-        
-        yield batch_inputs, batch_targets, batch_forcings
-        
     
 def check_for_nans(dataset):
 
@@ -363,115 +429,164 @@ def check_for_nans(dataset):
         for dim, inds in zip(nan_mask.dims, nan_indices):
             print(f"  {dim}: {inds}") 
     
-def read_netcdfs_dask(paths, dim, transform_func=None):
-    """Reading multiple netcdf files into memory, using dask for efficiency"""
-    @delayed
-    def process_one_path(path):
-        # use a context manager, to ensure the file gets closed after use
-        with xr.open_dataset(path) as ds:
-            # transform_func should do some sort of selection or
-            # aggregation
-            if transform_func is not None:
-                ds = transform_func(ds)
-            # load all data from the transformed dataset, to ensure we can
-            # use it after closing each original file
-            ds.load()
-            return ds
+
+    
+class WoFSDataProcessor:
+    STATIC_PATH_FOR_LATLON = '/work2/wofs_zarr/2019/20190525/2000/ENS_MEM_12/wrfwof_d01_2019-05-25_20:00:00.zarr'
+    
+    def __init__(self, domain_size=150):
+        self.domain_size = domain_size 
+        self._load_lat_and_lon()
+
+    def _load_lat_and_lon(self):
+        # Reset the lat/lon coordinates 
+        tmp_ds = open_zarr(self.STATIC_PATH_FOR_LATLON) 
+        # Latitude and longitude are expected to be 1d vectors. 
+        self.lat_1d = tmp_ds['lat'].values
+        self.lon_1d = tmp_ds['lon'].values
         
-    #datasets = [process_one_path(p) for p in tqdm(paths, desc="Loading WRFOUT files")]
+        tmp_ds.close()
     
-    delayed_datasets = [process_one_path(p) for p in paths]
+    def set_ref_lat_and_lon(self, dataset: xr.Dataset) -> xr.Dataset:
+        # Assign a reference 1D latitude and longitude for the coordiantes. 
+        dataset = dataset.assign_coords(lat=self.lat_1d, lon=self.lon_1d)
+        return dataset 
     
-    with ProgressBar():
-        datasets = compute(*delayed_datasets)
+    def subset_vertical_levels(self, dataset: xr.Dataset) -> xr.Dataset:
+        # Subset the vertical levels (every N layers). 
+        dataset = dataset.isel(level=dataset.level[::3].values)
+        return dataset 
     
-    combined = xr.concat(datasets, dim)
+    def unaccum_rainfall(self, dataset: xr.Dataset) -> xr.Dataset:
+        """
+        Calculate the difference in accumulated rainfall ('RAINNC') at each time step,
+        with an assumption that the first time step starts with zero rainfall.
     
-    return combined
+        Parameters:
+        - ds: xarray.Dataset containing the 'RAINNC' variable
     
-def read_netcdfs(paths, dim, transform_func=None):
-    """Reading multiple netcdf files into memory, using dask for efficiency"""
-    def process_one_path(path):
-        # use a context manager, to ensure the file gets closed after use
-        with xr.open_dataset(path) as ds:
-            # transform_func should do some sort of selection or
-            # aggregation
-            if transform_func is not None:
-                ds = transform_func(ds)
-            # load all data from the transformed dataset, to ensure we can
-            # use it after closing each original file
-            ds.load()
-            return ds
+        Returns:
+            - Modified xarray.Dataset with the new variable 'RAINNC_DIFF'
+        """
+        if 'RAINNC' not in dataset.data_vars:
+            return dataset 
         
-    datasets = [process_one_path(p) for p in tqdm(paths, desc="Loading WRFOUT files")]
+        # Calculate the difference along the time dimension
+        rain_diff = dataset['RAINNC'].diff(dim='time')
     
-    combined = xr.concat(datasets, dim)
+        # Prepend a zero for the first time step. This assumes that the difference
+        # for the first time step is zero since there's no previous time step to compare.
+        # We use np.concatenate to add the zero at the beginning. Ensure that the dimensions match.
+        # Adjust dimensions and coordinates according to your dataset's specific setup.
+        initial_zero = xr.zeros_like(dataset['RAINNC'].isel(time=0))
+        rain_diff_with_initial = xr.concat([initial_zero, rain_diff], dim='time')
     
-    return combined
+        # Add the computed difference back to the dataset as a new variable
+        dataset['RAIN_AMOUNT'] = rain_diff_with_initial
     
-def read_mfnetcdfs_dask(paths, dim, transform_func=None, chunks ={"time": 4}, load=True):
-    """Read multiple NetCDF files into memory, using Dask for parallel loading."""
-    # Absolutely, crucial to set threads_per_worker=1!!!!
-    # https://forum.access-hive.org.au/t/netcdf-not-a-valid-id-errors/389/19
-    #To summarise in this thread, it looks like a work-around in netcdf4-python to deal 
-    #with netcdf-c not being thread safe was removed in 1.6.1. 
-    #The solution (for now) is to make sure your cluster only uses 1 thread per worker.
-
-    dataset = xr.open_mfdataset(paths, concat_dim=dim, combine='nested',
-                                parallel=True, preprocess=transform_func,
-                                chunks=chunks, )  # Adjust the chunking strategy as needed
-    if load:
-        with ProgressBar():
-            loaded_dataset= dataset.compute()
-        return loaded_dataset
-
-    return dataset    
-
-def wofscast_data_generator(path, 
-                            train_lead_times, 
-                            task_config,
-                            batch_chunk_size=256, 
-                            client=None,):
-    
-    with xr.open_dataset(path, 
-                         engine='zarr', 
-                         consolidated=True, 
-                         chunks={'batch' : batch_chunk_size}
-                        ) as ds:
-    
-    #with open_mfdataset_batch(path, batch_chunk_size) as ds:
-   
-            total_samples = len(ds.batch)
-            total_batches = total_samples // batch_chunk_size + (1 if total_samples % batch_chunk_size > 0 else 0)
-    
-            for batch_num in tqdm(range(total_batches), desc='Loading Zarr Batch..'):
-                start_idx = batch_num * batch_chunk_size
-                end_idx = min((batch_num + 1) * batch_chunk_size, total_samples)
-                batch_indices = slice(start_idx, end_idx)  # Use slice for more efficient indexing
+        dataset = dataset.drop_vars(['RAINNC'])
         
-                # Load this batch into memory. 
-                this_batch = ds.isel(batch=batch_indices)
-        
-                inputs, targets, forcings = data_utils.extract_inputs_targets_forcings(
-                    this_batch,
-                    target_lead_times=train_lead_times,
-                    **dataclasses.asdict(task_config)
-                )
-        
-                inputs = to_static_vars(inputs)
-        
-                dims = ('batch', 'time', 'lat', 'lon', 'level')
-
-                inputs = inputs.transpose(*dims, missing_dims='ignore')
-                targets = targets.transpose(*dims, missing_dims='ignore')
-                forcings = forcings.transpose(*dims, missing_dims='ignore')
-
-                inputs, targets, forcings = dask.compute(inputs, targets, forcings)
-            
-                yield inputs, targets, forcings 
-
+        return dataset     
     
+    def resize(self, dataset: xr.Dataset) -> xr.Dataset:
+        """Resize the domain"""
+        n_lat, n_lon = dataset.dims['lat'], dataset.dims['lon']
+        
+        start_lat, start_lon = (n_lat - self.domain_size) // 2, (n_lon - self.domain_size) // 2
+        end_lat, end_lon = start_lat + self.domain_size, start_lon + self.domain_size
+        
+        # Subsetting the dataset to the central size x size grid
+        ds_subset = dataset.isel(lat=slice(start_lat, end_lat), lon=slice(start_lon, end_lon))
+        
+        return ds_subset
+    
+    
+    def __call__(self, dataset: xr.Dataset) -> xr.Dataset:
+        
+        funcs = [
+            'set_ref_lat_and_lon', # Set a single reference lat/lon grid 
+            'resize', # Limit to the inner most 150 x 150 
+            'subset_vertical_levels', # Limit to every 3rd level.
+             #'unaccum_rainfall' # Convert accum rainfall to rain rate. 
+        ]
+    
+        for func in funcs:
+            dataset = getattr(self, func)(dataset)
 
+        return dataset 
+    
+class WRFZarrFileProcessor:
+    def __init__(self, base_path, years, resolution_minutes, 
+                 restricted_dates=None, restricted_times=None, restricted_members=None):
+        self.base_path = base_path
+        self.years = years
+        self.resolution_minutes = resolution_minutes
+        self.restricted_dates = restricted_dates
+        self.restricted_times = restricted_times
+        self.restricted_members = restricted_members
+
+    def get_nwp_files_at_resolution(self, directory):
+        """
+        Get file paths at a specified time resolution from a directory of WRFOUT zarr files.
+
+        Args:
+            directory (str): Path to the directory containing NWP output files.
+
+        Returns:
+            list: List of file paths at the specified time resolution.
+        """
+        files = sorted(os.listdir(directory))
+        selected_files = []
+        for file in files:
+            try:
+                timestamp_str = file.split('_')[2] + '_' + file.split('_')[3].replace('.zarr', '')
+                timestamp = datetime.strptime(timestamp_str, '%Y-%m-%d_%H:%M:%S')
+            except ValueError:
+                continue
+            if (timestamp.minute * 60 + timestamp.second) % (self.resolution_minutes * 60) == 0:
+                selected_files.append(os.path.join(directory, file))
+        return selected_files
+
+    def process_member_directory(self, mem_path):
+        return self.get_nwp_files_at_resolution(mem_path)
+
+    def process_datetime_directory(self, datetime_path):
+        members_files = []
+        with os.scandir(datetime_path) as members:
+            for mem_entry in members:
+                if mem_entry.is_dir() and (self.restricted_members is None or mem_entry.name in self.restricted_members):
+                    mem_path = mem_entry.path
+                    members_files.append(self.process_member_directory(mem_path))
+        return members_files
+
+    def process_date_directory(self, date_path):
+        times_files = []
+        with os.scandir(date_path) as init_times:
+            for time_entry in init_times:
+                if time_entry.is_dir() and (self.restricted_times is None or time_entry.name in self.restricted_times):
+                    datetime_path = time_entry.path
+                    times_files.extend(self.process_datetime_directory(datetime_path))
+        return times_files
+
+    def process_year_directory(self, year_path):
+        dates_files = []
+        with os.scandir(year_path) as dates:
+            for date_entry in dates:
+                if date_entry.is_dir() and (self.restricted_dates is None or date_entry.name in self.restricted_dates):
+                    date_path = date_entry.path
+                    dates_files.extend(self.process_date_directory(date_path))
+        return dates_files
+
+    def run(self):
+        all_files = []
+        with ThreadPoolExecutor(max_workers=24) as executor:
+            futures = []
+            for year in self.years:
+                year_path = os.path.join(self.base_path, year)
+                futures.append(executor.submit(self.process_year_directory, year_path))
+            for future in futures:
+                all_files.extend(future.result())
+        return all_files
 
 
 
