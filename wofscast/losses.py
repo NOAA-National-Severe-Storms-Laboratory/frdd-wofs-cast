@@ -152,19 +152,67 @@ def custom_window_loss(
     wgts = [1.0 for nbrhd in med_nbrhds]
     med_wgts = [wgt/sum(wgts) for wgt in wgts]
 
-    min_nbrhd=3
-    max_nbrhd=5
+    min_nbrhd=0#5#3
+    max_nbrhd=-1#5
     max_nbrhds = range(min_nbrhd, max_nbrhd+1, 2)
     wgts = [1.0 for nbrhd in max_nbrhds]
     max_wgts = [wgt/sum(wgts) for wgt in wgts]
 
-    all_wgts = mu_wgts+med_wgts+max_wgts
+    min_nbrhd=0#5
+    max_nbrhd=-1#5
+    ssim_nbrhds = range(min_nbrhd, max_nbrhd+1, 2)
+    wgts = [1.0 for nbrhd in ssim_nbrhds]
+    ssim_wgts = [wgt/sum(wgts) for wgt in wgts]
+
+    min_nbrhd=0#5
+    max_nbrhd=-1#5
+    perc_nbrhds = range(min_nbrhd, max_nbrhd+1, 2)
+    perc_vals = [10, 90]
+    wgts = [1.0] * (len(perc_nbrhds)*len(perc_vals))
+    perc_wgts = [wgt/sum(wgts) for wgt in wgts]
+
+    all_wgts = mu_wgts+med_wgts+max_wgts+ssim_wgts+perc_wgts
     all_wgts = all_wgts.copy()
     mu_wgts = [wgt/sum(all_wgts) for wgt in mu_wgts]
     med_wgts = [wgt/sum(all_wgts) for wgt in med_wgts]
     max_wgts = [wgt/sum(all_wgts) for wgt in max_wgts]
+    ssim_wgts = [wgt/sum(all_wgts) for wgt in ssim_wgts]
+    perc_wgts = [wgt/sum(all_wgts) for wgt in perc_wgts]
+
+    sigma = 1.5
+    thres = 0.01#0.001
+    mse_thres = 0.01#0.01
+    mse_cond_loss = False
+    use_mae = True
+
+    def compute_ssi(prediction, target, window_size, sigma, thres):
+
+      max_targs = apply_percentile_filter(target, window_size, 100)
+      max_preds = apply_percentile_filter(prediction, window_size, 100)
 
 
+      kernel = gaussian_kernel(window_size, sigma)
+      kernel = kernel.reshape(1, 1, *kernel.shape)
+      mu1 = convolve(prediction, kernel, mode='same')
+      mu2 = convolve(target, kernel, mode='same')
+
+      mu1_sq = mu1 ** 2
+      mu2_sq = mu2 ** 2
+      mu1_mu2 = mu1 * mu2
+
+      sigma1_sq = convolve(prediction ** 2, kernel, mode='same') - mu1_sq
+      sigma2_sq = convolve(target ** 2, kernel, mode='same') - mu2_sq
+      sigma12 = convolve(prediction * target, kernel, mode='same') - mu1_mu2
+
+      C1 = (0.01) ** 2
+      C2 = (0.03) ** 2
+
+      ssim_map = ((2 * mu1_mu2 + C1) * (2 * sigma12 + C2)) / ((mu1_sq + mu2_sq + C1) * (sigma1_sq + sigma2_sq + C2))
+      ssim_map = jnp.clip(ssim_map, 0, 1)
+      ssim_map = jnp.where(((jnp.abs(max_preds) >= thres) | (jnp.abs(max_targs) >= thres)), ssim_map, jnp.nan)
+
+      return ssim_map
+ 
     def apply_uniform_filter(image, nbrhd):
         kernel = jnp.ones((nbrhd,nbrhd)).astype(jnp.bfloat16)
         kernel = kernel / kernel.size
@@ -261,6 +309,23 @@ def custom_window_loss(
       pooled_image = lax.reduce_window(image, -jnp.inf, lax.max, window_shape, strides, padding)
       return pooled_image
 
+    def gaussian_kernel(window_size, sigma):
+      ax = jnp.arange(-window_size // 2 + 1., window_size // 2 + 1.)#.astype(jnp.bfloat16)
+      xx, yy = jnp.meshgrid(ax, ax)
+      kernel = jnp.exp(-0.5 * (jnp.square(xx) + jnp.square(yy)) / jnp.square(sigma))
+      return kernel / jnp.sum(kernel)
+
+    def apply_cond_loss(error, pred, true):
+      low_val = -0.1
+      high_val = 0.1
+      over_penalty = 2.0
+      under_penalty = 2.0
+
+      error = np.where(((true < low_val) | (pred > true)), over_penalty*error, error) 
+      error = np.where(((true > high_val) | (pred < true)), under_penalty*error, error)
+
+      return error
+
     def loss(prediction, target):
 
       var = prediction.name
@@ -273,8 +338,17 @@ def custom_window_loss(
         mu_preds = [apply_uniform_filter(prediction, nbrhd) for nbrhd in mu_nbrhds]
 
         diffs = [pred - true for true, pred in zip(mu_trues, mu_preds)] 
-        errors = [wgt * diff ** 2 for wgt, diff in zip(mu_wgts, diffs)]
-        loss = jnp.sum(jnp.stack(errors, axis=0), axis=0)#xr.concat(errors, dim='temp').sum(dim='temp')
+        if mse_thres > 0:
+          #diffs = [jnp.where((jnp.abs(diff) >= mse_thres), diff, jnp.nan) for diff in diffs]
+          diffs = [jnp.where(((jnp.abs(pred) >= mse_thres) | (jnp.abs(true) >= mse_thres)), diff, jnp.nan) for pred, true, diff in zip(mu_preds, mu_trues, diffs)]
+        if use_mae:
+          errors = [wgt * jnp.abs(diff) for wgt, diff in zip(mu_wgts, diffs)]
+        else:
+          errors = [wgt * diff ** 2 for wgt, diff in zip(mu_wgts, diffs)]
+        if mse_cond_loss:
+          errors = [apply_cond_loss(error, pred, true) for error, pred, true in zip(errors, mu_preds, mu_trues)]
+
+        loss = jnp.nansum(jnp.stack(errors, axis=0), axis=0)#xr.concat(errors, dim='temp').sum(dim='temp')
 
       if len(med_nbrhds) > 0:
 
@@ -300,9 +374,31 @@ def custom_window_loss(
         except:
           loss = jnp.sum(jnp.stack(errors, axis=0), axis=0)
 
+      if len(perc_nbrhds) > 0:
+
+        trues = [apply_percentile_filter(target, nbrhd, perc_val) for nbrhd, perc_val in zip(perc_nbrhds, perc_vals)]
+        preds = [apply_percentile_filter(prediction, nbrhd, perc_val) for nbrhd, perc_val in zip(perc_nbrhds, perc_vals)]
+
+        diffs = [pred - true for true, pred in zip(trues, preds)]
+        errors = [wgt * diff ** 2 for wgt, diff in zip(perc_wgts, diffs)]
+        try:
+          loss += jnp.sum(jnp.stack(errors, axis=0), axis=0)
+        except:
+          loss = jnp.sum(jnp.stack(errors, axis=0), axis=0)
+
+      if len(ssim_nbrhds) > 0:
+
+        SSIs = [wgt*(1-compute_ssi(prediction, target, nbrhd, sigma, thres)) for wgt, nbrhd in zip(ssim_wgts, ssim_nbrhds)]
+
+        try:
+          loss += jnp.nansum(jnp.stack(SSIs, axis=0), axis=0)
+        except:
+          loss = jnp.nansum(jnp.stack(SSIs, axis=0), axis=0)
+        loss = 1-compute_ssi(prediction, target, 11, sigma, thres)
+        
       loss = xarray_jax.DataArray(loss, dims=['batch', 'time', 'lat', 'lon'])
 
-      return _mean_preserving_batch(loss)
+      return _mean_preserving_batch(loss.astype(jnp.bfloat16))
 
     losses = xarray_tree.map_structure(loss, predictions, targets)
 
@@ -314,17 +410,14 @@ def SSIM_loss(
     per_variable_weights: Mapping[str, float],
 ) -> LossAndDiagnostics:
 
-
-    data_ranges = {'COMPOSITE_REFL_10CM': 100, 'RAINNC': 0.1}
-
     window_size=11
     sigma = 1.5
-    thres = 0.01
+    thres = 0#0.001
 
     def loss(prediction, target):    
 
       var = prediction.name
-      L = data_ranges[var]
+      L = 1.0
 
       prediction = xarray_jax.jax_data(prediction)
       target = xarray_jax.jax_data(target)
@@ -352,9 +445,9 @@ def SSIM_loss(
       C2 = (0.03*L) ** 2
     
       ssim_map = ((2 * mu1_mu2 + C1) * (2 * sigma12 + C2)) / ((mu1_sq + mu2_sq + C1) * (sigma1_sq + sigma2_sq + C2))
-      ssim_map = jnp.where(((jnp.absolute(mu1) > thres) | (jnp.absolute(mu2) > thres)), ssim_map, jnp.nan)
+      ssim_map = jnp.where(((jnp.abs(mu1) > thres) | (jnp.abs(mu2) > thres)), ssim_map, jnp.nan)
 
-      loss = 1 - jnp.nanmean(ssim_map, axis=(2,3))
+      loss = 1 - jnp.nanmean(jnp.clip(ssim_map, 0, 1), axis=(2,3))
 
       loss = xarray_jax.DataArray(loss, dims=['batch', 'time'])
 

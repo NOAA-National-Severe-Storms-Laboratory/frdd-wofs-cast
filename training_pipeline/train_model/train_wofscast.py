@@ -91,7 +91,7 @@ if __name__ == '__main__':
     # In my testing, factors ~ 2-4 were optimal. 
     
     cpu_batch_size_factor = 2 
-    gpu_batch_size = 32  
+    gpu_batch_size = 84#128  
     n_workers = 24 
    
     N_SAMPLES = 8192#4096#512
@@ -176,8 +176,8 @@ if __name__ == '__main__':
                  # is the named used for the Weights & Biases project. 
                  out_path = out_path,
                  
-                 checkpoint_interval = 1, # How often to save the weights (in terms of epochs) 
-                 verbose = 5, # Set to 3 to get all possible printouts
+                 checkpoint_interval = 5, # How often to save the weights (in terms of epochs) 
+                 verbose = 1, # Set to 3 to get all possible printouts
                  loss_weights = loss_weights,
                  use_multi_gpus = True,
                  generator_kwargs = generator_kwargs
