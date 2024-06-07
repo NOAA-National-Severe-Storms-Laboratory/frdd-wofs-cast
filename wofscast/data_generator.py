@@ -505,9 +505,9 @@ class WoFSDataProcessor:
         
         funcs = [
             'set_ref_lat_and_lon', # Set a single reference lat/lon grid 
-            'resize', # Limit to the inner most 150 x 150 
-            'subset_vertical_levels', # Limit to every 3rd level.
-             #'unaccum_rainfall' # Convert accum rainfall to rain rate. 
+            #'resize', # Limit to the inner most 150 x 150 
+            #'subset_vertical_levels', # Limit to every 3rd level.
+            'unaccum_rainfall' # Convert accum rainfall to rain rate. 
         ]
     
         for func in funcs:

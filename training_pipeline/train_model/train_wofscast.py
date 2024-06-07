@@ -1,6 +1,6 @@
 # Disable XLA preallocation
-#import os
-#os.environ['XLA_PYTHON_CLIENT_PREALLOCATE'] = 'false'
+import os
+os.environ['XLA_PYTHON_CLIENT_PREALLOCATE'] = 'false'
 
 # WoFSCast 
 import warnings
@@ -83,7 +83,7 @@ if __name__ == '__main__':
     
     # The task config contains details like the input variables, 
     # target variables, time step, etc.
-    task_config = DBZ_TASK_CONFIG
+    task_config = WOFS_TASK_CONFIG
     
     # Data is lazily loaded into CPU memory @ cpu_batch_size_factor * gpu_batch_size
     # sized subsets. gpu_batch_size'd batches are loaded and fed to 
