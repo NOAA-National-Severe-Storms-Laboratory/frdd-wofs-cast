@@ -276,6 +276,7 @@ class GraphCast(predictor_base.Predictor):
                forcings: xarray.Dataset,
                is_training: bool = False,
                ) -> xarray.Dataset:
+
     self._maybe_init(inputs)
 
     # Convert all input data into flat vectors for each of the grid nodes.
@@ -293,7 +294,7 @@ class GraphCast(predictor_base.Predictor):
     updated_latent_mesh_nodes = self._run_mesh_gnn(latent_mesh_nodes)
 
     # Transfer data frome the mesh to the grid.
-    # [num_grid_nodes, batch, output_size]    
+    # [num_grid_nodes, batch, output_size]
     output_grid_nodes = self._run_mesh2grid_gnn(
         updated_latent_mesh_nodes, latent_grid_nodes)
 

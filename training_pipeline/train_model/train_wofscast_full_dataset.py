@@ -7,7 +7,7 @@ import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.getcwd())))
 
 from wofscast.model import WoFSCastModel
-from wofscast.wofscast_task_config import WOFS_TASK_CONFIG, DBZ_TASK_CONFIG, DBZ_TASK_CONFIG_1HR
+from wofscast.wofscast_task_config import WOFS_TASK_CONFIG, DBZ_TASK_CONFIG, DBZ_TASK_CONFIG_1HR, DBZ_TASK_CONFIG_FULL
 from wofscast.data_generator import ZarrDataGenerator, WRFZarrFileProcessor, WoFSDataProcessor
 from wofscast import checkpoint
 
@@ -61,7 +61,7 @@ if __name__ == '__main__':
         
     # The task config contains details like the input variables, 
     # target variables, time step, etc.
-    task_config = DBZ_TASK_CONFIG_1HR
+    task_config = DBZ_TASK_CONFIG_FULL#_1HR
     
     # Data is lazily loaded into CPU memory @ cpu_batch_size_factor * gpu_batch_size
     # sized subsets. gpu_batch_size'd batches are loaded and fed to 
@@ -69,8 +69,8 @@ if __name__ == '__main__':
     # In my testing, factors ~ 2-4 were optimal. 
     
     cpu_batch_size_factor = 2 
-    gpu_batch_size = 32  
-    n_workers = 16 
+    gpu_batch_size = 2 
+    n_workers = 24 
     
     preprocessor = WoFSDataProcessor()
     
@@ -84,16 +84,16 @@ if __name__ == '__main__':
     
     loss_weights = {
                     # Any variables not specified here are weighted as 1.0.
-                    'U' : 1.0, 
-                    'V': 1.0, 
-                    'W': 1.0, 
-                    'T': 1.0, 
-                    'GEOPOT': 1.0, 
-                    'QVAPOR': 1.0,
-                    'T2' : 0.5, 
-                    'COMPOSITE_REFL_10CM' : 0.5, 
-                    'UP_HELI_MAX' : 0.5,
-                    'RAIN_AMOUNT' : 0.5,
+                    #'U' : 1.0, 
+                    #'V': 1.0, 
+                    #'W': 1.0, 
+                    #'T': 1.0, 
+                    #'GEOPOT': 1.0, 
+                    #'QVAPOR': 1.0,
+                    #'T2' : 0.5, 
+                    'COMPOSITE_REFL_10CM' : 1.0, 
+                    #'UP_HELI_MAX' : 0.5,
+                    #'RAIN_AMOUNT' : 0.5,
                     }
 
     loss_weights = {'COMPOSITE_REFL_10CM' : 1.0}
@@ -103,7 +103,7 @@ if __name__ == '__main__':
                  mesh_size=5, # Number of Mesh refinements or more higher resolution layers. 
                  
                  # Parameters for the MLPs-------------------
-                 latent_size=128, 
+                 latent_size=64, 
                  gnn_msg_steps=8, # Increasing this allows for connecting information from farther away. 
                  hidden_layers=1, 
                  grid_to_mesh_node_dist=5,  # Fraction of the maximum distance between mesh nodes on the 
@@ -129,7 +129,9 @@ if __name__ == '__main__':
       
                  checkpoint=True, # Save the model periodically
             
-                 norm_stats_path = '/work/mflora/wofs-cast-data/normalization_stats_1hr_dbz',
+                 #norm_stats_path = '/work/mflora/wofs-cast-data/normalization_stats_1hr_dbz',
+        
+                 norm_stats_path = '/work/mflora/wofs-cast-data/normalization_stats_full_domain',
         
                  # Path where the model is saved. The file name (os.path.basename)
                  # is the named used for the Weights & Biases project. 
@@ -145,12 +147,12 @@ if __name__ == '__main__':
     
     # Usage
     base_path = '/work2/wofs_zarr/'
-    years = ['2019', '2020']
-    resolution_minutes = 60
+    years = ['2019']#, '2020']
+    resolution_minutes = 10
 
     # Specify the restrictions for testing
     restricted_dates = None
-    restricted_times = ['1900', '2000', '2100', '2200', '2300', '0000', '0100', '0200', '0300']
+    restricted_times = ['1900', '2000', '2100', '2200']#, '2300', '0000', '0100', '0200', '0300']
     restricted_members = None #['ENS_MEM_1']#, 'ENS_MEM_12', 'ENS_MEM_17']#, 'ENS_MEM_10', 'ENS_MEM_11']
 
     processor = WRFZarrFileProcessor(base_path, years, 
@@ -167,7 +169,7 @@ if __name__ == '__main__':
     
     print(f'Number of Paths after truncation: {len(paths)}')
     
-    trainer.fit_generator(paths, model_params=model_params, 
+    trainer.fit_generator(paths[:6], model_params=model_params, 
                           state=state, target_lead_times=target_lead_times)
 
     # Plot the training loss and diagnostics. 

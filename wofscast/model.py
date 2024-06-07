@@ -24,7 +24,6 @@ import cartopy.crs as ccrs
 from . import autoregressive #_lam as autoregressive
 from . import casting
 from . import checkpoint
-from . import data_utils
 from . import graphcast_lam as graphcast
 from . import normalization
 from . import rollout
@@ -283,6 +282,7 @@ def replicate_for_devices(params, num_devices=None):
         
     return jax.tree_map(lambda x: jnp.array([x] * num_devices), params)
 
+
 class WoFSCastModel:
     """
     A class for training the WoFSCast model, designed to predict weather phenomena using
@@ -511,11 +511,11 @@ class WoFSCastModel:
                     if self.verbose > 1:
                         print('Saving model params....')
                         
-                    self.save(model_params, state)
+                    self.save(model_params_sharded, state)
         
         # Save the final model params 
         print('Saving the final model...')
-        self.save(model_params, state)
+        self.save(model_params_sharded, state)
         
     def _fit_batch(self, 
                    paths, 
@@ -550,6 +550,9 @@ class WoFSCastModel:
             batch_forcings_sharded = shard_xarray_dataset(batch_forcings, self.num_devices)
             learning_rate_sharded = replicate_for_devices(learning_rate, self.num_devices)
         
+            if self.verbose > 3:
+                start_time = time.time()  # Start time
+        
             model_params, opt_state, loss, diagnostics = train_step_func(model_params, 
                                                       state,
                                                       opt_state,
@@ -558,9 +561,16 @@ class WoFSCastModel:
                                                       batch_targets_sharded, 
                                                       batch_forcings_sharded,
                                                       )
-                
+            
+            
+            
             if self.verbose > 2:
                 print(f'\n{loss=}\n')
+                
+            if self.verbose > 3:
+                end_time = time.time()  # Start time
+                elapsed_time = end_time - start_time  # Calculate elapsed time
+                print(f"Elapsed time: {elapsed_time:.6f} seconds")
 
             loss_val = np.mean(np.asarray(loss)).item()
             
@@ -601,22 +611,6 @@ class WoFSCastModel:
     def _transpose(self, ds, dims):
         return ds.transpose(*dims, missing_dims='ignore')
     
-    def get_inputs(self, dataset, lead_times=slice('10min', '120min')): 
-        # Add the local solar time variables:
-        # TODO: To get the future forcing variables, need 
-        # to replace with the extend targets_template.
-        dataset = add_local_solar_time(dataset)
-        
-        inputs, targets, forcings = data_utils.extract_inputs_targets_forcings(
-                dataset, target_lead_times=lead_times,
-                **dataclasses.asdict(self.task_config))
-
-        inputs = inputs.expand_dims(dim='batch')
-        targets = targets.expand_dims(dim='batch')
-        forcings = forcings.expand_dims(dim='batch')
-        
-        return inputs, targets, forcings
-    
     # Load the model 
     def load_model(self, path, 
                    **additional_model_config # For backwards compat.
@@ -653,15 +647,17 @@ class WoFSCastModel:
         self._init_task_config_run(data['task_config'])
         self._init_model_config_run(data['model_config'], **additional_model_config)
 
+        self.norm_stats_path = data.get('norm_stats_path', self.norm_stats_path) 
+        
     def predict(self, inputs, targets, forcings): 
-       # Convert the constant fields to time-independent (drop time dim)
-        inputs = to_static_vars(inputs)
+        # Convert the constant fields to time-independent (drop time dim)
+        #inputs = to_static_vars(inputs)
 
         # It is crucial to tranpose the data so that level is last 
         # since the input includes 2D & 3D variables. 
-        inputs = self._transpose(inputs, ['batch', 'time', 'lat', 'lon', 'level'])
-        targets = self._transpose(targets, ['batch', 'time', 'lat', 'lon', 'level'])
-        forcings = self._transpose(forcings, ['batch', 'time', 'lat', 'lon'])
+        #inputs = self._transpose(inputs, ['batch', 'time', 'lat', 'lon', 'level'])
+        #targets = self._transpose(targets, ['batch', 'time', 'lat', 'lon', 'level'])
+        #forcings = self._transpose(forcings, ['batch', 'time', 'lat', 'lon'])
         
         # TODO: use the extend_targets_template from rollout.py. 
         #targets_template = self.expand_time_dim(targets) * np.nan
@@ -873,10 +869,11 @@ class WoFSCastModel:
         # Unreplicate model_params 
         # Using the suggested change from https://github.com/google/jax/discussions/15972
         # to limit increasing the memory. 
-        model_data = {'parameters' : jax.tree_map(lambda x: np.asarray(x[0]), model_params), 
-                'state' : jax.tree_map(lambda x: np.asarray(x[0]), state),
+        model_data = {'parameters' : jax.device_get(jax.tree_map(lambda x: x[0], model_params)), 
+                'state' : state,
                 'model_config' : self.model_config, 
-                'task_config' : self.task_config, 
+                'task_config' : self.task_config,
+                'norm_stats_path' : self.norm_stats_path 
                }
         
         print('\n Checkpoint the model parameters...')

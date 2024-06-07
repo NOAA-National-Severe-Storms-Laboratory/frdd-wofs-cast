@@ -4,8 +4,13 @@ import numpy as np
 # the number of gridpoints in one direction; square domain.
 DOMAIN_SIZE = 150
 
-VARS_3D = ['U', 'V', 'W', 'T', 'GEOPOT', 'QVAPOR']
-VARS_2D = ['T2', 'COMPOSITE_REFL_10CM', 'UP_HELI_MAX', 'RAIN_AMOUNT']
+VARS_3D = ['U', 
+           'V', 
+           'W', 
+           'T', 
+           'GEOPOT', 
+           'QVAPOR']
+VARS_2D = ['T2', 'COMPOSITE_REFL_10CM', 'RAIN_AMOUNT'] #'UP_HELI_MAX',
 STATIC_VARS = ['XLAND', 'HGT']
 
 INPUT_VARS = VARS_3D + VARS_2D + STATIC_VARS
@@ -69,5 +74,17 @@ DBZ_TASK_CONFIG_1HR = graphcast.TaskConfig(
       train_lead_times = '60min',
  )
 
+
+DBZ_TASK_CONFIG_FULL = graphcast.TaskConfig(
+      input_variables=INPUT_VARS_DBZ,
+      target_variables=TARGET_VARS_DBZ,
+      forcing_variables=FORCING_VARS,
+      pressure_levels=np.arange(50),
+      input_duration='20min',
+      n_vars_2D = len(VARS_2D),
+      domain_size = 300,
+      tiling=None,
+      train_lead_times = '10min',
+ )
 
 
