@@ -374,6 +374,7 @@ class WoFSCastModel:
             self._init_training_loss_diagnostics()
         
         # Load the normalization statistics. 
+        self.norm_stats_path = norm_stats_path
         self._load_norm_stats(norm_stats_path)
         
         self.generator_kwargs = generator_kwargs 
