@@ -1,6 +1,6 @@
 # Disable XLA preallocation
-#import os
-#os.environ['XLA_PYTHON_CLIENT_PREALLOCATE'] = 'false'
+import os
+os.environ['XLA_PYTHON_CLIENT_PREALLOCATE'] = 'false'
 
 # WoFSCast 
 import warnings
@@ -83,7 +83,7 @@ if __name__ == '__main__':
     
     # The task config contains details like the input variables, 
     # target variables, time step, etc.
-    task_config = DBZ_TASK_CONFIG
+    task_config = WOFS_TASK_CONFIG
     
     # Data is lazily loaded into CPU memory @ cpu_batch_size_factor * gpu_batch_size
     # sized subsets. gpu_batch_size'd batches are loaded and fed to 
@@ -91,7 +91,7 @@ if __name__ == '__main__':
     # In my testing, factors ~ 2-4 were optimal. 
     
     cpu_batch_size_factor = 2 
-    gpu_batch_size = 32  
+    gpu_batch_size = 16  
     n_workers = 24 
     
     loss_weights = {
@@ -197,7 +197,7 @@ if __name__ == '__main__':
     
     print(f'Number of Paths after truncation: {len(paths)}')
     
-    paths = get_random_subset(paths, 4096, seed=42)
+    paths = get_random_subset(paths, 128, seed=42)
     
     trainer.fit_generator(paths, model_params=model_params, state=state, target_lead_times=target_lead_times)
 
