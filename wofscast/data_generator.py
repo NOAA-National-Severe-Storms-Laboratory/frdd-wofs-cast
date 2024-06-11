@@ -169,6 +169,7 @@ def dataset_to_input(dataset, task_config, target_lead_times=None,
     
     return inputs, targets, forcings
 
+
 class ZarrDataGenerator:
     """
     A generator class to load and preprocess data from Zarr files for machine learning tasks.
@@ -249,6 +250,9 @@ class ZarrDataGenerator:
                                   self.gpu_batch_size, self.preprocess_fn)
 
         # Using ProcessPoolExecutor for parallel loading
+        # Lazily loads all the data, that way the ProcessPoolExecutor is 
+        # only spun once per epoch and doesn't interfere with
+        # the multithreaded JAX code. 
         with ProcessPoolExecutor(max_workers=self.n_workers) as executor:
             while outer_start < len(paths):
                 outer_end = min(outer_start + self.cpu_batch_size, len(paths))

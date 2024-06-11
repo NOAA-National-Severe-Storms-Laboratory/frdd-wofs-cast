@@ -155,6 +155,11 @@ class InputsAndResiduals(predictor_base.Predictor):
     norm_forcings = normalize(forcings, self._scales, self._locations)
     norm_predictions = self._predictor(
         norm_inputs, targets_template, forcings=norm_forcings, **kwargs)
+    
+    # TODO: For GenCast, need to add the "sampling" iteration part here.
+    # Need to "improve" the norm_predictions before adding them to the inputs. 
+    # Likely could make it class args. 
+    
     return xarray_tree.map_structure(
         lambda pred: self._unnormalize_prediction_and_add_input(inputs, pred),
         norm_predictions)

@@ -10,7 +10,9 @@ VARS_3D = ['U',
            'T', 
            'GEOPOT', 
            'QVAPOR']
-VARS_2D = ['T2', 'COMPOSITE_REFL_10CM', 'RAIN_AMOUNT'] #'UP_HELI_MAX',
+VARS_2D = ['T2', 
+           'COMPOSITE_REFL_10CM', 
+           'RAIN_AMOUNT'] #'UP_HELI_MAX',
 STATIC_VARS = ['XLAND', 'HGT']
 
 INPUT_VARS = VARS_3D + VARS_2D + STATIC_VARS

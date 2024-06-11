@@ -159,6 +159,10 @@ def weighted_mse_per_level(
     def loss(prediction, target):
         loss = (prediction - target) ** 2
 
+        # For GenCast
+        # loss = weight * ((prediction - target)**2) 
+        # so weight needs to be a xarray_jax DataArray. 
+        
         # print('No longer doing latitude-based weighting in the loss')
         # loss *= normalized_latitude_weights(target).astype(loss.dtype)
 

@@ -321,6 +321,9 @@ class GenCast(predictor_base.Predictor):
         )
         
         # Compute denoiser function from equation D2 in GenCast paper. 
+        # Note: if this called from the loss_and_predictions, 
+        # then output is a residual and targets_templated is the normalized 
+        # residual, other if just __call__, then its the full fields. 
         D_x = c_skip * targets_template + c_out * output
         
         return D_x

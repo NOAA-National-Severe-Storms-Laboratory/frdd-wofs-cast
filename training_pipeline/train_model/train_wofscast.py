@@ -1,6 +1,8 @@
 # Disable XLA preallocation
 import os
-os.environ['XLA_PYTHON_CLIENT_PREALLOCATE'] = 'false'
+os.environ['XLA_PYTHON_CLIENT_PREALLOCATE'] = 'true'
+os.environ['XLA_PYTHON_CLIENT_MEM_FRACTION'] = '0.95'
+
 
 # WoFSCast 
 import warnings
@@ -79,7 +81,7 @@ if __name__ == '__main__':
     fine_tune = False
     
     # Where the model weights are stored
-    out_path = '/work/mflora/wofs-cast-data/model/wofscast_dbz_test.npz'
+    out_path = '/work/mflora/wofs-cast-data/model/wofscast_baseline_mlp.npz'
     
     # The task config contains details like the input variables, 
     # target variables, time step, etc.
@@ -91,24 +93,23 @@ if __name__ == '__main__':
     # In my testing, factors ~ 2-4 were optimal. 
     
     cpu_batch_size_factor = 2 
-    gpu_batch_size = 16  
+    gpu_batch_size = 32  
     n_workers = 24 
+    graphcast_pretrain = False
     
     loss_weights = {
                     # Any variables not specified here are weighted as 1.0.
-                    #'U' : 1.0, 
-                    #'V': 1.0, 
-                    #'W': 1.0, 
-                    #'T': 1.0, 
-                    #'GEOPOT': 1.0, 
-                    #'QVAPOR': 1.0,
-                    #'T2' : 0.5, 
-                    'COMPOSITE_REFL_10CM' : 1.0, 
-                    #'UP_HELI_MAX' : 0.5,
-                    #'RAIN_AMOUNT' : 1.0,
+                    'U' : 1.0, 
+                    'V': 1.0, 
+                    'W': 1.0, 
+                    'T': 1.0, 
+                    'GEOPOT': 1.0, 
+                    'QVAPOR': 1.0,
+                    'T2' : 0.1, 
+                    'COMPOSITE_REFL_10CM' : 0.1, 
+                    #'UP_HELI_MAX' : 0.1,
+                    'RAIN_AMOUNT' : 0.1,
                     }
-    
-    
     
     # SOME DEFAULT SETTINGs. 
     # Location of the dataset. 
@@ -144,7 +145,7 @@ if __name__ == '__main__':
                  mesh_size=5, # Number of Mesh refinements or more higher resolution layers. 
                  
                  # Parameters for the MLPs-------------------
-                 latent_size=128, 
+                 latent_size=256, 
                  gnn_msg_steps=8, # Increasing this allows for connecting information from farther away. 
                  hidden_layers=2, 
                  grid_to_mesh_node_dist=5,  # Fraction of the maximum distance between mesh nodes on the 
@@ -161,8 +162,8 @@ if __name__ == '__main__':
         
                  # Number of training epochs for the 2-phases (linearly increase;
                  # cosine decay).
-                 n_epochs_phase1 = 2, 
-                 n_epochs_phase2 = 2,
+                 n_epochs_phase1 = 50, 
+                 n_epochs_phase2 = 300,
         
                  # Only used if fine tuning for > 1 step rollout.
                  # if fine_tune, then only this phase is used. 
@@ -177,10 +178,11 @@ if __name__ == '__main__':
                  out_path = out_path,
                  
                  checkpoint_interval = 1, # How often to save the weights (in terms of epochs) 
-                 verbose = 5, # Set to 3 to get all possible printouts
+                 verbose = 1, # Set to 3 to get all possible printouts
                  loss_weights = loss_weights,
                  use_multi_gpus = True,
-                 generator_kwargs = generator_kwargs
+                 generator_kwargs = generator_kwargs,
+                 graphcast_pretrain = graphcast_pretrain
     )
     
     
@@ -197,7 +199,7 @@ if __name__ == '__main__':
     
     print(f'Number of Paths after truncation: {len(paths)}')
     
-    paths = get_random_subset(paths, 128, seed=42)
+    paths = get_random_subset(paths, 8192, seed=42)
     
     trainer.fit_generator(paths, model_params=model_params, state=state, target_lead_times=target_lead_times)
 

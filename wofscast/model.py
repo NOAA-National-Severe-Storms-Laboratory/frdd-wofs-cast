@@ -55,47 +55,6 @@ import time
 import wandb
 
 
-def add_diagnostics(accum_diagnostics, diagnostics, ind): 
-    """Append the diagnostics from each epoch to running diagnostic dict"""
-    for var, val in diagnostics.items():
-        accum_diagnostics[var][ind] = float(val)
-  
-    return accum_diagnostics
-
-def compute_avg_diagnostics(diag_list, target_vars):
-    """Compute the sub-epoch-average diagnostics (due to GPU parallelization)"""
-    temp_dict = {v : [] for v in target_vars}
-    for diag in diag_list: 
-        for v in target_vars:
-            temp_dict[v].append(float(diag[v]))
-            
-    final_dict = {v: np.mean(temp_dict[v]) for v in target_vars}
-
-    return final_dict
-
-def plot_diagnostics(accum_diag, ind):
-    fig, ax = plt.subplots(dpi=300, figsize=(6,4))
-    for v in accum_diag.keys():
-        line, = ax.plot(accum_diag[v], label=v)
-        y = accum_diag[v][-1]  # Last value in the series
-        x = len(accum_diag[v]) - 1  # Last index
-        
-        ax.annotate(v, xy=(x, y), xytext=(5,5), textcoords="offset points",
-                    color=line.get_color(), fontsize=6)
-
-            
-    ax.set(xlabel='Epoch', 
-           ylabel='Loss', 
-           xlim=[0, x+5], title=f'Diagnostic Phase {ind}')
-    ax.grid(alpha=0.5)
-    
-    # Remove top and right spines
-    ax.spines['top'].set_visible(False)
-    ax.spines['right'].set_visible(False)
-
-    plt.savefig(f'diagnostics_{ind}.png')
-
-
 def construct_wrapped_graphcast(model_config: graphcast.ModelConfig, 
                                 task_config: graphcast.TaskConfig,
                                 norm_stats: dict
@@ -210,79 +169,6 @@ def train_step_parallel(params,
     return new_params, opt_state, loss, diagnostics
 
 
-def modify_path_if_exists(original_path):
-    """
-    Modifies the given file path by appending a version number if the path already exists.
-    Useful for not overwriting existing version of the WoFSCast model parameters. 
-
-    Args:
-        original_path (str): The original file path.
-
-    Returns:
-        str: A modified file path if the original exists, otherwise returns the original path.
-    """
-    # Check if the file exists
-    if not os.path.exists(original_path):
-        return original_path
-
-    # Split the path into directory, basename, and extension
-    directory, filename = os.path.split(original_path)
-    basename, extension = os.path.splitext(filename)
-
-    # Iteratively modify the filename by appending a version number until an unused name is found
-    version = 1
-    while True:
-        new_filename = f"{basename}_v{version}{extension}"
-        new_path = os.path.join(directory, new_filename)
-        if not os.path.exists(new_path):
-            return new_path
-        version += 1
-
-def shard_xarray_dataset(dataset : xarray.Dataset, num_devices : int = None):
-    """
-    Shards an xarray.Dataset across multiple GPUs.
-
-    Parameters:
-    - dataset: xarray.Dataset to be sharded.
-    - num_devices: Number of GPUs to shard the dataset across. If None, uses all available GPUs.
-
-    Returns:
-    A list of sharded xarray.Dataset, one for each GPU.
-    """
-    if num_devices is None:
-        num_devices = jax.local_device_count()
-
-    if num_devices == 1:
-        return dataset 
-        
-    # Assuming the first dimension of each data variable is the batch dimension
-    batch_size = next(iter(dataset.data_vars.values())).shape[0]
-    shard_size = batch_size // num_devices
-
-    if batch_size % num_devices != 0:
-        raise ValueError(f"Batch size {batch_size} is not evenly divisible by the number of devices {num_devices}.")
-
-    sharded_datasets = []
-    for i in range(num_devices):
-        start_idx = i * shard_size
-        end_idx = start_idx + shard_size
-        # Use dataset.isel to select a subset of the batch dimension for each shard
-        shard = dataset.isel(indexers={'batch': slice(start_idx, end_idx)})
-        sharded_datasets.append(shard)
-
-    return xarray.concat(sharded_datasets, dim='devices')
-
-def replicate_for_devices(params, num_devices=None):
-    """Replicate parameters for each device using jax.device_put_replicated."""
-    if num_devices is None:
-        num_devices = jax.local_device_count()
-
-    if num_devices == 1:
-        return params 
-        
-    return jax.tree_map(lambda x: jnp.array([x] * num_devices), params)
-
-
 class WoFSCastModel:
     """
     A class for training the WoFSCast model, designed to predict weather phenomena using
@@ -332,7 +218,7 @@ class WoFSCastModel:
                  n_epochs_phase2 : int = 5,
                  n_epochs_phase3 : int = 10,
                  checkpoint : bool = True,
-                 norm_stats_path : str = '/work/mflora/wofs-cast-data/normalization_stats', 
+                 norm_stats_path : str = '/work/mflora/wofs-cast-data/full_normalization_stats', 
                  out_path : str = '/work/mflora/wofs-cast-data/model/wofscast.npz',
                  checkpoint_interval : int = 100,
                  use_multi_gpus=True, 
@@ -341,8 +227,10 @@ class WoFSCastModel:
                  tiling=None, 
                  loss_weights = None,
                  generator_kwargs = {},
+                 graphcast_pretrain=False
                 ):
 
+        self.graphcast_pretrain = graphcast_pretrain
         self.k_hop = k_hop
         self.loss_weights = loss_weights 
         
@@ -562,9 +450,6 @@ class WoFSCastModel:
                                                       batch_targets_sharded, 
                                                       batch_forcings_sharded,
                                                       )
-            
-            
-            
             if self.verbose > 2:
                 print(f'\n{loss=}\n')
                 
@@ -650,23 +535,11 @@ class WoFSCastModel:
 
         self.norm_stats_path = data.get('norm_stats_path', self.norm_stats_path) 
         
-    def predict(self, inputs, targets, forcings): 
-        # Convert the constant fields to time-independent (drop time dim)
-        #inputs = to_static_vars(inputs)
-
-        # It is crucial to tranpose the data so that level is last 
-        # since the input includes 2D & 3D variables. 
-        #inputs = self._transpose(inputs, ['batch', 'time', 'lat', 'lon', 'level'])
-        #targets = self._transpose(targets, ['batch', 'time', 'lat', 'lon', 'level'])
-        #forcings = self._transpose(forcings, ['batch', 'time', 'lat', 'lon'])
-        
+    def predict(self, inputs, targets, forcings, diffusion_model=None): 
+        """Predict using the WoFSCast"""
         # TODO: use the extend_targets_template from rollout.py. 
         #targets_template = self.expand_time_dim(targets) * np.nan
         targets_template = targets 
-        
-        #print("Inputs:           ", inputs.dims.mapping)
-        #print("Target Template:  ", targets_template.dims.mapping)
-        #print("Forcings:         ", forcings.dims.mapping)
         
         run_forward_jitted = drop_state(with_params(jax.jit(with_configs(
             run_forward.apply, self, self.norm_stats)), self))
@@ -677,9 +550,9 @@ class WoFSCastModel:
             rng=jax.random.PRNGKey(0),
             inputs=inputs,
             targets_template=targets_template,
-            forcings=forcings)
+            forcings=forcings, diffusion_model=diffusion_model)
 
-        return predictions #, targets, inputs
+        return predictions
 
     
     def _init_model_params_state_opt_state(self, paths, optimizer):
@@ -708,6 +581,24 @@ class WoFSCastModel:
                     targets_template=targets,
                     forcings=forcings, 
                     )
+        
+        if self.graphcast_pretrain:
+            if self.verbose > 0:
+                print('\n Initializing from GraphCast 36.7M weights...')
+            
+            # Load the 36.7M GraphCast weights. 
+            name = 'params_GraphCast - ERA5 1979-2017 - resolution 0.25 - pressure levels 37 - mesh 2to6 - precipitation input and output.npz'
+            graphcast_path = os.path.join('/work/mflora/wofs-cast-data/graphcast_models', name)
+
+            with open(graphcast_path, 'rb') as f:
+                data = checkpoint.load(graphcast_path, dict)
+            
+            graphcast_params = data['params']
+            
+            # Example usage:
+            model_params = update_params_with_graphcast(model_params, graphcast_params)
+
+        
 
         num = count_total_parameters(model_params)
         if self.verbose > 0:
@@ -900,4 +791,133 @@ class WoFSCastModel:
             plt.savefig('training_results.png')
         else:
             return fig, axes
+
+def add_diagnostics(accum_diagnostics, diagnostics, ind): 
+    """Append the diagnostics from each epoch to running diagnostic dict"""
+    for var, val in diagnostics.items():
+        accum_diagnostics[var][ind] = float(val)
+  
+    return accum_diagnostics
+
+def compute_avg_diagnostics(diag_list, target_vars):
+    """Compute the sub-epoch-average diagnostics (due to GPU parallelization)"""
+    temp_dict = {v : [] for v in target_vars}
+    for diag in diag_list: 
+        for v in target_vars:
+            temp_dict[v].append(float(diag[v]))
+            
+    final_dict = {v: np.mean(temp_dict[v]) for v in target_vars}
+
+    return final_dict
+
+def plot_diagnostics(accum_diag, ind):
+    fig, ax = plt.subplots(dpi=300, figsize=(6,4))
+    for v in accum_diag.keys():
+        line, = ax.plot(accum_diag[v], label=v)
+        y = accum_diag[v][-1]  # Last value in the series
+        x = len(accum_diag[v]) - 1  # Last index
+        
+        ax.annotate(v, xy=(x, y), xytext=(5,5), textcoords="offset points",
+                    color=line.get_color(), fontsize=6)
+
+            
+    ax.set(xlabel='Epoch', 
+           ylabel='Loss', 
+           xlim=[0, x+5], title=f'Diagnostic Phase {ind}')
+    ax.grid(alpha=0.5)
+    
+    # Remove top and right spines
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+
+    plt.savefig(f'diagnostics_{ind}.png')
+    
+    
+    
+def modify_path_if_exists(original_path):
+    """
+    Modifies the given file path by appending a version number if the path already exists.
+    Useful for not overwriting existing version of the WoFSCast model parameters. 
+
+    Args:
+        original_path (str): The original file path.
+
+    Returns:
+        str: A modified file path if the original exists, otherwise returns the original path.
+    """
+    # Check if the file exists
+    if not os.path.exists(original_path):
+        return original_path
+
+    # Split the path into directory, basename, and extension
+    directory, filename = os.path.split(original_path)
+    basename, extension = os.path.splitext(filename)
+
+    # Iteratively modify the filename by appending a version number until an unused name is found
+    version = 1
+    while True:
+        new_filename = f"{basename}_v{version}{extension}"
+        new_path = os.path.join(directory, new_filename)
+        if not os.path.exists(new_path):
+            return new_path
+        version += 1
+
+def shard_xarray_dataset(dataset : xarray.Dataset, num_devices : int = None):
+    """
+    Shards an xarray.Dataset across multiple GPUs.
+
+    Parameters:
+    - dataset: xarray.Dataset to be sharded.
+    - num_devices: Number of GPUs to shard the dataset across. If None, uses all available GPUs.
+
+    Returns:
+    A list of sharded xarray.Dataset, one for each GPU.
+    """
+    if num_devices is None:
+        num_devices = jax.local_device_count()
+
+    if num_devices == 1:
+        return dataset 
+        
+    # Assuming the first dimension of each data variable is the batch dimension
+    batch_size = next(iter(dataset.data_vars.values())).shape[0]
+    shard_size = batch_size // num_devices
+
+    if batch_size % num_devices != 0:
+        raise ValueError(f"Batch size {batch_size} is not evenly divisible by the number of devices {num_devices}.")
+
+    sharded_datasets = []
+    for i in range(num_devices):
+        start_idx = i * shard_size
+        end_idx = start_idx + shard_size
+        # Use dataset.isel to select a subset of the batch dimension for each shard
+        shard = dataset.isel(indexers={'batch': slice(start_idx, end_idx)})
+        sharded_datasets.append(shard)
+
+    return xarray.concat(sharded_datasets, dim='devices')
+
+def replicate_for_devices(params, num_devices=None):
+    """Replicate parameters for each device using jax.device_put_replicated."""
+    if num_devices is None:
+        num_devices = jax.local_device_count()
+
+    if num_devices == 1:
+        return params 
+        
+    return jax.tree_map(lambda x: jnp.array([x] * num_devices), params)
+
+
+def update_params_with_graphcast(model_params, graphcast_params):
+    def update_recursive(model_dict, graphcast_dict):
+        for key, value in model_dict.items():
+            if isinstance(value, dict) and key in graphcast_dict and isinstance(graphcast_dict[key], dict):
+                # If both are dictionaries, recurse
+                update_recursive(model_dict[key], graphcast_dict[key])
+            elif key in graphcast_dict and model_dict[key].shape == graphcast_dict[key].shape:
+                # If both shapes are identical, update the value
+                model_dict[key] = graphcast_dict[key]
+    
+    update_recursive(model_params, graphcast_params)
+    return model_params
+
 
