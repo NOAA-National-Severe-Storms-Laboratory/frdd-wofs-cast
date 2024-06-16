@@ -4,6 +4,7 @@
 
 from . import data_utils
 from . import graphcast_lam as graphcast
+from . import xarray_jax
 
 import os
 import xarray as xr
@@ -26,6 +27,7 @@ import functools
 
 import fsspec
 from jax import jit
+import jax
 import jax.numpy as jnp 
 
 from concurrent.futures import ThreadPoolExecutor
@@ -33,8 +35,110 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 import multiprocessing as mp
 from itertools import islice
 
+import dask.array as da
+
 # Set the Dask configuration to silence the performance warning
 dask.config.set(**{'array.slicing.split_large_chunks': False})
+
+import numpy as np
+import dask
+from concurrent.futures import ThreadPoolExecutor
+
+class ZarrDataGenerator:
+    """
+    A generator class to load and preprocess data from Zarr files for machine learning tasks.
+
+    Parameters:
+    -----------
+    task_config : graphcast_lam.TaskConfig object
+        Configuration dictionary for the task, containing parameters required for data processing.
+    target_lead_times : list, optional
+        List of lead times for the target variable. Default is None.
+        If default, the target_lead_times in task_config is used. See the dataset_to_input function
+        for more details. 
+    n_target_steps : int, optional
+        Number of target steps to predict. Default is 1. Used in the batch_extract_inputs_targets_forcings 
+        funtion in the data_utils.py. 
+    preprocess_fn : function, optional
+        A function to preprocess the data. Default is None. Useful option for processing 
+        data after the concatenation over time. 
+    batch_size : int, optional
+        Batch size for processing data on GPU. Default is 32.
+    n_workers : int, optional
+        Number of parallel workers for data loading. Default is 8.
+    """
+    
+    def __init__(self, paths, 
+                 task_config, 
+                 target_lead_times=None, 
+                 n_target_steps : int =1, 
+                 preprocess_fn=None, 
+                 batch_size : int = 32, 
+                 num_devices=1, 
+                 prefetch_size=2
+                ):
+        
+        # Randomize path order. 
+        rs = np.random.RandomState(123)
+        rs.shuffle(paths)
+        
+        self.paths = paths 
+        self.task_config = task_config
+        self.batch_over_time = False 
+        self.batch_size = batch_size 
+        self.target_lead_times = target_lead_times
+        self.n_target_steps = n_target_steps 
+        self.preprocess_fn = preprocess_fn
+        self.num_devices = num_devices
+        self.prefetch_size = prefetch_size
+        
+        # Setup prefetching
+        self.executor = ThreadPoolExecutor(max_workers=prefetch_size)
+        self.prefetch_queue = []
+        
+        # Prefetch initial batches
+        for _ in range(prefetch_size):
+            self._prefetch_next_batch()
+    
+    def _prefetch_next_batch(self):
+        future = self.executor.submit(self._generate_batch)
+        self.prefetch_queue.append(future)
+    
+    def _generate_batch(self):
+        sampled_paths = np.random.choice(self.paths, self.batch_size, replace=True)
+        batch = load_chunk(sampled_paths, self.batch_size, preprocess_fn=self.preprocess_fn)
+        batch_sharded = shard_xarray_dataset(batch, self.num_devices)
+        inputs, targets, forcings = dataset_to_input(batch_sharded, self.task_config, 
+                                                     target_lead_times=self.target_lead_times,
+                                                     batch_over_time=self.batch_over_time,
+                                                     n_target_steps=self.n_target_steps)
+        inputs, targets, forcings = dask.compute(inputs, targets, forcings)
+        return inputs, targets, forcings
+    
+    def generate(self):
+        """
+        Generates batches of data from the provided paths.
+
+        Yields:
+        -------
+        tuple
+            A tuple containing inputs, targets, and forcings for each batch.
+        """
+        if self.prefetch_queue:
+            future = self.prefetch_queue.pop(0)
+            inputs, targets, forcings = future.result()
+            self._prefetch_next_batch()
+            return inputs, targets, forcings
+        else:
+            return self._generate_batch()
+
+
+def replicate_for_devices(params, num_devices=None):
+    if num_devices is None:
+        num_devices = jax.local_device_count()
+    return jax.device_put_replicated(params, jax.local_devices()) if num_devices > 1 else params
+
+
 
 def to_static_vars(dataset):
     # Select the first time index for 'HGT' and 'XLAND' variables
@@ -112,6 +216,7 @@ def load_and_concatenate(files, concat_dim):
        
     return combined_dataset
 
+'''
 def load_chunk(paths_chunk, batch_over_time=False, gpu_batch_size=32, preprocess_fn=None):
     if batch_over_time:
         if not isinstance(paths_chunk, list) or not all(isinstance(i, list) for i in paths_chunk):
@@ -134,14 +239,30 @@ def load_chunk(paths_chunk, batch_over_time=False, gpu_batch_size=32, preprocess
     dataset = dataset.chunk({'batch': gpu_batch_size})
     
     return dataset
+'''
+
+def load_chunk(paths, gpu_batch_size, preprocess_fn=None):
+    dataset =  xr.open_mfdataset(paths, engine='zarr', consolidated=True, 
+                       decode_times=False, chunks={},
+                        combine='nested', concat_dim='batch', 
+                       preprocess=preprocess_fn, combine_attrs='drop'
+                      )
+    
+    # Chunk the dataset
+    dataset = dataset.chunk({'batch': gpu_batch_size})
+    
+    return dataset
+
 
 def dataset_to_input(dataset, task_config, target_lead_times=None, 
                      batch_over_time=False, n_target_steps=1):
     
-    DIMS = ('batch', 'time', 'lat', 'lon', 'level')
+    DIMS = ('devices', 'batch', 'time', 'lat', 'lon', 'level')
     
     if target_lead_times is None:
         target_lead_times = task_config.train_lead_times
+    
+    #print(f'{target_lead_times=}')
     
     if batch_over_time:
         inputs, targets, forcings = data_utils.batch_extract_inputs_targets_forcings(
@@ -170,6 +291,46 @@ def dataset_to_input(dataset, task_config, target_lead_times=None,
     return inputs, targets, forcings
 
 
+def shard_xarray_dataset(dataset: xr.Dataset, num_devices: int = None):
+    """
+    Shards an xarray.Dataset across multiple GPUs.
+
+    Parameters:
+    - dataset: xarray.Dataset to be sharded.
+    - num_devices: Number of GPUs to shard the dataset across. If None, uses all available GPUs.
+
+    Returns:
+    A sharded xarray.Dataset with an additional 'device' dimension.
+    """
+    if num_devices is None:
+        num_devices = jax.local_device_count()
+
+    if num_devices == 1:
+        return dataset
+
+    # Assuming the first dimension of each data variable is the batch dimension
+    batch_dim = list(dataset.dims.keys())[0]
+    batch_size = dataset.dims[batch_dim]
+    shard_size = batch_size // num_devices
+
+    if batch_size % num_devices != 0:
+        raise ValueError(f"Batch size {batch_size} is not evenly divisible by the number of devices {num_devices}.")
+
+    sharded_data = []
+    for i in range(num_devices):
+        start_idx = i * shard_size
+        end_idx = start_idx + shard_size
+        shard = dataset.isel({batch_dim: slice(start_idx, end_idx)})
+        sharded_data.append(shard)
+
+    sharded_dataset = xr.concat(sharded_data, dim='devices')
+    sharded_dataset = sharded_dataset.assign_coords(devices=np.arange(num_devices))
+
+    return sharded_dataset
+
+
+
+'''
 class ZarrDataGenerator:
     """
     A generator class to load and preprocess data from Zarr files for machine learning tasks.
@@ -206,7 +367,7 @@ class ZarrDataGenerator:
                  batch_over_time : bool =False,
                  preprocess_fn=None, 
                  cpu_batch_size=None, gpu_batch_size : int =32, 
-                 n_workers : int = 8):
+                 n_workers : int = 8, num_devices=1):
         
         self.task_config = task_config
         if cpu_batch_size:
@@ -220,7 +381,9 @@ class ZarrDataGenerator:
         self.batch_over_time = batch_over_time 
         self.n_target_steps = n_target_steps 
         self.preprocess_fn = preprocess_fn
+        self.num_devices = num_devices
 
+        
     def __call__(self, paths):
         """
         Generates batches of data from the provided paths.
@@ -235,25 +398,38 @@ class ZarrDataGenerator:
         tuple
             A tuple containing inputs, targets, and forcings for each batch.
         """
+        self.path_count = len(paths)
+        
         outer_start = 0
         np.random.shuffle(paths)
         
         chunk_futures = []
         loaded_chunks = []
 
-        def with_params(fn, batch_over_time, gpu_batch_size, preprocess_fn):
-            return functools.partial(fn, batch_over_time=batch_over_time, 
-                                     gpu_batch_size=gpu_batch_size, 
-                                     preprocess_fn=preprocess_fn)
         
-        load_chunk_ = with_params(load_chunk, self.batch_over_time, 
-                                  self.gpu_batch_size, self.preprocess_fn)
-
+        def with_params(fn, 
+                        #batch_over_time, 
+                        gpu_batch_size, 
+                        preprocess_fn
+                       ):
+            return functools.partial(fn, 
+                                     #batch_over_time=batch_over_time, 
+                                     gpu_batch_size=gpu_batch_size, 
+                                     preprocess_fn=preprocess_fn
+                                    )
+        
+        load_chunk_ = with_params(load_chunk, 
+                                  #self.batch_over_time, 
+                                  self.gpu_batch_size, 
+                                  self.preprocess_fn
+                                 )
+        
         # Using ProcessPoolExecutor for parallel loading
         # Lazily loads all the data, that way the ProcessPoolExecutor is 
         # only spun once per epoch and doesn't interfere with
         # the multithreaded JAX code. 
         with ProcessPoolExecutor(max_workers=self.n_workers) as executor:
+        #with ThreadPoolExecutor(max_workers=self.n_workers) as executor:   
             while outer_start < len(paths):
                 outer_end = min(outer_start + self.cpu_batch_size, len(paths))
                 paths_chunk = paths[outer_start:outer_end]
@@ -273,15 +449,19 @@ class ZarrDataGenerator:
             while inner_start < len(chunk_indices):
                 inner_end = min(inner_start + self.gpu_batch_size, len(chunk_indices))
                 batch = chunk.isel(batch=slice(inner_start, inner_end))
-                inputs, targets, forcings = dataset_to_input(batch, self.task_config, 
+                batch_sharded = shard_xarray_dataset(batch, self.num_devices)
+                inputs, targets, forcings = dataset_to_input(batch_sharded, self.task_config, 
                                                              target_lead_times=self.target_lead_times,
                                                              batch_over_time=self.batch_over_time,
                                                              n_target_steps=self.n_target_steps 
                                                             )
-                inputs, targets, forcings = dask.compute(inputs, targets, forcings, scheduler='threads')
+                                      
+                inputs, targets, forcings = dask.compute(inputs, targets, forcings)
+                
                 yield inputs, targets, forcings
+                
                 inner_start = inner_end
-
+'''       
                 
 class TOARadiationFlux:
     def __init__(self):
@@ -350,8 +530,9 @@ def check_datetime_dtype(dataset, coord='datetime'):
         
     return dataset 
 
+
 def add_local_solar_time(data: xr.Dataset) -> xr.Dataset:
-    """    
+    """
     Adds sine and cosine-transformed local solar time variables to the dataset,
     adjusted for longitude, and replicated across latitude. Also adds 
     TOA (top-of-the-atmosphere) radiation. These variables are used as forcing
@@ -364,7 +545,7 @@ def add_local_solar_time(data: xr.Dataset) -> xr.Dataset:
         xr.Dataset: The dataset with 'local_solar_time_sin' and 'local_solar_time_cos' variables added.
     """
     # Create an instance of TOARadiationFlux
-    toa_radiation = TOARadiationFlux()
+    #toa_radiation = TOARadiationFlux()
     
     time_dim = 'time'
     if {'Time'}.issubset(data.dims):
@@ -374,17 +555,25 @@ def add_local_solar_time(data: xr.Dataset) -> xr.Dataset:
         missing_dims = {time_dim, 'lat', 'lon'} - set(data.dims)
         raise ValueError(f"Missing dimensions in the dataset: {missing_dims}")
 
-    data = check_datetime_dtype(data)
+    # Ensure the datetime coordinate is in the correct format
+    data = check_datetime_dtype(data, coord='datetime')
     
+    #if 'datetime' in data.coords:
+    #    data['datetime'] = xr.decode_cf(xr.Dataset({'datetime': data['datetime']}))['datetime']
+
     # Calculate the local solar time adjustment
     local_hours = (data.coords['datetime'].dt.hour + data.coords['lon'] / 15.0) % 24
 
     # Convert local_hours to radians for sine and cosine
     radians = (local_hours * 2 * np.pi) / 24
 
-    # Calculate sine and cosine for the local solar time
-    local_solar_time_sin = np.sin(radians)
-    local_solar_time_cos = np.cos(radians)
+    # Calculate sine and cosine for the local solar time using dask
+    local_solar_time_sin = xr.apply_ufunc(np.sin, radians, 
+                                          dask='allowed',
+                                          output_dtypes=[float])
+    local_solar_time_cos = xr.apply_ufunc(np.cos, radians, 
+                                          dask='allowed',
+                                          output_dtypes=[float])
 
     # Create DataArrays with 'time' and 'lon' dimensions
     local_solar_time_sin_da = xr.DataArray(local_solar_time_sin, dims=(time_dim, 'lon'),
@@ -392,15 +581,14 @@ def add_local_solar_time(data: xr.Dataset) -> xr.Dataset:
     local_solar_time_cos_da = xr.DataArray(local_solar_time_cos, dims=(time_dim, 'lon'),
                                            coords={time_dim: data.coords[time_dim], 'lon': data.coords['lon']})
 
-    # Replicate values across 'lat' dimension by broadcasting with an array of ones shaped (lat,)
-    ones_lat = xr.DataArray(np.ones(data.dims['lat']), dims=['lat'], coords={'lat': data.coords['lat']})
+    # Replicate values across 'lat' dimension by broadcasting with a dask array of ones shaped (lat,)
+    ones_lat = xr.DataArray(da.ones(data.dims['lat']), dims=['lat'], coords={'lat': data.coords['lat']})
     local_solar_time_sin_da, _ = xr.broadcast(local_solar_time_sin_da, ones_lat)
     local_solar_time_cos_da, _ = xr.broadcast(local_solar_time_cos_da, ones_lat)
 
     # Assign to the dataset
     data['local_solar_time_sin'] = local_solar_time_sin_da.astype('float32')
     data['local_solar_time_cos'] = local_solar_time_cos_da.astype('float32')
-    
     
     # Add TOA (top-of-the-atmo) radiation 
     # Calculate the TOA radiation flux for the defined dates, times, and grid
@@ -414,7 +602,13 @@ def add_local_solar_time(data: xr.Dataset) -> xr.Dataset:
                                                    'lat': data.coords['lat'],
                                                    'lon': data.coords['lon']})
     '''
+    
+    
+    data = data.drop_vars('datetime', errors='ignore')
+    
     return data
+
+
 
     
 def check_for_nans(dataset):

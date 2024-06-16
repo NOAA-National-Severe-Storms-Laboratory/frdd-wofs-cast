@@ -288,7 +288,7 @@ class GraphCast(predictor_base.Predictor):
     # [num_mesh_nodes, batch, latent_size], [num_grid_nodes, batch, latent_size]
     (latent_mesh_nodes, latent_grid_nodes
      ) = self._run_grid2mesh_gnn(grid_node_features)
-
+    
     # Run message passing in the multimesh.
     # [num_mesh_nodes, batch, latent_size]
     updated_latent_mesh_nodes = self._run_mesh_gnn(latent_mesh_nodes)
