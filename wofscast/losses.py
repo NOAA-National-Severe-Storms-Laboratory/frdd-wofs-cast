@@ -181,9 +181,9 @@ def custom_window_loss(
 
     sigma = 1.5
     thres = 0.01#0.001
-    mse_thres = 0.01#0.01
+    mse_thres = 0#0.01#0.01
     mse_cond_loss = False
-    use_mae = True
+    use_mae = False#True
 
     def compute_ssi(prediction, target, window_size, sigma, thres):
 
@@ -321,8 +321,8 @@ def custom_window_loss(
       over_penalty = 2.0
       under_penalty = 2.0
 
-      error = np.where(((true < low_val) | (pred > true)), over_penalty*error, error) 
-      error = np.where(((true > high_val) | (pred < true)), under_penalty*error, error)
+      error = jnp.where(((true < low_val) & (pred > true)), over_penalty*error, error) 
+      error = jnp.where(((true > high_val) & (pred < true)), under_penalty*error, error)
 
       return error
 

@@ -1,7 +1,14 @@
 # Disable XLA preallocation
 import os
-os.environ['XLA_PYTHON_CLIENT_PREALLOCATE'] = 'false'
-
+os.environ['XLA_PYTHON_CLIENT_PREALLOCATE'] = 'true'#'false'
+os.environ['XLA_PYTHON_CLIENT_MEM_FRACTION'] = '0.99'
+#os.environ['XLA_FLAGS'] = (
+#    '--xla_gpu_enable_triton_softmax_fusion=true '
+#    '--xla_gpu_triton_gemm_any=True '
+#    '--xla_gpu_enable_async_collectives=true '
+#    '--xla_gpu_enable_latency_hiding_scheduler=true '
+#    '--xla_gpu_enable_highest_priority_async_stream=true '
+#)
 # WoFSCast 
 import warnings
 # Suppress the specific RuntimeWarning about os.fork(),  multithreaded code, and JAX
@@ -83,7 +90,7 @@ if __name__ == '__main__':
     
     # The task config contains details like the input variables, 
     # target variables, time step, etc.
-    task_config = WOFS_TASK_CONFIG
+    task_config = DBZ_TASK_CONFIG
     
     # Data is lazily loaded into CPU memory @ cpu_batch_size_factor * gpu_batch_size
     # sized subsets. gpu_batch_size'd batches are loaded and fed to 
@@ -91,7 +98,7 @@ if __name__ == '__main__':
     # In my testing, factors ~ 2-4 were optimal. 
     
     cpu_batch_size_factor = 2 
-    gpu_batch_size = 84#128  
+    gpu_batch_size = 84  
     n_workers = 24 
    
     N_SAMPLES = 8192#4096#512
@@ -161,8 +168,8 @@ if __name__ == '__main__':
         
                  # Number of training epochs for the 2-phases (linearly increase;
                  # cosine decay).
-                 n_epochs_phase1 = 20, 
-                 n_epochs_phase2 = 100,
+                 n_epochs_phase1 = 20,#0, 
+                 n_epochs_phase2 = 200,
         
                  # Only used if fine tuning for > 1 step rollout.
                  # if fine_tune, then only this phase is used. 
@@ -188,8 +195,8 @@ if __name__ == '__main__':
         paths = []
         for files in executor.map(get_files_for_year, years):
             paths.extend(files)
-    
-    #paths = paths[:N_SAMPLES]
+   
+    paths = get_random_subset(paths, N_SAMPLES, seed=42)
     print(f'Number of Paths: {len(paths)}')
     
     # Ensure the file_paths are compatiable with the generator_chunk_size 
@@ -197,8 +204,6 @@ if __name__ == '__main__':
     
     print(f'Number of Paths after truncation: {len(paths)}')
     
-    paths = get_random_subset(paths, N_SAMPLES, seed=42)
-
     trainer.fit_generator(paths, model_params=model_params, state=state, target_lead_times=target_lead_times)
 
     # Plot the training loss and diagnostics. 

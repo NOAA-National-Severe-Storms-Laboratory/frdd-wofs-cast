@@ -431,7 +431,7 @@ class WoFSCastModel:
             self.num_devices = jax.local_device_count()
             # Note: Using the GraphCast xarray-based JAX pmap; JAX documentation 
             # says we dont need to jit the function, pmap will handle it. 
-            train_step_func = xarray_jax.pmap(with_configs(train_step_parallel, self, self.norm_stats), 
+            train_step_func = xarray_jax.pmap(jax.jit(with_configs(train_step_parallel, self, self.norm_stats)), 
                                               dim='devices', axis_name='devices')
       
         else:
@@ -468,11 +468,11 @@ class WoFSCastModel:
             if model_params is None: 
                 model_params, state, opt_state = self._init_model_params_state_opt_state(paths, optimizer)
             
-            
-            #Replicate the model_params 
-            model_params_sharded = replicate_for_devices(model_params, self.num_devices)
-            state_sharded = replicate_for_devices(state, self.num_devices)
-            opt_state_sharded = replicate_for_devices(opt_state, self.num_devices)
+            if phase_num==total_phases[0]: 
+            	#Replicate the model_params 
+            	model_params_sharded = replicate_for_devices(model_params, self.num_devices)
+            	state_sharded = replicate_for_devices(state, self.num_devices)
+            	opt_state_sharded = replicate_for_devices(opt_state, self.num_devices)
             
             for epoch in range(getattr(self, f'n_epochs_phase{phase_num}')):
                 # Print the current datetime. 
