@@ -25,6 +25,9 @@ import numpy as np
 import typing_extensions
 import xarray
 
+from .diffusion import apply_diffusion
+
+
 def apply_border_mask_and_update(inputs, boundary_conditions):
     """
     Apply a border mask to the inputs dataset and update the values at the border
@@ -84,6 +87,7 @@ def chunked_prediction(
     forcings: xarray.Dataset,
     num_steps_per_chunk: int = 1,
     verbose: bool = False,
+    diffusion_model=None
 ) -> xarray.Dataset:
   """Outputs a long trajectory by iteratively concatenating chunked predictions.
 
@@ -111,7 +115,7 @@ def chunked_prediction(
       targets_template=targets_template,
       forcings=forcings,
       num_steps_per_chunk=num_steps_per_chunk,
-      verbose=verbose):
+      verbose=verbose, diffusion_model=diffusion_model):
     chunks_list.append(jax.device_get(prediction_chunk))
   return xarray.concat(chunks_list, dim="time")
 
@@ -124,6 +128,7 @@ def chunked_prediction_generator(
     forcings: xarray.Dataset,
     num_steps_per_chunk: int = 1,
     verbose: bool = False,
+    diffusion_model = None, 
 ) -> Iterator[xarray.Dataset]:
   """Outputs a long trajectory by yielding chunked predictions.
 
@@ -209,6 +214,10 @@ def chunked_prediction_generator(
     # from the target_template. 
     boundary_conditions = current_targets_template.copy()
     predictions = apply_border_mask_and_update(predictions, boundary_conditions)
+    
+    # TEMPORARY. Add diffusion to the composite reflectivity. 
+    if diffusion_model:
+        predictions = apply_diffusion(predictions, diffusion_model, num_steps=50)
     
     next_frame = xarray.merge([predictions, current_forcings])
     next_inputs = _get_next_inputs(current_inputs, next_frame)

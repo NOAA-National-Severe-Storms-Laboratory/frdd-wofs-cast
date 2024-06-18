@@ -17,7 +17,7 @@ from typing import Any, Mapping, Sequence, Tuple, Union
 
 
 from . import data_generator
-from . import solar_radiation
+#from . import solar_radiation
 import numpy as np
 import pandas as pd
 import xarray
@@ -426,8 +426,8 @@ def extract_inputs_targets_forcings(
   #  add_tisr_var(dataset)
   
   # Add the forcing variables. 
+  # DO NOT UNCOMMENTS. add_local_solar_time does not handle the batch dimension. 
   #dataset = data_generator.add_local_solar_time(dataset)  
-
 
   # `datetime` is needed by add_derived_vars but breaks autoregressive rollouts.
   dataset = dataset.drop_vars("datetime", errors='ignore')

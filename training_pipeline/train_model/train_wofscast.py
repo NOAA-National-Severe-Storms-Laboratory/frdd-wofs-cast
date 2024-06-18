@@ -1,14 +1,19 @@
 # Disable XLA preallocation
 import os
-os.environ['XLA_PYTHON_CLIENT_PREALLOCATE'] = 'true'#'false'
-os.environ['XLA_PYTHON_CLIENT_MEM_FRACTION'] = '0.99'
-#os.environ['XLA_FLAGS'] = (
-#    '--xla_gpu_enable_triton_softmax_fusion=true '
-#    '--xla_gpu_triton_gemm_any=True '
-#    '--xla_gpu_enable_async_collectives=true '
-#    '--xla_gpu_enable_latency_hiding_scheduler=true '
-#    '--xla_gpu_enable_highest_priority_async_stream=true '
-#)
+os.environ['XLA_PYTHON_CLIENT_PREALLOCATE'] = 'true'
+os.environ['XLA_PYTHON_CLIENT_MEM_FRACTION'] = '0.95'
+
+# XLA FLAGS set for GPU performance (https://jax.readthedocs.io/en/latest/gpu_performance_tips.html)
+os.environ['XLA_FLAGS'] = (
+    '--xla_gpu_enable_triton_softmax_fusion=true '
+    '--xla_gpu_triton_gemm_any=True '
+    '--xla_gpu_enable_async_collectives=true '
+    '--xla_gpu_enable_latency_hiding_scheduler=true '
+    '--xla_gpu_enable_highest_priority_async_stream=true '
+)
+
+
+
 # WoFSCast 
 import warnings
 # Suppress the specific RuntimeWarning about os.fork(),  multithreaded code, and JAX
@@ -19,17 +24,18 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.getcwd())))
 
 from wofscast.model import WoFSCastModel
 from wofscast.wofscast_task_config import WOFS_TASK_CONFIG, DBZ_TASK_CONFIG
-from wofscast.data_generator import ZarrDataGenerator
+from wofscast.data_generator import ZarrDataGenerator, add_local_solar_time
 from wofscast import checkpoint
+from wofscast.utils import get_random_subset,  truncate_to_chunk_size
+
+import optax 
 
 import os
 from os.path import join
 from concurrent.futures import ThreadPoolExecutor
-    
+
 # Using the Weights & Biases package: 
 # Create an account : https://docs.wandb.ai/quickstart
-
-# >>> python -m wandb login
 
 def get_files_for_year(year):
     """Get all zarr files within a directory."""
@@ -37,53 +43,16 @@ def get_files_for_year(year):
     with os.scandir(year_path) as it:
         return [join(year_path, entry.name) for entry in it if entry.is_dir() and entry.name.endswith('.zarr')] 
 
-def truncate_to_chunk_size(input_list, chunk_size=512):
-    # Calculate the new length as the smallest multiple of chunk_size
-    # that is greater than or equal to the length of the list
-    new_length = ((len(input_list) + chunk_size - 1) // chunk_size) * chunk_size
-    # If the list is already a multiple of chunk_size, no need to truncate
-    if new_length > len(input_list):
-        new_length -= chunk_size
-    # Truncate the list
-    return input_list[:new_length]
 
-
-import random
-
-def get_random_subset(input_list, subset_size, seed=123):
-    """
-    Get a random subset of a specified size from the input list.
-
-    Parameters:
-    -----------
-    input_list : list
-        The original list from which to draw the subset.
-    subset_size : int
-        The size of the subset to be drawn.
-    seed : int, optional
-        The seed for the random number generator. Default is None.
-
-    Returns:
-    --------
-    list
-        A random subset of the input list.
-    """
-    if subset_size > len(input_list):
-        raise ValueError("subset_size must be less than or equal to the length of the input list")
-    
-    if seed is not None:
-        random.seed(seed)
-
-    return random.sample(input_list, subset_size)
-
-    
+# >>> python -m wandb login
 if __name__ == '__main__':
     """ usage: stdbuf -oL python -u train_wofscast.py > & log_training & """
     
     # USER SET ARGS------------------------------------------------------------------------
     # Whether to initialize the model with existing model weights 
-    # WARNING: Assumes the model.py args are the same and does not check! 
-    fine_tune = False#True
+    # TaskConfig and ModelConfig are re-built using the checkpoint
+    # provided. 
+    fine_tune = False
     
     # Where the model weights are stored
     out_path = '/work/cpotvin/WOFSCAST/model/wofscast_test.npz'
@@ -92,17 +61,15 @@ if __name__ == '__main__':
     # target variables, time step, etc.
     task_config = DBZ_TASK_CONFIG
     
-    # Data is lazily loaded into CPU memory @ cpu_batch_size_factor * gpu_batch_size
-    # sized subsets. gpu_batch_size'd batches are loaded and fed to 
-    # the GPU. 
-    # In my testing, factors ~ 2-4 were optimal. 
+    # Whether to use the 36.7M parameter GraphCast model weights 
+    # Must set parameters identical to those paper 
+    graphcast_pretrain = False
     
-    cpu_batch_size_factor = 2 
-    gpu_batch_size = 84  
-    n_workers = 24 
-   
-    N_SAMPLES = 8192#4096#512
- 
+    # Number of samples processed during a single gradient descent step
+    # If using multiple GPUs, batch_size / n_gpus samples are sent 
+    # to each GPU. 
+    batch_size = 32
+    
     loss_weights = {
                     # Any variables not specified here are weighted as 1.0.
                     #'U' : 1.0, 
@@ -111,42 +78,75 @@ if __name__ == '__main__':
                     #'T': 1.0, 
                     #'GEOPOT': 1.0, 
                     #'QVAPOR': 1.0,
-                    #'T2' : 0.5, 
-                    'COMPOSITE_REFL_10CM' : 1.0, 
-                    #'UP_HELI_MAX' : 0.5,
-                    #'RAIN_AMOUNT' : 1.0,
+                    #'T2' : 0.1, 
+                    'COMPOSITE_REFL_10CM' : 1, 
+                    #'UP_HELI_MAX' : 0.1,
+                    #'RAIN_AMOUNT' : 0.1,
                     }
     
-    # SOME DEFAULT SETTINGs. 
-    # Location of the dataset. 
-    base_path = '/work/mflora/wofs-cast-data/datasets_zarr'
-    model_params, state = None, {}
-    target_lead_times= None # Defaults to target lead times in the TaskConfig.
-    
     if fine_tune: 
-        base_path = '/work/mflora/wofs-cast-data/datasets_2hr_zarr'
-         # Warning about model parameters compatibility
-        warnings.warn("""User must ensure model parameters are compatible with the model.py args below! 
-        There is no check at the moment!""", UserWarning)
+        # For fine tuning, training is perform autoregressively on 
+        # multi time step rollout. The lead time ranges to be evaluated 
+        # are given below. Based on n_steps, each time range is 
+        # evenly trained on. 
+        n_steps = 10
+        target_lead_times = [slice('10min', '20min'), slice('10min', '30min'), slice('10min', '40min')]
         
+        # Location of the datasets with longer lead times. 
+        base_path = '/work/mflora/wofs-cast-data/datasets_2hr_zarr'
+   
         # Load a checkpoint from an existing model. 
-        model_path = '/work/cpotvin/WOFSCAST/model/wofscast_test_v86.npz'#'/work/mflora/wofs-cast-data/model/wofscast_baseline.npz'
-        with open(model_path, 'rb') as f:
-            data = checkpoint.load(f, dict)
-            model_params, state = data['parameters'], {}
+        model_path = '/work/mflora/wofs-cast-data/model/wofscast_baseline.npz'
         
         # Do not want to replace the existing checkpoint! 
         out_path = model_path.replace('.npz', '_fine_tune.npz') 
         
-        target_lead_times = [slice('10min', '20min'), slice('10min', '30min'), slice('10min', '40min')]
+        # For fine tuning, we adopt the constant, but small learning rate. 
+        scheduler = optax.constant_schedule(3e-7)
         
-    generator_kwargs = dict(cpu_batch_size=cpu_batch_size_factor*gpu_batch_size, 
-                            gpu_batch_size=gpu_batch_size,
-                            n_workers = n_workers,
-                            
-                           )
-
-    trainer = WoFSCastModel(
+        # Build the TaskConfig and ModelConfig inputs. 
+        trainer = WoFSCastModel(learning_rate_scheduler = scheduler, 
+        
+                 checkpoint=True, # Save the model periodically
+            
+                 norm_stats_path = '/work/mflora/wofs-cast-data/full_normalization_stats',
+        
+                 # Path where the model is saved. The file name (os.path.basename)
+                 # is the named used for the Weights & Biases project. 
+                 out_path = out_path,
+                 
+                 checkpoint_interval = 1, # How often to save the weights (in terms of epochs) 
+                 verbose = 0, # Set to 3 to get all possible printouts
+                 loss_weights = loss_weights,
+                 parallel = True)    
+        
+        # Load the model, which will also load the TaskConfig and ModelConfig.
+        trainer.load_model(model_path)
+        model_params, state = trainer.model_params, trainer.state 
+        
+        
+    else:
+        # For general training, we adopt the linear increase in learning rate 
+        # during a 'warm-up' period followed by a cosine decay in learning rate
+        
+        warmup_steps = 5
+        decay_steps = 6
+        n_steps = warmup_steps + decay_steps
+        
+        scheduler = optax.warmup_cosine_decay_schedule(
+              init_value=0,
+              peak_value=1e-3,
+              warmup_steps=warmup_steps,
+              decay_steps=decay_steps,
+              end_value=0.0,
+            )
+        
+        model_params, state = None, {}
+        target_lead_times= None # Defaults to target lead times in the TaskConfig.
+        # Location of the dataset. 
+        base_path = '/work/mflora/wofs-cast-data/datasets_zarr'
+        
+        trainer = WoFSCastModel(
                  task_config = task_config, 
                  mesh_size=5, # Number of Mesh refinements or more higher resolution layers. 
                  
@@ -166,15 +166,9 @@ if __name__ == '__main__':
                  k_hop=8,
                  num_attn_heads  = 4, 
         
-                 # Number of training epochs for the 2-phases (linearly increase;
-                 # cosine decay).
-                 n_epochs_phase1 = 20,#0, 
-                 n_epochs_phase2 = 200,
+                 n_steps = n_steps, 
+                 learning_rate_scheduler = scheduler, 
         
-                 # Only used if fine tuning for > 1 step rollout.
-                 # if fine_tune, then only this phase is used. 
-                 n_epochs_phase3 = 0, 
-      
                  checkpoint=True, # Save the model periodically
             
                  norm_stats_path = '/work/mflora/wofs-cast-data/full_normalization_stats',
@@ -186,9 +180,9 @@ if __name__ == '__main__':
                  checkpoint_interval = 5, # How often to save the weights (in terms of epochs) 
                  verbose = 1, # Set to 3 to get all possible printouts
                  loss_weights = loss_weights,
-                 use_multi_gpus = True,
-                 generator_kwargs = generator_kwargs
-    )
+                 parallel = True,
+                 graphcast_pretrain = graphcast_pretrain
+        )
     
     years = ['2019', '2020']
     with ThreadPoolExecutor() as executor:
@@ -196,21 +190,18 @@ if __name__ == '__main__':
         for files in executor.map(get_files_for_year, years):
             paths.extend(files)
    
-    paths = get_random_subset(paths, N_SAMPLES, seed=42)
     print(f'Number of Paths: {len(paths)}')
     
-    # Ensure the file_paths are compatiable with the generator_chunk_size 
-    paths = truncate_to_chunk_size(paths, chunk_size=gpu_batch_size)
-    
-    print(f'Number of Paths after truncation: {len(paths)}')
-    
-    trainer.fit_generator(paths, model_params=model_params, state=state, target_lead_times=target_lead_times)
+    generator = ZarrDataGenerator(paths, 
+                              task_config, 
+                              target_lead_times=None,
+                              batch_size=32, 
+                              num_devices=2, 
+                              preprocess_fn=add_local_solar_time,
+                              prefetch_size=3
+                             )
 
-    # Plot the training loss and diagnostics. 
-    trainer.plot_training_loss()
-    trainer.plot_diagnostics()
-
-
-
-
-
+    trainer.fit_generator(generator, 
+                          model_params=model_params, 
+                          state=state, 
+                          )
