@@ -224,7 +224,7 @@ class GraphCast(predictor_base.Predictor):
         mlp_hidden_size=model_config.latent_size,
         mlp_num_hidden_layers=model_config.hidden_layers,
         num_message_passing_steps=1,
-        use_layer_norm=False, # Paper says this is suppose to be False!!
+        use_layer_norm=True,#False, # Paper says this is suppose to be False!!
         include_sent_messages_in_node_update=False,
         activation="swish",
         f32_aggregation=False,

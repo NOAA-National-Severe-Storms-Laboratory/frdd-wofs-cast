@@ -68,7 +68,7 @@ if __name__ == '__main__':
     # Number of samples processed during a single gradient descent step
     # If using multiple GPUs, batch_size / n_gpus samples are sent 
     # to each GPU. 
-    batch_size = 32
+    batch_size = 48#32
     
     loss_weights = {
                     # Any variables not specified here are weighted as 1.0.
@@ -129,8 +129,8 @@ if __name__ == '__main__':
         # For general training, we adopt the linear increase in learning rate 
         # during a 'warm-up' period followed by a cosine decay in learning rate
         
-        warmup_steps = 5
-        decay_steps = 6
+        warmup_steps = int(8192/batch_size)
+        decay_steps = int(8192/batch_size)*500
         n_steps = warmup_steps + decay_steps
         
         scheduler = optax.warmup_cosine_decay_schedule(
@@ -177,8 +177,8 @@ if __name__ == '__main__':
                  # is the named used for the Weights & Biases project. 
                  out_path = out_path,
                  
-                 checkpoint_interval = 5, # How often to save the weights (in terms of epochs) 
-                 verbose = 1, # Set to 3 to get all possible printouts
+                 checkpoint_interval = 500, # How often to save the weights (in terms of epochs) 
+                 verbose = 2, # Set to 3 to get all possible printouts
                  loss_weights = loss_weights,
                  parallel = True,
                  graphcast_pretrain = graphcast_pretrain
@@ -195,7 +195,7 @@ if __name__ == '__main__':
     generator = ZarrDataGenerator(paths, 
                               task_config, 
                               target_lead_times=None,
-                              batch_size=32, 
+                              batch_size=batch_size, 
                               num_devices=2, 
                               preprocess_fn=add_local_solar_time,
                               prefetch_size=3

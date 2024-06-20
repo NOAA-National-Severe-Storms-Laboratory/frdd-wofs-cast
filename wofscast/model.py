@@ -479,7 +479,10 @@ class WoFSCastModel:
                 if self.verbose > 1:
                     print('Saving model params....')    
                 self.save(model_params_replicated, state)
-                
+            if step % 5000 == 0:
+              print('Saving checkpoint....') 
+              self.save(model_params_replicated, state, step)
+
         # Save the final model params 
         print('Saving the final model...')
         self.save(model_params_replicated, state)
@@ -645,7 +648,7 @@ class WoFSCastModel:
                       'diffs_stddev_by_level' : diffs_stddev_by_level
                      }
         
-    def save(self, model_params, state):
+    def save(self, model_params, state, step=False):
         """Checkpoint the model parameters including task and model configs."""
         # Unreplicate model_params 
         # Using the suggested change from https://github.com/google/jax/discussions/15972
@@ -660,6 +663,11 @@ class WoFSCastModel:
         #print('\n Checkpoint the model parameters...')
         with open(self.out_path, 'wb') as io_byte:
             checkpoint.dump(io_byte, model_data)
+
+        if step:
+          out_path = self.out_path.replace('.npz', '_%d.npz' % step)
+          with open(out_path, 'wb') as io_byte:
+              checkpoint.dump(io_byte, model_data)
              
  
 def modify_path_if_exists(original_path):
