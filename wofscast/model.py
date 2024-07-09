@@ -7,7 +7,16 @@ The main class WoFSCastModel builds on Google's GraphCast github demo:
 import sys, os 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.getcwd())))
 
+# For determinism (https://github.com/google/jax/discussions/10674)
+#os.environ['XLA_FLAGS'] = (
+#    '--xla_gpu_deterministic_ops=true '
+#    '--xla_gpu_deterministic_ops=true '
+#)
+#os.environ['TF_DETERMINISTIC_OPS'] = '1' 
+
+
 # XLA FLAGS set for GPU performance (https://jax.readthedocs.io/en/latest/gpu_performance_tips.html)
+"""
 os.environ['XLA_FLAGS'] = (
     '--xla_gpu_enable_triton_softmax_fusion=true '
     '--xla_gpu_triton_gemm_any=True '
@@ -15,6 +24,7 @@ os.environ['XLA_FLAGS'] = (
     '--xla_gpu_enable_latency_hiding_scheduler=true '
     '--xla_gpu_enable_highest_priority_async_stream=true '
 )
+"""
 
 import dataclasses
 import datetime
@@ -301,6 +311,7 @@ class WoFSCastModel:
                       generator, 
                       model_params=None, 
                       state={}, 
+                      return_params=False
                       ):
         
         """Fit the WoFSCast model using the 3-Phase method outlined in Lam et al.
@@ -355,6 +366,11 @@ class WoFSCastModel:
         # with data from newly loaded batches. 
         inputs, targets, forcings = generator.generate()    
         
+        #print(f'{inputs=}')
+        #print(f'{targets=}')
+        #print(f'{forcings=}')
+        
+        
         # Since we are dealing with multiple prediction tasks
         # and therefore different normalization stat files,
         # check we have the correct one! Otherwise, the
@@ -408,7 +424,6 @@ class WoFSCastModel:
   
                 model_params = update_params_with_graphcast(model_params, graphcast_params)
 
-        
             num = count_total_parameters(model_params)
             if self.verbose > 0:
                 print(f'\n Num of Model Parameters: {num}\n')
@@ -485,6 +500,9 @@ class WoFSCastModel:
         print('Saving the final model...')
         self.save(model_params_replicated, state)
      
+        if return_params:
+            return jax.device_get(jax.tree_map(lambda x: x[0], model_params)), state
+    
     def predict(self, inputs, targets, forcings, diffusion_model=None): 
         """Predict using the WoFSCast"""
         # TODO: use the extend_targets_template from rollout.py. 
@@ -506,7 +524,7 @@ class WoFSCastModel:
 
     # Load the model 
     def load_model(self, path, 
-                   **additional_model_config # For backwards compat.
+                   **additional_config # For backwards compat.
                   ):
         
         with open(path, 'rb') as f:
@@ -536,15 +554,20 @@ class WoFSCastModel:
    
         self.model_params = data['parameters']
         self.state = {}
-        self._init_task_config_run(data['task_config'])
-        self._init_model_config_run(data['model_config'], **additional_model_config)
+        self._init_task_config_run(data['task_config'], **additional_config)
+        self._init_model_config_run(data['model_config'], **additional_config)
 
         self.norm_stats_path = data.get('norm_stats_path', self.norm_stats_path)
     
-    def _init_task_config_run(self, data): 
+    def _init_task_config_run(self, data, **additional_config): 
 
-        domain_size = data['domain_size']
-            
+        
+        domain_size = additional_config.get('domain_size', None)
+        if domain_size is None:
+            domain_size = data.get('domain_size', 150)
+        
+        ##print(f'{domain_size=}')
+        
         self.task_config = graphcast.TaskConfig(
               input_variables=data['input_variables'],
               target_variables=data['target_variables'],
@@ -552,7 +575,7 @@ class WoFSCastModel:
               pressure_levels=data['pressure_levels'],
               input_duration=data['input_duration'],
               n_vars_2D = data['n_vars_2D'],
-              domain_size = domain_size, 
+              domain_size = int(domain_size), 
               tiling = None, 
               train_lead_times = data.get('train_lead_times', None)
           )
@@ -561,31 +584,44 @@ class WoFSCastModel:
             print(f'\n TaskConfig {self.task_config}')
         
     
-    def _init_model_config_run(self, data, **additional_model_config):
+    def _init_model_config_run(self, data, **additional_config):
         
         k_hop = data.get('k_hop', None)
         if k_hop is None: 
-            k_hop = additional_model_config.get('k_hop', 8) 
+            k_hop = additional_config.get('k_hop', 8) 
         
         use_transformer = data.get('use_transformer', None)
         if use_transformer is None: 
-            use_transformer = additional_model_config.get('use_transformer', False) 
+            use_transformer = additional_config.get('use_transformer', False) 
         
         num_attn_heads = data.get('num_attn_heads', None)
         if num_attn_heads is None: 
-            num_attn_heads = additional_model_config.get('num_attn_heads', 4) 
+            num_attn_heads = additional_config.get('num_attn_heads', 4) 
+        
+        mesh2grid_edge_normalization_factor = data.get('mesh2grid_edge_normalization_factor', None)
+        if mesh2grid_edge_normalization_factor is None:
+            mesh2grid_edge_normalization_factor = additional_config.get('mesh2grid_edge_normalization_factor', None)
+        
+        mesh_size = additional_config.get('mesh_size', None)
+        if mesh_size is None:
+            mesh_size = int(data['mesh_size'])
+        
+        grid_to_mesh_node_dist = additional_config.get('grid_to_mesh_node_dist', None)
+        if grid_to_mesh_node_dist is None:
+            grid_to_mesh_node_dist = int(data['grid_to_mesh_node_dist'])
         
         self.model_config = graphcast.ModelConfig(
               resolution=int(data['resolution']),
-              mesh_size=int(data['mesh_size']),
+              mesh_size=mesh_size,
               latent_size=int(data['latent_size']),
               gnn_msg_steps=int(data['gnn_msg_steps']),
               hidden_layers=int(data['hidden_layers']),
-              grid_to_mesh_node_dist=int(data['grid_to_mesh_node_dist']),
+              grid_to_mesh_node_dist=grid_to_mesh_node_dist,
               loss_weights = data['loss_weights'],
               k_hop = k_hop,
               use_transformer = use_transformer,
-              num_attn_heads = num_attn_heads
+              num_attn_heads = num_attn_heads, 
+              mesh2grid_edge_normalization_factor = mesh2grid_edge_normalization_factor
         )
         
         if self.verbose > 2:

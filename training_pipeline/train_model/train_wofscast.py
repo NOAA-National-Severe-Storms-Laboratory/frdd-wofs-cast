@@ -4,14 +4,15 @@ os.environ['XLA_PYTHON_CLIENT_PREALLOCATE'] = 'true'
 os.environ['XLA_PYTHON_CLIENT_MEM_FRACTION'] = '0.95'
 
 # XLA FLAGS set for GPU performance (https://jax.readthedocs.io/en/latest/gpu_performance_tips.html)
+"""
 os.environ['XLA_FLAGS'] = (
-    '--xla_gpu_enable_triton_softmax_fusion=true '
+    #'--xla_gpu_enable_triton_softmax_fusion=true ' # Caused issues for the transformer layer. 
     '--xla_gpu_triton_gemm_any=True '
     '--xla_gpu_enable_async_collectives=true '
     '--xla_gpu_enable_latency_hiding_scheduler=true '
     '--xla_gpu_enable_highest_priority_async_stream=true '
 )
-
+"""
 
 
 # WoFSCast 
@@ -55,7 +56,7 @@ if __name__ == '__main__':
     fine_tune = False
     
     # Where the model weights are stored
-    out_path = '/work/mflora/wofs-cast-data/model/wofscast_test_speed.npz'
+    out_path = '/work/mflora/wofs-cast-data/model/wofscast_reproducibility_test.npz'
     
     # The task config contains details like the input variables, 
     # target variables, time step, etc.
@@ -78,10 +79,10 @@ if __name__ == '__main__':
                     'T': 1.0, 
                     'GEOPOT': 1.0, 
                     'QVAPOR': 1.0,
-                    'T2' : 0.1, 
-                    'COMPOSITE_REFL_10CM' : 0.1, 
+                    'T2' : 1.0, 
+                    'COMPOSITE_REFL_10CM' : 1.0, 
                     #'UP_HELI_MAX' : 0.1,
-                    'RAIN_AMOUNT' : 0.1,
+                    'RAIN_AMOUNT' : 1.0,
                     }
     
     if fine_tune: 
@@ -95,14 +96,13 @@ if __name__ == '__main__':
         # Location of the datasets with longer lead times. 
         base_path = '/work/mflora/wofs-cast-data/datasets_2hr_zarr'
    
-        # Load a checkpoint from an existing model. 
-        model_path = '/work/mflora/wofs-cast-data/model/wofscast_baseline.npz'
-        
+        model_path = out_path.copy() 
+    
         # Do not want to replace the existing checkpoint! 
         out_path = model_path.replace('.npz', '_fine_tune.npz') 
         
         # For fine tuning, we adopt the constant, but small learning rate. 
-        scheduler = optax.constant_schedule(3e-7)
+        scheduler = optax.constant_schedule(3e-6)
         
         # Build the TaskConfig and ModelConfig inputs. 
         trainer = WoFSCastModel(learning_rate_scheduler = scheduler, 
@@ -116,7 +116,7 @@ if __name__ == '__main__':
                  out_path = out_path,
                  
                  checkpoint_interval = 1, # How often to save the weights (in terms of epochs) 
-                 verbose = 0, # Set to 3 to get all possible printouts
+                 verbose = 1, # Set to 3 to get all possible printouts
                  loss_weights = loss_weights,
                  parallel = True)    
         
@@ -129,8 +129,8 @@ if __name__ == '__main__':
         # For general training, we adopt the linear increase in learning rate 
         # during a 'warm-up' period followed by a cosine decay in learning rate
         
-        warmup_steps = 5
-        decay_steps = 6
+        warmup_steps = 2
+        decay_steps = 5
         n_steps = warmup_steps + decay_steps
         
         scheduler = optax.warmup_cosine_decay_schedule(
@@ -178,7 +178,7 @@ if __name__ == '__main__':
                  out_path = out_path,
                  
                  checkpoint_interval = 1, # How often to save the weights (in terms of epochs) 
-                 verbose = 0, # Set to 3 to get all possible printouts
+                 verbose = 1, # Set to 3 to get all possible printouts
                  loss_weights = loss_weights,
                  parallel = True,
                  graphcast_pretrain = graphcast_pretrain
@@ -196,10 +196,11 @@ if __name__ == '__main__':
     generator = ZarrDataGenerator(paths, 
                               task_config, 
                               target_lead_times=None,
-                              batch_size=32, 
+                              batch_size=batch_size, 
                               num_devices=2, 
                               preprocess_fn=add_local_solar_time,
-                              prefetch_size=3
+                              prefetch_size=3,
+                              random_seed=42, 
                              )
 
     trainer.fit_generator(generator, 
