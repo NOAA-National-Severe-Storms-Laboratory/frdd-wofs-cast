@@ -129,8 +129,8 @@ if __name__ == '__main__':
         # For general training, we adopt the linear increase in learning rate 
         # during a 'warm-up' period followed by a cosine decay in learning rate
         
-        warmup_steps = 2
-        decay_steps = 5
+        warmup_steps = 250
+        decay_steps = 10000
         n_steps = warmup_steps + decay_steps
         
         scheduler = optax.warmup_cosine_decay_schedule(
@@ -151,8 +151,8 @@ if __name__ == '__main__':
                  mesh_size=5, # Number of Mesh refinements or more higher resolution layers. 
                  
                  # Parameters for the MLPs-------------------
-                 latent_size=32, 
-                 gnn_msg_steps=4, # Increasing this allows for connecting information from farther away. 
+                 latent_size=128, 
+                 gnn_msg_steps=8, # Increasing this allows for connecting information from farther away. 
                  hidden_layers=1, 
                  grid_to_mesh_node_dist=5,  # Fraction of the maximum distance between mesh nodes on the 
                                              # finest mesh level. @ level 5, max distance ~ 4.5 km, 
@@ -163,7 +163,7 @@ if __name__ == '__main__':
                  # Parameters if using a transformer layer for processor (mesh)
                  # the transformer also relies on the latent_size arg above.
                  use_transformer = False, 
-                 k_hop=8,
+                 k_hop = 8,
                  num_attn_heads  = 4, 
         
                  n_steps = n_steps, 
@@ -177,7 +177,7 @@ if __name__ == '__main__':
                  # is the named used for the Weights & Biases project. 
                  out_path = out_path,
                  
-                 checkpoint_interval = 1, # How often to save the weights (in terms of epochs) 
+                 checkpoint_interval = 250, # How often to save the weights (in terms of epochs) 
                  verbose = 1, # Set to 3 to get all possible printouts
                  loss_weights = loss_weights,
                  parallel = True,
