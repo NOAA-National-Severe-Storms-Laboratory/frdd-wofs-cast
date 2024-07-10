@@ -4,15 +4,15 @@ os.environ['XLA_PYTHON_CLIENT_PREALLOCATE'] = 'true'
 os.environ['XLA_PYTHON_CLIENT_MEM_FRACTION'] = '0.95'
 
 # XLA FLAGS set for GPU performance (https://jax.readthedocs.io/en/latest/gpu_performance_tips.html)
-#os.environ['XLA_FLAGS'] = (
-#    '--xla_gpu_enable_triton_softmax_fusion=true '
-#    '--xla_gpu_triton_gemm_any=True '
-#    '--xla_gpu_enable_async_collectives=true '
-#    '--xla_gpu_enable_latency_hiding_scheduler=true '
-#    '--xla_gpu_enable_highest_priority_async_stream=true '
-#)
-
-
+"""
+os.environ['XLA_FLAGS'] = (
+    #'--xla_gpu_enable_triton_softmax_fusion=true ' # Caused issues for the transformer layer. 
+    '--xla_gpu_triton_gemm_any=True '
+    '--xla_gpu_enable_async_collectives=true '
+    '--xla_gpu_enable_latency_hiding_scheduler=true '
+    '--xla_gpu_enable_highest_priority_async_stream=true '
+)
+"""
 
 # WoFSCast 
 import warnings
@@ -72,16 +72,16 @@ if __name__ == '__main__':
     
     loss_weights = {
                     # Any variables not specified here are weighted as 1.0.
-                    #'U' : 1.0, 
-                    #'V': 1.0, 
-                    #'W': 1.0, 
-                    #'T': 1.0, 
-                    #'GEOPOT': 1.0, 
-                    #'QVAPOR': 1.0,
-                    #'T2' : 0.1, 
-                    'COMPOSITE_REFL_10CM' : 1, 
+                    'U' : 1.0, 
+                    'V': 1.0, 
+                    'W': 1.0, 
+                    'T': 1.0, 
+                    'GEOPOT': 1.0, 
+                    'QVAPOR': 1.0,
+                    'T2' : 1.0, 
+                    'COMPOSITE_REFL_10CM' : 1.0, 
                     #'UP_HELI_MAX' : 0.1,
-                    #'RAIN_AMOUNT' : 0.1,
+                    'RAIN_AMOUNT' : 1.0,
                     }
     
     if fine_tune: 
@@ -95,14 +95,13 @@ if __name__ == '__main__':
         # Location of the datasets with longer lead times. 
         base_path = '/work/mflora/wofs-cast-data/datasets_2hr_zarr'
    
-        # Load a checkpoint from an existing model. 
-        model_path = '/work/cpotvin/WOFSCAST/model/wofscast_test_v154.npz'#/work/mflora/wofs-cast-data/model/wofscast_baseline.npz'
-        
+        model_path = out_path.copy() 
+    
         # Do not want to replace the existing checkpoint! 
         out_path = model_path.replace('.npz', '_fine_tune.npz') 
         
         # For fine tuning, we adopt the constant, but small learning rate. 
-        scheduler = optax.constant_schedule(3e-7)
+        scheduler = optax.constant_schedule(3e-6)
         
         # Build the TaskConfig and ModelConfig inputs. 
         trainer = WoFSCastModel(learning_rate_scheduler = scheduler, 
@@ -115,7 +114,7 @@ if __name__ == '__main__':
                  # is the named used for the Weights & Biases project. 
                  out_path = out_path,
                  
-                 checkpoint_interval = 500, # How often to save the weights (in terms of epochs) 
+                 checkpoint_interval = 250, # How often to save the weights (in terms of epochs) 
                  verbose = 2, # Set to 3 to get all possible printouts
                  loss_weights = loss_weights,
                  parallel = True)    
@@ -129,8 +128,10 @@ if __name__ == '__main__':
         # For general training, we adopt the linear increase in learning rate 
         # during a 'warm-up' period followed by a cosine decay in learning rate
         
-        warmup_steps = int(8192/batch_size)
-        decay_steps = int(8192/batch_size)*500
+        #warmup_steps = int(8192/batch_size)
+        #decay_steps = int(8192/batch_size)*500
+        warmup_steps = 250
+        decay_steps = 10000
         n_steps = warmup_steps + decay_steps
         
         scheduler = optax.warmup_cosine_decay_schedule(
@@ -151,7 +152,7 @@ if __name__ == '__main__':
                  mesh_size=5, # Number of Mesh refinements or more higher resolution layers. 
                  
                  # Parameters for the MLPs-------------------
-                 latent_size=512,#,128,#64, 
+                 latent_size=128, 
                  gnn_msg_steps=8, # Increasing this allows for connecting information from farther away. 
                  hidden_layers=1, 
                  grid_to_mesh_node_dist=5,  # Fraction of the maximum distance between mesh nodes on the 
@@ -162,8 +163,8 @@ if __name__ == '__main__':
                  #--------------------------------------------
                  # Parameters if using a transformer layer for processor (mesh)
                  # the transformer also relies on the latent_size arg above.
-                 use_transformer = True,#False, 
-                 k_hop=8,
+                 use_transformer = False, 
+                 k_hop = 8,
                  num_attn_heads  = 4, 
         
                  n_steps = n_steps, 
@@ -177,8 +178,8 @@ if __name__ == '__main__':
                  # is the named used for the Weights & Biases project. 
                  out_path = out_path,
                  
-                 checkpoint_interval = 500, # How often to save the weights (in terms of epochs) 
-                 verbose = 2, # Set to 3 to get all possible printouts
+                 checkpoint_interval = 250, # How often to save the weights (in terms of epochs) 
+                 verbose = 1, # Set to 3 to get all possible printouts
                  loss_weights = loss_weights,
                  parallel = True,
                  graphcast_pretrain = graphcast_pretrain
@@ -196,11 +197,12 @@ if __name__ == '__main__':
     
     generator = ZarrDataGenerator(paths, 
                               task_config, 
-                              target_lead_times=target_lead_times,
+                              target_lead_times=None,
                               batch_size=batch_size, 
                               num_devices=2, 
                               preprocess_fn=add_local_solar_time,
-                              prefetch_size=3
+                              prefetch_size=3,
+                              random_seed=42, 
                              )
 
     trainer.fit_generator(generator, 
