@@ -91,7 +91,8 @@ class ZarrDataGenerator:
         self.preprocess_fn = preprocess_fn
         self.num_devices = num_devices
         self.prefetch_size = prefetch_size
-        
+        self.seed = 0
+ 
         # Setup prefetching
         self.executor = ThreadPoolExecutor(max_workers=prefetch_size)
         self.prefetch_queue = []
@@ -105,7 +106,10 @@ class ZarrDataGenerator:
         self.prefetch_queue.append(future)
     
     def _generate_batch(self):
+        np.random.seed(self.seed)
+        self.seed += 1
         sampled_paths = np.random.choice(self.paths, self.batch_size, replace=True)
+        #print (self.seed-1, sampled_paths[0:2])
         batch = load_chunk(sampled_paths, self.batch_size, preprocess_fn=self.preprocess_fn)
         batch_sharded = shard_xarray_dataset(batch, self.num_devices)
         inputs, targets, forcings = dataset_to_input(batch_sharded, self.task_config, 
@@ -216,8 +220,7 @@ def load_and_concatenate(files, concat_dim):
        
     return combined_dataset
 
-'''
-def load_chunk(paths_chunk, batch_over_time=False, gpu_batch_size=32, preprocess_fn=None):
+def load_chunk2(paths_chunk, batch_over_time=False, gpu_batch_size=32, preprocess_fn=None):
     if batch_over_time:
         if not isinstance(paths_chunk, list) or not all(isinstance(i, list) for i in paths_chunk):
             raise ValueError('paths must be a nested list if concatenating along a time dimension.')
@@ -239,7 +242,6 @@ def load_chunk(paths_chunk, batch_over_time=False, gpu_batch_size=32, preprocess
     dataset = dataset.chunk({'batch': gpu_batch_size})
     
     return dataset
-'''
 
 def load_chunk(paths, gpu_batch_size, preprocess_fn=None):
     dataset =  xr.open_mfdataset(paths, engine='zarr', consolidated=True, 
@@ -252,7 +254,6 @@ def load_chunk(paths, gpu_batch_size, preprocess_fn=None):
     dataset = dataset.chunk({'batch': gpu_batch_size})
     
     return dataset
-
 
 def dataset_to_input(dataset, task_config, target_lead_times=None, 
                      batch_over_time=False, n_target_steps=1):

@@ -266,42 +266,7 @@ def custom_window_loss(
 
       processed_image = vmap(process_batch)(jnp.arange(image.shape[0]))
       return processed_image
-    '''
-    def apply_percentile_filter(image, nbrhd, percentile):
-      # Padding the image
-      if image.ndim==4:
-        pad_width = ((0, 0), (0, 0), (nbrhd//2, nbrhd//2), (nbrhd//2, nbrhd//2))
-      else:
-        pad_width = ((0, 0), (0, 0), (0, 0), (nbrhd//2, nbrhd//2), (nbrhd//2, nbrhd//2))
 
-      padded_data = jnp.pad(image, pad_width, mode='reflect')
-    
-      def process_pixel(batch, channel, level, i, j):
-        if image.ndim==4:
-          window = lax.dynamic_slice(padded_data, (batch, channel, i, j), (1, 1, nbrhd, nbrhd))
-        else:
-          window = lax.dynamic_slice(padded_data, (batch, channel, level, i, j), (1, 1, 1, nbrhd, nbrhd))
-        return jnp.percentile(window, percentile, axis=(-2, -1))
-
-      def process_channel(batch, channel):
-        height, width = image.shape[2], image.shape[3]
-        i_indices = jnp.arange(height)
-        j_indices = jnp.arange(width)
-        indices = jnp.array(jnp.meshgrid(i_indices, j_indices, indexing='ij')).reshape(2, -1).T
-        
-        # Map over all indices to process each pixel
-        def process_index(idx):
-            return process_pixel(batch, channel, idx[0], idx[1])
-        
-        return vmap(process_index)(indices).reshape(height, width)
-    
-      # Apply across batches and channels
-      def process_batch(batch):
-        return vmap(lambda channel: process_channel(batch, channel))(jnp.arange(image.shape[1]))
-    
-      processed_image = vmap(process_batch)(jnp.arange(image.shape[0]))
-      return processed_image
-    #'''
     def max_pooling(image, nbrhd):
       window_shape = (1, 1, nbrhd, nbrhd)
       strides = (1, 1, 1, 1)
@@ -328,7 +293,9 @@ def custom_window_loss(
 
     def loss(prediction, target):
 
+      custom_vars = ['COMPOSITE_REFL_10CM', 'RAIN_AMOUNT', 'W']
       var = prediction.name
+      dims = prediction.dims
       prediction = xarray_jax.jax_data(prediction)
       target = xarray_jax.jax_data(target)
 
@@ -338,19 +305,19 @@ def custom_window_loss(
         mu_preds = [apply_uniform_filter(prediction, nbrhd) for nbrhd in mu_nbrhds]
 
         diffs = [pred - true for true, pred in zip(mu_trues, mu_preds)] 
-        if mse_thres > 0:
+        if mse_thres > 0 and var in custom_vars:
           #diffs = [jnp.where((jnp.abs(diff) >= mse_thres), diff, jnp.nan) for diff in diffs]
           diffs = [jnp.where(((jnp.abs(pred) >= mse_thres) | (jnp.abs(true) >= mse_thres)), diff, jnp.nan) for pred, true, diff in zip(mu_preds, mu_trues, diffs)]
         if use_mae:
           errors = [wgt * jnp.abs(diff) for wgt, diff in zip(mu_wgts, diffs)]
         else:
           errors = [wgt * diff ** 2 for wgt, diff in zip(mu_wgts, diffs)]
-        if mse_cond_loss:
+        if mse_cond_loss and var in custom_vars:
           errors = [apply_cond_loss(error, pred, true) for error, pred, true in zip(errors, mu_preds, mu_trues)]
 
         loss = jnp.nansum(jnp.stack(errors, axis=0), axis=0)#xr.concat(errors, dim='temp').sum(dim='temp')
 
-      if len(med_nbrhds) > 0:
+      if len(med_nbrhds) > 0 and var in custom_vars:
 
         med_trues = [apply_percentile_filter(target, nbrhd, 50) for nbrhd in med_nbrhds]
         med_preds = [apply_percentile_filter(prediction, nbrhd, 50) for nbrhd in med_nbrhds]
@@ -362,7 +329,7 @@ def custom_window_loss(
         except:
           loss = jnp.sum(jnp.stack(errors, axis=0), axis=0)
 
-      if len(max_nbrhds) > 0:
+      if len(max_nbrhds) > 0 and var in custom_vars:
 
         max_trues = [apply_percentile_filter(target, nbrhd, 100) for nbrhd in max_nbrhds]
         max_preds = [apply_percentile_filter(prediction, nbrhd, 100) for nbrhd in max_nbrhds]
@@ -374,7 +341,7 @@ def custom_window_loss(
         except:
           loss = jnp.sum(jnp.stack(errors, axis=0), axis=0)
 
-      if len(perc_nbrhds) > 0:
+      if len(perc_nbrhds) > 0 and var in custom_vars:
 
         trues = [apply_percentile_filter(target, nbrhd, perc_val) for nbrhd, perc_val in zip(perc_nbrhds, perc_vals)]
         preds = [apply_percentile_filter(prediction, nbrhd, perc_val) for nbrhd, perc_val in zip(perc_nbrhds, perc_vals)]
@@ -386,7 +353,7 @@ def custom_window_loss(
         except:
           loss = jnp.sum(jnp.stack(errors, axis=0), axis=0)
 
-      if len(ssim_nbrhds) > 0:
+      if len(ssim_nbrhds) > 0 and var in custom_vars:
 
         SSIs = [wgt*(1-compute_ssi(prediction, target, nbrhd, sigma, thres)) for wgt, nbrhd in zip(ssim_wgts, ssim_nbrhds)]
 
@@ -395,8 +362,10 @@ def custom_window_loss(
         except:
           loss = jnp.nansum(jnp.stack(SSIs, axis=0), axis=0)
         loss = 1-compute_ssi(prediction, target, 11, sigma, thres)
-        
-      loss = xarray_jax.DataArray(loss, dims=['batch', 'time', 'lat', 'lon'])
+      
+ 
+      #loss = xarray_jax.DataArray(loss, dims=['batch', 'time', 'level', 'lat', 'lon'])
+      loss = xarray_jax.DataArray(loss, dims=dims)
 
       return _mean_preserving_batch(loss.astype(jnp.bfloat16))
 

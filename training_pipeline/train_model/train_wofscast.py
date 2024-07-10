@@ -4,13 +4,13 @@ os.environ['XLA_PYTHON_CLIENT_PREALLOCATE'] = 'true'
 os.environ['XLA_PYTHON_CLIENT_MEM_FRACTION'] = '0.95'
 
 # XLA FLAGS set for GPU performance (https://jax.readthedocs.io/en/latest/gpu_performance_tips.html)
-os.environ['XLA_FLAGS'] = (
-    '--xla_gpu_enable_triton_softmax_fusion=true '
-    '--xla_gpu_triton_gemm_any=True '
-    '--xla_gpu_enable_async_collectives=true '
-    '--xla_gpu_enable_latency_hiding_scheduler=true '
-    '--xla_gpu_enable_highest_priority_async_stream=true '
-)
+#os.environ['XLA_FLAGS'] = (
+#    '--xla_gpu_enable_triton_softmax_fusion=true '
+#    '--xla_gpu_triton_gemm_any=True '
+#    '--xla_gpu_enable_async_collectives=true '
+#    '--xla_gpu_enable_latency_hiding_scheduler=true '
+#    '--xla_gpu_enable_highest_priority_async_stream=true '
+#)
 
 
 
@@ -68,7 +68,7 @@ if __name__ == '__main__':
     # Number of samples processed during a single gradient descent step
     # If using multiple GPUs, batch_size / n_gpus samples are sent 
     # to each GPU. 
-    batch_size = 48#32
+    batch_size = 24#32
     
     loss_weights = {
                     # Any variables not specified here are weighted as 1.0.
@@ -96,7 +96,7 @@ if __name__ == '__main__':
         base_path = '/work/mflora/wofs-cast-data/datasets_2hr_zarr'
    
         # Load a checkpoint from an existing model. 
-        model_path = '/work/mflora/wofs-cast-data/model/wofscast_baseline.npz'
+        model_path = '/work/cpotvin/WOFSCAST/model/wofscast_test_v154.npz'#/work/mflora/wofs-cast-data/model/wofscast_baseline.npz'
         
         # Do not want to replace the existing checkpoint! 
         out_path = model_path.replace('.npz', '_fine_tune.npz') 
@@ -115,8 +115,8 @@ if __name__ == '__main__':
                  # is the named used for the Weights & Biases project. 
                  out_path = out_path,
                  
-                 checkpoint_interval = 1, # How often to save the weights (in terms of epochs) 
-                 verbose = 0, # Set to 3 to get all possible printouts
+                 checkpoint_interval = 500, # How often to save the weights (in terms of epochs) 
+                 verbose = 2, # Set to 3 to get all possible printouts
                  loss_weights = loss_weights,
                  parallel = True)    
         
@@ -151,9 +151,9 @@ if __name__ == '__main__':
                  mesh_size=5, # Number of Mesh refinements or more higher resolution layers. 
                  
                  # Parameters for the MLPs-------------------
-                 latent_size=256,#,128,#64, 
+                 latent_size=512,#,128,#64, 
                  gnn_msg_steps=8, # Increasing this allows for connecting information from farther away. 
-                 hidden_layers=2, 
+                 hidden_layers=1, 
                  grid_to_mesh_node_dist=5,  # Fraction of the maximum distance between mesh nodes on the 
                                              # finest mesh level. @ level 5, max distance ~ 4.5 km, 
                                              # so connecting to those grid points with 1-2 km 
@@ -162,7 +162,7 @@ if __name__ == '__main__':
                  #--------------------------------------------
                  # Parameters if using a transformer layer for processor (mesh)
                  # the transformer also relies on the latent_size arg above.
-                 use_transformer = False, 
+                 use_transformer = True,#False, 
                  k_hop=8,
                  num_attn_heads  = 4, 
         
@@ -189,12 +189,14 @@ if __name__ == '__main__':
         paths = []
         for files in executor.map(get_files_for_year, years):
             paths.extend(files)
-   
+  
+    paths = sorted(paths)
+ 
     print(f'Number of Paths: {len(paths)}')
     
     generator = ZarrDataGenerator(paths, 
                               task_config, 
-                              target_lead_times=None,
+                              target_lead_times=target_lead_times,
                               batch_size=batch_size, 
                               num_devices=2, 
                               preprocess_fn=add_local_solar_time,

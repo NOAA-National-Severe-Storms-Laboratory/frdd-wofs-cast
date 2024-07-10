@@ -1,7 +1,7 @@
 target_vars = ['T', 'QVAPOR', 'T2',
                'U', 'V', 'W',
                'GEOPOT', 'RAIN_AMOUNT', 'COMPOSITE_REFL_10CM'] 
-target_vars = ['COMPOSITE_REFL_10CM']
+#target_vars = ['COMPOSITE_REFL_10CM']
 display_name_mapper = {'U' : 'U-wind Comp.', 
           'V' : 'V-wind Comp.', 
           'W' : 'Vert. Velocity',
