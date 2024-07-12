@@ -33,6 +33,7 @@ import optax
 import os
 from os.path import join
 from concurrent.futures import ThreadPoolExecutor
+import inspect
 
 # Using the Weights & Biases package: 
 # Create an account : https://docs.wandb.ai/quickstart
@@ -59,7 +60,7 @@ if __name__ == '__main__':
     
     # The task config contains details like the input variables, 
     # target variables, time step, etc.
-    task_config = DBZ_TASK_CONFIG
+    task_config = WOFS_TASK_CONFIG
     
     # Whether to use the 36.7M parameter GraphCast model weights 
     # Must set parameters identical to those paper 
@@ -68,7 +69,7 @@ if __name__ == '__main__':
     # Number of samples processed during a single gradient descent step
     # If using multiple GPUs, batch_size / n_gpus samples are sent 
     # to each GPU. 
-    batch_size = 24#32
+    batch_size = 32
     
     loss_weights = {
                     # Any variables not specified here are weighted as 1.0.
@@ -146,8 +147,18 @@ if __name__ == '__main__':
         target_lead_times= None # Defaults to target lead times in the TaskConfig.
         # Location of the dataset. 
         base_path = '/work/mflora/wofs-cast-data/datasets_zarr'
+
+        # Define a wrapper class to capture the trainer __init__ arguments for printing
+        class Wrapper:
+          def __init__(self, cls, *args, **kwargs):
+            self._instance = cls(*args, **kwargs)
+            self._args = args
+            self._kwargs = kwargs
+
+          def __getattr__(self, name):
+            return getattr(self._instance, name)
         
-        trainer = WoFSCastModel(
+        trainer = Wrapper(WoFSCastModel,
                  task_config = task_config, 
                  mesh_size=5, # Number of Mesh refinements or more higher resolution layers. 
                  
@@ -194,7 +205,26 @@ if __name__ == '__main__':
     paths = sorted(paths)
  
     print(f'Number of Paths: {len(paths)}')
-    
+
+    # Output training parameters
+
+    prescribed_types = (int, float, str, dict, bool, type(None))
+
+    matching_variables = {}
+    matching_variables.update({name: value for name, value in globals().items() if isinstance(value, prescribed_types)})
+    matching_variables.update({name: value for name, value in trainer.__dict__.items() if isinstance(value, prescribed_types)})
+    if hasattr(trainer, '_args'):
+            init_args = {f'_init_arg_{i}': v for i, v in enumerate(trainer._args) if isinstance(v, prescribed_types)}
+            matching_variables.update(init_args)
+        
+    if hasattr(trainer, '_kwargs'):
+            init_kwargs = {k: v for k, v in trainer._kwargs.items() if isinstance(v, prescribed_types)}
+            matching_variables.update(init_kwargs)
+
+    for name, value in matching_variables.items():
+      if name not in ['norm_stats', 'matching_variables'] and '__' not in name:
+        print(f"{name}: {value}")
+
     generator = ZarrDataGenerator(paths, 
                               task_config, 
                               target_lead_times=None,
@@ -205,7 +235,7 @@ if __name__ == '__main__':
                               random_seed=42, 
                              )
 
-    trainer.fit_generator(generator, 
-                          model_params=model_params, 
-                          state=state, 
-                          )
+    #trainer.fit_generator(generator, 
+    #                      model_params=model_params, 
+    #                      state=state, 
+    #                      )
