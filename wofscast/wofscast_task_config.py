@@ -45,6 +45,37 @@ WOFS_TASK_CONFIG = graphcast.TaskConfig(
       train_lead_times = train_lead_times,
  )
 
+LEVELS_EVERY_3 = list(np.arange(0,50,3))
+LEVELS_EVERY_2 = list(np.arange(0,50,2))
+
+WOFS_TASK_CONFIG_1HR = graphcast.TaskConfig(
+      input_variables=INPUT_VARS,
+      target_variables=TARGET_VARS,
+      forcing_variables=FORCING_VARS,
+      pressure_levels=LEVELS_EVERY_3,
+      input_duration='2hr',
+      n_vars_2D = len(VARS_2D),
+      domain_size = DOMAIN_SIZE,
+      tiling=None,
+      train_lead_times = '1hr',
+ )
+
+WOFS_TASK_CONFIG_5MIN = graphcast.TaskConfig(
+      input_variables=INPUT_VARS,
+      target_variables=TARGET_VARS,
+      forcing_variables=FORCING_VARS,
+      pressure_levels=LEVELS_EVERY_3,
+      input_duration='10min',
+      n_vars_2D = len(VARS_2D),
+      domain_size = DOMAIN_SIZE,
+      tiling=None,
+      train_lead_times = '5min',
+ )
+
+
+
+##############
+
 VARS_2D = ['COMPOSITE_REFL_10CM']
 STATIC_VARS = ['XLAND', 'HGT']
 
@@ -88,5 +119,4 @@ DBZ_TASK_CONFIG_FULL = graphcast.TaskConfig(
       tiling=None,
       train_lead_times = '10min',
  )
-
 

@@ -254,6 +254,7 @@ def load_chunk(paths_chunk, batch_over_time=False, gpu_batch_size=32, preprocess
     return dataset
 '''
 
+
 def load_chunk(paths, gpu_batch_size, preprocess_fn=None):
     dataset =  xr.open_mfdataset(paths, engine='zarr', consolidated=True, 
                        decode_times=False, chunks={},
@@ -640,15 +641,23 @@ def check_for_nans(dataset):
 
     
 class WoFSDataProcessor:
-    STATIC_PATH_FOR_LATLON = '/work2/wofs_zarr/2019/20190525/2000/ENS_MEM_12/wrfwof_d01_2019-05-25_20:00:00.zarr'
-    
-    def __init__(self, domain_size=150):
-        self.domain_size = domain_size 
-        self._load_lat_and_lon()
 
-    def _load_lat_and_lon(self):
+    def __init__(self, domain_size=150, 
+                 funcs = [
+                'set_ref_lat_and_lon', # Set a single reference lat/lon grid 
+                #'resize', # Limit to the inner most 150 x 150 
+                #'subset_vertical_levels', # Limit to every 3rd level.
+                #'unaccum_rainfall' # Convert accum rainfall to rain rate. 
+                ],
+                latlon_path = '/work2/wofs_zarr/2019/20190525/2000/ENS_MEM_12/wrfwof_d01_2019-05-25_20:00:00.zarr'
+                ):
+        self._funcs = funcs
+        self.domain_size = domain_size 
+        self._load_lat_and_lon(latlon_path)
+
+    def _load_lat_and_lon(self, latlon_path):
         # Reset the lat/lon coordinates 
-        tmp_ds = open_zarr(self.STATIC_PATH_FOR_LATLON) 
+        tmp_ds = open_zarr(latlon_path) 
         # Latitude and longitude are expected to be 1d vectors. 
         self.lat_1d = tmp_ds['lat'].values
         self.lon_1d = tmp_ds['lon'].values
@@ -710,15 +719,7 @@ class WoFSDataProcessor:
     
     
     def __call__(self, dataset: xr.Dataset) -> xr.Dataset:
-        
-        funcs = [
-            'set_ref_lat_and_lon', # Set a single reference lat/lon grid 
-            #'resize', # Limit to the inner most 150 x 150 
-            #'subset_vertical_levels', # Limit to every 3rd level.
-            'unaccum_rainfall' # Convert accum rainfall to rain rate. 
-        ]
-    
-        for func in funcs:
+        for func in self._funcs:
             dataset = getattr(self, func)(dataset)
 
         return dataset 

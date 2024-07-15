@@ -24,8 +24,12 @@ import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.getcwd())))
 
 from wofscast.model import WoFSCastModel
-from wofscast.wofscast_task_config import WOFS_TASK_CONFIG, DBZ_TASK_CONFIG
-from wofscast.data_generator import ZarrDataGenerator, add_local_solar_time
+from wofscast.wofscast_task_config import (WOFS_TASK_CONFIG, 
+                                           DBZ_TASK_CONFIG, 
+                                           WOFS_TASK_CONFIG_5MIN, 
+                                           WOFS_TASK_CONFIG_1HR
+                                          )
+from wofscast.data_generator import ZarrDataGenerator, add_local_solar_time,WoFSDataProcessor
 from wofscast import checkpoint
 from wofscast.utils import get_random_subset,  truncate_to_chunk_size
 
@@ -55,12 +59,14 @@ if __name__ == '__main__':
     # provided. 
     fine_tune = False
     
+    seed = 42
+    
     # Where the model weights are stored
-    out_path = '/work/mflora/wofs-cast-data/model/wofscast_reproducibility_test.npz'
+    out_path = f'/work/mflora/wofs-cast-data/model/wofscast_test_hourly.npz'
     
     # The task config contains details like the input variables, 
     # target variables, time step, etc.
-    task_config = WOFS_TASK_CONFIG
+    task_config = WOFS_TASK_CONFIG_1HR
     
     # Whether to use the 36.7M parameter GraphCast model weights 
     # Must set parameters identical to those paper 
@@ -69,7 +75,7 @@ if __name__ == '__main__':
     # Number of samples processed during a single gradient descent step
     # If using multiple GPUs, batch_size / n_gpus samples are sent 
     # to each GPU. 
-    batch_size = 32
+    batch_size = 24
     
     loss_weights = {
                     # Any variables not specified here are weighted as 1.0.
@@ -129,8 +135,8 @@ if __name__ == '__main__':
         # For general training, we adopt the linear increase in learning rate 
         # during a 'warm-up' period followed by a cosine decay in learning rate
         
-        warmup_steps = 250
-        decay_steps = 10000
+        warmup_steps = 500
+        decay_steps = 250000
         n_steps = warmup_steps + decay_steps
         
         scheduler = optax.warmup_cosine_decay_schedule(
@@ -144,15 +150,23 @@ if __name__ == '__main__':
         model_params, state = None, {}
         target_lead_times= None # Defaults to target lead times in the TaskConfig.
         # Location of the dataset. 
-        base_path = '/work/mflora/wofs-cast-data/datasets_zarr'
+        base_path = '/work/mflora/wofs-cast-data/datasets_hourly'
+        
+        if '5min' in base_path:
+            norm_stats_path = '/work/mflora/wofs-cast-data/norm_stats_5min/'
+        elif 'hourly' in base_path:
+            norm_stats_path = '/work/mflora/wofs-cast-data/norm_stats_hourly/'
+        else:    
+            norm_stats_path = '/work/mflora/wofs-cast-data/full_normalization_stats'
+        
         
         trainer = WoFSCastModel(
                  task_config = task_config, 
                  mesh_size=5, # Number of Mesh refinements or more higher resolution layers. 
                  
                  # Parameters for the MLPs-------------------
-                 latent_size=128, 
-                 gnn_msg_steps=8, # Increasing this allows for connecting information from farther away. 
+                 latent_size=512, 
+                 gnn_msg_steps=16, # Increasing this allows for connecting information from farther away. 
                  hidden_layers=1, 
                  grid_to_mesh_node_dist=5,  # Fraction of the maximum distance between mesh nodes on the 
                                              # finest mesh level. @ level 5, max distance ~ 4.5 km, 
@@ -171,7 +185,7 @@ if __name__ == '__main__':
         
                  checkpoint=True, # Save the model periodically
             
-                 norm_stats_path = '/work/mflora/wofs-cast-data/full_normalization_stats',
+                 norm_stats_path = norm_stats_path,
         
                  # Path where the model is saved. The file name (os.path.basename)
                  # is the named used for the Weights & Biases project. 
@@ -193,14 +207,26 @@ if __name__ == '__main__':
     
     print(f'Number of Paths: {len(paths)}')
     
+    def preprocess_fn(dataset):
+        # Setting a constant lat/lon.
+        _path = '/work/mflora/wofs-cast-data/datasets_zarr/2021/'
+        latlon_path = os.path.join(_path, 'wrfwof_2021-05-15_040000_to_2021-05-15_043000__10min__ens_mem_09.zarr')
+        preprocess_fn = WoFSDataProcessor(latlon_path=latlon_path)
+        
+        dataset = preprocess_fn(dataset)
+        
+        dataset = add_local_solar_time(dataset) 
+        
+        return dataset 
+
     generator = ZarrDataGenerator(paths, 
                               task_config, 
                               target_lead_times=None,
                               batch_size=batch_size, 
                               num_devices=2, 
-                              preprocess_fn=add_local_solar_time,
+                              preprocess_fn=preprocess_fn,
                               prefetch_size=3,
-                              random_seed=42, 
+                              random_seed=seed, 
                              )
 
     trainer.fit_generator(generator, 

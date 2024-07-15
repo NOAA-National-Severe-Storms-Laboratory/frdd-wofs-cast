@@ -14,7 +14,6 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.getcwd())))
 #)
 #os.environ['TF_DETERMINISTIC_OPS'] = '1' 
 
-
 # XLA FLAGS set for GPU performance (https://jax.readthedocs.io/en/latest/gpu_performance_tips.html)
 """
 os.environ['XLA_FLAGS'] = (
@@ -292,6 +291,7 @@ class WoFSCastModel:
         self.checkpoint_interval = checkpoint_interval
         
         # Initialize the GraphCast TaskConfig obj.
+        self.norm_stats_path = norm_stats_path
         if task_config is not None: 
             self._init_task_config(task_config)
         
@@ -300,9 +300,8 @@ class WoFSCastModel:
                            gnn_msg_steps, hidden_layers, grid_to_mesh_node_dist, 
                            loss_weights, k_hop, use_transformer, num_attn_heads)
         
-        # Load the normalization statistics. 
-        self.norm_stats_path = norm_stats_path
-        self._load_norm_stats(norm_stats_path)
+            # Load the normalization statistics. 
+            self._load_norm_stats(norm_stats_path)
         
         self.clip_norm = 32.0 # used to clip gradients.  
         self.parallel = parallel
@@ -375,6 +374,9 @@ class WoFSCastModel:
         # and therefore different normalization stat files,
         # check we have the correct one! Otherwise, the
         # code will attempt to run and give a bizarre error code. 
+        
+        # NOTE: There will be one baseline mean and standard deviation 
+        
         if 'level' in inputs.dims.keys(): 
             norm_stat_count = self.norm_stats['mean_by_level']['level'].shape[0]
             input_count = inputs['level'].shape[0]
@@ -557,7 +559,9 @@ class WoFSCastModel:
         self._init_task_config_run(data['task_config'], **additional_config)
         self._init_model_config_run(data['model_config'], **additional_config)
 
-        self.norm_stats_path = data.get('norm_stats_path', self.norm_stats_path)
+        self.norm_stats_path = str(data.get('norm_stats_path', self.norm_stats_path))
+        ###print(f'{self.norm_stats_path=}')
+        self._load_norm_stats(self.norm_stats_path)
     
     def _init_task_config_run(self, data, **additional_config): 
 
@@ -639,7 +643,6 @@ class WoFSCastModel:
             
         self.target_vars = task_config.target_variables
         
-        
         if self.verbose > 2:
             print(f'\n TaskConfig {self.task_config}') 
         
@@ -676,7 +679,18 @@ class WoFSCastModel:
         mean_by_level = xarray.load_dataset(os.path.join(path, 'mean_by_level.nc'))
         stddev_by_level = xarray.load_dataset(os.path.join(path, 'stddev_by_level.nc'))
         diffs_stddev_by_level = xarray.load_dataset(os.path.join(path, 'diffs_stddev_by_level.nc'))
+  
+        ###print(f'{self.task_config.pressure_levels=}')
 
+        if hasattr(self, 'task_config'): 
+            levels = self.task_config.pressure_levels
+        
+            if len(levels) < len(mean_by_level.level):
+                print('Selecting levels for norm stats...')
+                mean_by_level = mean_by_level.sel(level=list(levels))
+                stddev_by_level = stddev_by_level.sel(level=list(levels))
+                diffs_stddev_by_level = diffs_stddev_by_level.sel(level=list(levels))
+       
         self.norm_stats = {'mean_by_level': mean_by_level, 
                       'stddev_by_level' : stddev_by_level,
                       'diffs_stddev_by_level' : diffs_stddev_by_level

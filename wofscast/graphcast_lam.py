@@ -209,7 +209,7 @@ class GraphCast(predictor_base.Predictor):
           
     # Compute the number of expected output.
     num_outputs = n_vars_2D + (n_levels * n_vars_3D)
-
+    
     # Decoder, which moves data from the mesh back into the grid with a single
     # message passing step.
     self._mesh2grid_gnn = deep_typed_graph_net.DeepTypedGraphNet(
@@ -224,7 +224,7 @@ class GraphCast(predictor_base.Predictor):
         mlp_hidden_size=model_config.latent_size,
         mlp_num_hidden_layers=model_config.hidden_layers,
         num_message_passing_steps=1,
-        use_layer_norm=False, # Paper says this is suppose to be False!!
+        use_layer_norm=True, 
         include_sent_messages_in_node_update=False,
         activation="swish",
         f32_aggregation=False,
@@ -243,6 +243,8 @@ class GraphCast(predictor_base.Predictor):
     self._mesh2grid_edge_normalization_factor = (
         model_config.mesh2grid_edge_normalization_factor
     )
+    
+    ###print(f'{self._mesh2grid_edge_normalization_factor=}')
 
     # Other initialization is delayed until the first call (`_maybe_init`)
     # when we get some sample data so we know the lat/lon values.

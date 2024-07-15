@@ -5,10 +5,13 @@
 
 # In[1]:
 
+""" usage: stdbuf -oL python -u compute_norm_stats.py > & log_compute_norm_stats & """
+
 
 import xarray as xr 
 import numpy as np
 from glob import glob
+import time 
 
 import random 
 import os
@@ -31,7 +34,9 @@ from wofscast import data_utils
 from wofscast.wofscast_task_config import (DBZ_TASK_CONFIG, 
                                            WOFS_TASK_CONFIG, 
                                            DBZ_TASK_CONFIG_1HR,
-                                           DBZ_TASK_CONFIG_FULL
+                                           DBZ_TASK_CONFIG_FULL,
+                                           WOFS_TASK_CONFIG_5MIN,
+                                           WOFS_TASK_CONFIG_1HR
                                           )
 from os.path import join
 
@@ -68,14 +73,13 @@ def get_random_subset(input_list, subset_size, seed=123):
 from dask.diagnostics import ProgressBar
 
 def compute_normalization_stats(paths, gpu_batch_size, task_config, save_path, 
-                                batch_over_time=False, preprocess_fn=None): 
+                                 preprocess_fn=None): 
 
     with dask.config.set(**{'array.slicing.split_large_chunks': False}):
         
-        full_dataset = load_chunk(paths, batch_over_time, 
-                                  gpu_batch_size, preprocess_fn) 
+        full_dataset = load_chunk(paths, gpu_batch_size, preprocess_fn) 
 
-        full_dataset = full_dataset.chunk({'lat' : 50, 'lon' : 50, 'batch' : 128})
+        full_dataset = full_dataset.chunk({'lat' : 50, 'lon' : 50, 'batch' : 128, 'level' : 10})
         
         # Setup computations using scattered data
         mean_by_level = full_dataset.mean(dim=['time', 'lat', 'lon', 'batch'])
@@ -101,7 +105,7 @@ import os
 from os.path import join
 from concurrent.futures import ThreadPoolExecutor
 
-base_path = '/work/mflora/wofs-cast-data/datasets_zarr'
+base_path = '/work/mflora/wofs-cast-data/datasets_5min'
 years = ['2019', '2020']
 
 def get_files_for_year(year):
@@ -117,14 +121,22 @@ with ThreadPoolExecutor() as executor:
 
 print(len(paths))
 
-#random_paths = get_random_subset(paths, 4096)
+random_paths = get_random_subset(paths, 512)
 # Save to NetCDF files
-save_path = '/work/mflora/wofs-cast-data/full_normalization_stats/'
+save_path = '/work/mflora/wofs-cast-data/norm_stats_5min/'
 
-compute_normalization_stats(paths, 
+start_time = time.time() 
+
+compute_normalization_stats(random_paths, 
                             gpu_batch_size=len(paths), 
-                            task_config=WOFS_TASK_CONFIG, 
+                            task_config=WOFS_TASK_CONFIG_5MIN, 
                             save_path=save_path)
+
+end_time = time.time()
+time_to_run = end_time - start_time
+time_to_run_minutes = time_to_run / 60
+
+print(f'Time to Run: {time_to_run_minutes:.3f} mins')
 
 '''
 # ### Compute normalization statistics from DBZ_TASK_CONFIG_1HR
