@@ -29,7 +29,11 @@ from wofscast.wofscast_task_config import (WOFS_TASK_CONFIG,
                                            WOFS_TASK_CONFIG_5MIN, 
                                            WOFS_TASK_CONFIG_1HR
                                           )
-from wofscast.data_generator import ZarrDataGenerator, add_local_solar_time,WoFSDataProcessor
+from wofscast.data_generator import (ZarrDataGenerator, 
+                                     SingleZarrDataGenerator, 
+                                     add_local_solar_time, 
+                                     WoFSDataProcessor) 
+
 from wofscast import checkpoint
 from wofscast.utils import get_random_subset,  truncate_to_chunk_size
 
@@ -59,14 +63,14 @@ if __name__ == '__main__':
     # provided. 
     fine_tune = False
     
-    seed = 42
+    seed = 123
     
     # Where the model weights are stored
-    out_path = f'/work/mflora/wofs-cast-data/model/wofscast_test_hourly.npz'
+    out_path = f'/work/mflora/wofs-cast-data/model/wofscast_test_5min.npz'
     
     # The task config contains details like the input variables, 
     # target variables, time step, etc.
-    task_config = WOFS_TASK_CONFIG_1HR
+    task_config = WOFS_TASK_CONFIG_5MIN
     
     # Whether to use the 36.7M parameter GraphCast model weights 
     # Must set parameters identical to those paper 
@@ -136,7 +140,7 @@ if __name__ == '__main__':
         # during a 'warm-up' period followed by a cosine decay in learning rate
         
         warmup_steps = 500
-        decay_steps = 250000
+        decay_steps = 300000
         n_steps = warmup_steps + decay_steps
         
         scheduler = optax.warmup_cosine_decay_schedule(
@@ -150,15 +154,17 @@ if __name__ == '__main__':
         model_params, state = None, {}
         target_lead_times= None # Defaults to target lead times in the TaskConfig.
         # Location of the dataset. 
-        base_path = '/work/mflora/wofs-cast-data/datasets_hourly'
+        #base_path = '/work/mflora/wofs-cast-data/datasets_zarr'
         
-        if '5min' in base_path:
-            norm_stats_path = '/work/mflora/wofs-cast-data/norm_stats_5min/'
-        elif 'hourly' in base_path:
-            norm_stats_path = '/work/mflora/wofs-cast-data/norm_stats_hourly/'
-        else:    
-            norm_stats_path = '/work/mflora/wofs-cast-data/full_normalization_stats'
+        #if '5min' in base_path:
+        #    norm_stats_path = '/work/mflora/wofs-cast-data/norm_stats_5min/'
+        #elif 'hourly' in base_path:
+        #    norm_stats_path = '/work/mflora/wofs-cast-data/norm_stats_hourly/'
+        #else:    
+        #    norm_stats_path = '/work/mflora/wofs-cast-data/full_normalization_stats'
         
+        # Hardcoded to analyze 5-min data impacts. 
+        norm_stats_path = '/work/mflora/wofs-cast-data/norm_stats_5min/'
         
         trainer = WoFSCastModel(
                  task_config = task_config, 
@@ -198,7 +204,7 @@ if __name__ == '__main__':
                  graphcast_pretrain = graphcast_pretrain
         )
     
-    
+    '''
     years = ['2019', '2020']
     with ThreadPoolExecutor() as executor:
         paths = []
@@ -207,28 +213,27 @@ if __name__ == '__main__':
     
     print(f'Number of Paths: {len(paths)}')
     
-    def preprocess_fn(dataset):
-        # Setting a constant lat/lon.
-        _path = '/work/mflora/wofs-cast-data/datasets_zarr/2021/'
-        latlon_path = os.path.join(_path, 'wrfwof_2021-05-15_040000_to_2021-05-15_043000__10min__ens_mem_09.zarr')
-        preprocess_fn = WoFSDataProcessor(latlon_path=latlon_path)
-        
-        dataset = preprocess_fn(dataset)
-        
-        dataset = add_local_solar_time(dataset) 
-        
-        return dataset 
-
     generator = ZarrDataGenerator(paths, 
                               task_config, 
                               target_lead_times=None,
                               batch_size=batch_size, 
                               num_devices=2, 
-                              preprocess_fn=preprocess_fn,
-                              prefetch_size=3,
+                              preprocess_fn=add_local_solar_time,
+                              prefetch_size=2,
                               random_seed=seed, 
                              )
-
+    '''
+    
+    zarr_path = '/work/mflora/wofs-cast-data/datasets_5min/training_dataset/wofs_data_2019-2020.zarr'
+    generator = SingleZarrDataGenerator(zarr_path, 
+                              task_config, 
+                              target_lead_times=None,
+                              batch_size=batch_size, 
+                              num_devices=2, 
+                              prefetch_size=2,
+                              random_seed=seed, 
+                             )
+    
     trainer.fit_generator(generator, 
                           model_params=model_params, 
                           state=state, 

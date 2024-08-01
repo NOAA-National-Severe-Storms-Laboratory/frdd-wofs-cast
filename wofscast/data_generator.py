@@ -147,6 +147,79 @@ class ZarrDataGenerator:
         self._prefetch_next_batch()
         return inputs, targets, forcings
 
+class SingleZarrDataGenerator:
+    """
+    A generator class to load and preprocess data from a single zarr files for machine learning tasks.
+    Assumes that data is already concatnated along a batch dimension and efficiently chunked along 
+    said dimension. 
+    """
+    def __init__(self, zarr_path, 
+                 task_config, 
+                 target_lead_times=None, 
+                 n_target_steps: int = 1, 
+                 batch_size: int = 32, 
+                 num_devices=1, 
+                 prefetch_size=2,
+                 random_seed=123):
+        
+        self.dataset = xr.open_zarr(zarr_path)
+        self.n_samples = self.dataset.sizes['batch']
+        
+        self.random_seed = random_seed
+ 
+        self.task_config = task_config
+        self.batch_size = batch_size 
+        self.target_lead_times = target_lead_times
+        self.n_target_steps = n_target_steps 
+
+        self.num_devices = num_devices
+        self.prefetch_size = prefetch_size
+        
+        self.lock = threading.Lock()
+        self.seed_generator = SeedGenerator(initial_seed=random_seed)
+        
+        self.executor = ThreadPoolExecutor(max_workers=prefetch_size)
+        self.futures = []
+
+    def _prefetch_next_batch(self):
+        seed = self.seed_generator.get_seed()
+        future = self.executor.submit(self._generate_batch, seed)
+        self.futures.append(future)
+    
+    def _generate_batch(self, seed):
+        rs = np.random.RandomState(seed)
+        random_indices = rs.choice(self.n_samples, 
+                                          size=self.batch_size, replace=False)
+        
+        batch = self.dataset.isel(batch=random_indices)
+        
+        batch_sharded = shard_xarray_dataset(batch, self.num_devices)
+        inputs, targets, forcings = dataset_to_input(batch_sharded, self.task_config, 
+                                                     target_lead_times=self.target_lead_times,
+                                                     batch_over_time=False,
+                                                     n_target_steps=self.n_target_steps)
+        inputs, targets, forcings = dask.compute(inputs, targets, forcings)
+        return inputs, targets, forcings
+    
+    def generate(self):
+        """
+        Generates a single batch of data from the provided paths.
+
+        Returns:
+        -------
+        tuple
+            A tuple containing inputs, targets, and forcings for each batch.
+        """
+        if not self.futures:
+            for _ in range(self.prefetch_size):
+                self._prefetch_next_batch()
+        
+        future = self.futures.pop(0)
+        inputs, targets, forcings = future.result()
+        self._prefetch_next_batch()
+        return inputs, targets, forcings    
+    
+    
 def replicate_for_devices(params, num_devices=None):
     if num_devices is None:
         num_devices = jax.local_device_count()

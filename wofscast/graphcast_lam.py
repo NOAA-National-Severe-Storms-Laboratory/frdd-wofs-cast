@@ -153,8 +153,9 @@ class GraphCast(predictor_base.Predictor):
     self._loss_weights = model_config.loss_weights
 
     # Specification of the multimesh.
+  
     self._meshes = (
-        square_mesh.get_hierarchy_of_triangular_meshes(
+          square_mesh.get_hierarchy_of_triangular_meshes(
             splits=model_config.mesh_size, domain_size=domain_size, tiling=tiling))
 
     # Encoder, which moves data from the grid to the mesh with a single message
@@ -171,7 +172,7 @@ class GraphCast(predictor_base.Predictor):
         num_message_passing_steps=1,
         use_layer_norm=True,
         include_sent_messages_in_node_update=False,
-        activation="swish",
+        activation= "gelu", # MLF: change from swish to gelu.
         f32_aggregation=True,
         aggregate_normalization=None,
         name="grid2mesh_gnn",
@@ -193,7 +194,7 @@ class GraphCast(predictor_base.Predictor):
         num_message_passing_steps=model_config.gnn_msg_steps,
         use_layer_norm=True,
         include_sent_messages_in_node_update=False,
-        activation="swish",
+        activation="gelu", # MLF: change from swish to gelu.
         f32_aggregation=False,
         name="mesh_gnn",
         
@@ -226,7 +227,7 @@ class GraphCast(predictor_base.Predictor):
         num_message_passing_steps=1,
         use_layer_norm=True, 
         include_sent_messages_in_node_update=False,
-        activation="swish",
+        activation= "gelu", # MLF: change from swish to gelu.
         f32_aggregation=False,
         name="mesh2grid_gnn",
     )
@@ -369,6 +370,7 @@ class GraphCast(predictor_base.Predictor):
     mesh_nodes_lon, mesh_nodes_lat = square_mesh.get_mesh_coords(self._finest_mesh, 
                                                                  self._grid_lat , 
                                                                  self._grid_lon)
+    
     # Convert to f32 to ensure the lat/lon features aren't in f64.
     self._mesh_nodes_lat = mesh_nodes_lat.astype(np.float32)
     self._mesh_nodes_lon = mesh_nodes_lon.astype(np.float32)
@@ -400,7 +402,7 @@ class GraphCast(predictor_base.Predictor):
     # Edges sending info from grid to mesh.
     senders = grid_indices
     receivers = mesh_indices
-
+ 
     # Precompute structural node and edge features according to config options.
     # Structural features are those that depend on the fixed values of the
     # latitude and longitudes of the nodes.
@@ -440,6 +442,7 @@ class GraphCast(predictor_base.Predictor):
 
   def _init_mesh_graph(self) -> typed_graph.TypedGraph:
     """Build Mesh graph."""
+
     merged_mesh = square_mesh.merge_meshes(self._meshes)
 
     # Work simply on the mesh edges.
