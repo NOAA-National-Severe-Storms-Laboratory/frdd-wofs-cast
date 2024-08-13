@@ -27,7 +27,8 @@ from wofscast.model import WoFSCastModel
 from wofscast.wofscast_task_config import (WOFS_TASK_CONFIG, 
                                            DBZ_TASK_CONFIG, 
                                            WOFS_TASK_CONFIG_5MIN, 
-                                           WOFS_TASK_CONFIG_1HR
+                                           WOFS_TASK_CONFIG_1HR,
+                                           WOFS_TASK_CONFIG_ALL_LEVELS
                                           )
 from wofscast.data_generator import (ZarrDataGenerator, 
                                      SingleZarrDataGenerator, 
@@ -66,11 +67,11 @@ if __name__ == '__main__':
     seed = 123
     
     # Where the model weights are stored
-    out_path = f'/work/mflora/wofs-cast-data/model/wofscast_test_5min.npz'
+    out_path = f'/work/mflora/wofs-cast-data/model/wofscast_all_levels.npz'
     
     # The task config contains details like the input variables, 
     # target variables, time step, etc.
-    task_config = WOFS_TASK_CONFIG_5MIN
+    task_config = WOFS_TASK_CONFIG_ALL_LEVELS
     
     # Whether to use the 36.7M parameter GraphCast model weights 
     # Must set parameters identical to those paper 
@@ -89,10 +90,10 @@ if __name__ == '__main__':
                     'T': 1.0, 
                     'GEOPOT': 1.0, 
                     'QVAPOR': 1.0,
-                    'T2' : 1.0, 
+                    'T2' : 0.1, 
                     'COMPOSITE_REFL_10CM' : 1.0, 
                     #'UP_HELI_MAX' : 0.1,
-                    'RAIN_AMOUNT' : 1.0,
+                    'RAIN_AMOUNT' : 0.1,
                     }
     
     if fine_tune: 
@@ -134,7 +135,6 @@ if __name__ == '__main__':
         trainer.load_model(model_path)
         model_params, state = trainer.model_params, trainer.state 
         
-        
     else:
         # For general training, we adopt the linear increase in learning rate 
         # during a 'warm-up' period followed by a cosine decay in learning rate
@@ -156,6 +156,9 @@ if __name__ == '__main__':
         # Location of the dataset. 
         #base_path = '/work/mflora/wofs-cast-data/datasets_zarr'
         
+        base_path = '/work2/mflora/wofscast_datasets/dataset_10min_all_vertical_levels'
+        norm_stats_path = '/work2/mflora/wofscast_norm_stats/dataset_10min_all_vertical_levels'
+        
         #if '5min' in base_path:
         #    norm_stats_path = '/work/mflora/wofs-cast-data/norm_stats_5min/'
         #elif 'hourly' in base_path:
@@ -164,7 +167,9 @@ if __name__ == '__main__':
         #    norm_stats_path = '/work/mflora/wofs-cast-data/full_normalization_stats'
         
         # Hardcoded to analyze 5-min data impacts. 
-        norm_stats_path = '/work/mflora/wofs-cast-data/norm_stats_5min/'
+        #norm_stats_path = '/work/mflora/wofs-cast-data/norm_stats_5min/'
+        
+        print(f'Using {norm_stats_path=}')
         
         trainer = WoFSCastModel(
                  task_config = task_config, 
@@ -204,7 +209,7 @@ if __name__ == '__main__':
                  graphcast_pretrain = graphcast_pretrain
         )
     
-    '''
+    #'''
     years = ['2019', '2020']
     with ThreadPoolExecutor() as executor:
         paths = []
@@ -233,6 +238,7 @@ if __name__ == '__main__':
                               prefetch_size=2,
                               random_seed=seed, 
                              )
+    '''
     
     trainer.fit_generator(generator, 
                           model_params=model_params, 

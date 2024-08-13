@@ -87,7 +87,10 @@ def chunked_prediction(
     forcings: xarray.Dataset,
     num_steps_per_chunk: int = 1,
     verbose: bool = False,
-    diffusion_model=None
+    replace_bdry = True, 
+    diffusion_model=None,
+    scaler = None,
+    n_diffusion_steps=50,
 ) -> xarray.Dataset:
   """Outputs a long trajectory by iteratively concatenating chunked predictions.
 
@@ -115,7 +118,12 @@ def chunked_prediction(
       targets_template=targets_template,
       forcings=forcings,
       num_steps_per_chunk=num_steps_per_chunk,
-      verbose=verbose, diffusion_model=diffusion_model):
+      verbose=verbose, 
+      replace_bdry=replace_bdry,
+      diffusion_model=diffusion_model,
+      scaler=scaler,
+      n_diffusion_steps=n_diffusion_steps,
+  ):
     chunks_list.append(jax.device_get(prediction_chunk))
   return xarray.concat(chunks_list, dim="time")
 
@@ -128,7 +136,10 @@ def chunked_prediction_generator(
     forcings: xarray.Dataset,
     num_steps_per_chunk: int = 1,
     verbose: bool = False,
+    replace_bdry= True, 
     diffusion_model = None, 
+    scaler=None, 
+    n_diffusion_steps=50
 ) -> Iterator[xarray.Dataset]:
   """Outputs a long trajectory by yielding chunked predictions.
 
@@ -204,20 +215,23 @@ def chunked_prediction_generator(
     current_forcings = current_forcings.compute()
     # Make predictions for the chunk.
     rng, this_rng = jax.random.split(rng)
+    
     predictions = predictor_fn(
-        rng=this_rng,
-        inputs=current_inputs,
-        targets_template=current_targets_template,
-        forcings=current_forcings)
+            rng=this_rng,
+            inputs=current_inputs,
+            targets_template=current_targets_template,
+            forcings=current_forcings)
 
     # Replace the boundaries of the prediction with the values 
     # from the target_template. 
-    boundary_conditions = current_targets_template.copy()
-    predictions = apply_border_mask_and_update(predictions, boundary_conditions)
+    if replace_bdry:
+        boundary_conditions = current_targets_template.copy()
+        predictions = apply_border_mask_and_update(predictions, boundary_conditions)
     
     # TEMPORARY. Add diffusion to the composite reflectivity. 
     if diffusion_model:
-        predictions = apply_diffusion(predictions, diffusion_model, num_steps=50)
+        predictions = apply_diffusion(predictions, targets_template, 
+                                      diffusion_model, scaler, num_steps=n_diffusion_steps)
     
     next_frame = xarray.merge([predictions, current_forcings])
     next_inputs = _get_next_inputs(current_inputs, next_frame)
@@ -283,9 +297,11 @@ def extend_targets_template(
   time = targets_template.coords["time"]
 
   # Assert the first target time corresponds to the timestep.
-  timestep = time[0].data
-  if time.shape[0] > 1:
-    assert np.all(timestep == time[1:] - time[:-1])
+  timestep = time[1].data - time[0].data
+  
+  # MLF: commented this out for the moment. 
+  #if time.shape[0] > 1:
+  #  assert np.all(timestep == time[1:] - time[:-1])
 
   extended_time = (np.arange(required_num_steps) + 1) * timestep
 

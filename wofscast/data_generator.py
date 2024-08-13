@@ -163,6 +163,12 @@ class SingleZarrDataGenerator:
                  random_seed=123):
         
         self.dataset = xr.open_zarr(zarr_path)
+        
+        # Add the level coordinate; MLF made a mistake by not including 
+        # a level's coordinate in the raw WRF zarr files. 
+        level_values = np.arange(self.dataset.dims['level'])
+        self.dataset = self.dataset.assign_coords(level=("level", level_values))
+        
         self.n_samples = self.dataset.sizes['batch']
         
         self.random_seed = random_seed

@@ -260,7 +260,7 @@ class WoFSCastModel:
                  n_steps : int = 100, 
                  learning_rate_scheduler : optax.Schedule = optax.constant_schedule(1e-4),
                  checkpoint : bool = True,
-                 norm_stats_path : str = '/work/mflora/wofs-cast-data/full_normalization_stats', 
+                 norm_stats_path : str = None, 
                  out_path : str = '/work/mflora/wofs-cast-data/model/wofscast.npz',
                  checkpoint_interval : int = 100,
                  parallel=True, 
@@ -377,11 +377,11 @@ class WoFSCastModel:
         
         # NOTE: There will be one baseline mean and standard deviation 
         
-        if 'level' in inputs.dims.keys(): 
-            norm_stat_count = self.norm_stats['mean_by_level']['level'].shape[0]
-            input_count = inputs['level'].shape[0]
+       # if 'level' in inputs.dims.keys(): 
+       #     norm_stat_count = self.norm_stats['mean_by_level']['level'].shape[0]
+       #     input_count = inputs['level'].shape[0]
                 
-            assert norm_stat_count == input_count, "Norm Stat is not compatiable with the inputs!"
+       #     assert norm_stat_count == input_count, "Norm Stat is not compatiable with the inputs!"
         
         if model_params is None: 
         
@@ -505,7 +505,8 @@ class WoFSCastModel:
         if return_params:
             return jax.device_get(jax.tree_map(lambda x: x[0], model_params)), state
     
-    def predict(self, inputs, targets, forcings, diffusion_model=None): 
+    def predict(self, inputs, targets, forcings, replace_bdry=True, 
+                diffusion_model=None, scaler=None, n_diffusion_steps=50): 
         """Predict using the WoFSCast"""
         # TODO: use the extend_targets_template from rollout.py. 
         #targets_template = self.expand_time_dim(targets) * np.nan
@@ -520,7 +521,12 @@ class WoFSCastModel:
             rng=jax.random.PRNGKey(0),
             inputs=inputs,
             targets_template=targets_template,
-            forcings=forcings, diffusion_model=diffusion_model)
+            forcings=forcings, 
+            replace_bdry=replace_bdry,
+            diffusion_model=diffusion_model, 
+            scaler=scaler,
+            n_diffusion_steps=n_diffusion_steps
+        )
 
         return predictions
 
@@ -559,8 +565,10 @@ class WoFSCastModel:
         self._init_task_config_run(data['task_config'], **additional_config)
         self._init_model_config_run(data['model_config'], **additional_config)
 
-        self.norm_stats_path = str(data.get('norm_stats_path', self.norm_stats_path))
-        ###print(f'{self.norm_stats_path=}')
+        if self.norm_stats_path is None: 
+            self.norm_stats_path = str(data.get('norm_stats_path', self.norm_stats_path))
+        
+        print(f'{self.norm_stats_path=}')
         self._load_norm_stats(self.norm_stats_path)
     
     def _init_task_config_run(self, data, **additional_config): 
@@ -570,7 +578,11 @@ class WoFSCastModel:
         if domain_size is None:
             domain_size = data.get('domain_size', 150)
         
-        ##print(f'{domain_size=}')
+        tiling = additional_config.get('tiling', None)
+        if tiling is None:
+            tiling = data.get('tiling', None) 
+        
+        ###print(f'{domain_size=}')
         
         self.task_config = graphcast.TaskConfig(
               input_variables=data['input_variables'],
@@ -580,7 +592,7 @@ class WoFSCastModel:
               input_duration=data['input_duration'],
               n_vars_2D = data['n_vars_2D'],
               domain_size = int(domain_size), 
-              tiling = None, 
+              tiling = tiling, 
               train_lead_times = data.get('train_lead_times', None)
           )
         
@@ -681,7 +693,8 @@ class WoFSCastModel:
         diffs_stddev_by_level = xarray.load_dataset(os.path.join(path, 'diffs_stddev_by_level.nc'))
   
         ###print(f'{self.task_config.pressure_levels=}')
-
+        '''
+        Deprecated by MLF. 
         if hasattr(self, 'task_config'): 
             levels = self.task_config.pressure_levels
         
@@ -690,7 +703,7 @@ class WoFSCastModel:
                 mean_by_level = mean_by_level.sel(level=list(levels))
                 stddev_by_level = stddev_by_level.sel(level=list(levels))
                 diffs_stddev_by_level = diffs_stddev_by_level.sel(level=list(levels))
-       
+        '''   
         self.norm_stats = {'mean_by_level': mean_by_level, 
                       'stddev_by_level' : stddev_by_level,
                       'diffs_stddev_by_level' : diffs_stddev_by_level

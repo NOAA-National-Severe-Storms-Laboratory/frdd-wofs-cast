@@ -27,6 +27,7 @@ FORCING_VARS = (
 # When I created the wrfwof files, I pre-sampled every 3 levels. 
 PRESSURE_LEVELS = np.arange(17)
 
+
 # Loads data from the past 20 minutes (2 steps) and 
 # creates a target over the next 10-60 min. 
 INPUT_DURATION = '20min'
@@ -48,6 +49,21 @@ WOFS_TASK_CONFIG = graphcast.TaskConfig(
 LEVELS_EVERY_3 = list(np.arange(0,50,3))
 LEVELS_EVERY_2 = list(np.arange(0,50,2))
 
+ALL_LEVELS = list(np.arange(0,50))
+
+WOFS_TASK_CONFIG_ALL_LEVELS = graphcast.TaskConfig(
+      input_variables=INPUT_VARS,
+      target_variables=TARGET_VARS,
+      forcing_variables=FORCING_VARS,
+      pressure_levels=ALL_LEVELS,
+      input_duration=INPUT_DURATION,
+      n_vars_2D = len(VARS_2D),
+      domain_size = DOMAIN_SIZE,
+      tiling=None,
+      train_lead_times = train_lead_times,
+ )
+
+
 WOFS_TASK_CONFIG_1HR = graphcast.TaskConfig(
       input_variables=INPUT_VARS,
       target_variables=TARGET_VARS,
@@ -64,7 +80,7 @@ WOFS_TASK_CONFIG_5MIN = graphcast.TaskConfig(
       input_variables=INPUT_VARS,
       target_variables=TARGET_VARS,
       forcing_variables=FORCING_VARS,
-      pressure_levels=LEVELS_EVERY_3,
+      pressure_levels=PRESSURE_LEVELS,
       input_duration='10min',
       n_vars_2D = len(VARS_2D),
       domain_size = DOMAIN_SIZE,

@@ -139,6 +139,15 @@ class GraphCast(predictor_base.Predictor):
     domain_size = task_config.domain_size
     tiling = task_config.tiling
     
+    print('MAKE SURE YOU HAVE THE CORRECT ACTIVATION FUNCTION!') 
+    #try:
+    #    activation = task_config.activation 
+    #except:
+    #    activation = "swish" 
+    
+    #activation = "gelu" # For new training, need to make this retro-factored for older models.
+    activation = "swish" 
+    
     self._spatial_features_kwargs = dict(
         # Since we are using a limited area domain and assuming a single 
         # lat/lon grid, removed node lat/lon as predictions. But kept 
@@ -172,7 +181,7 @@ class GraphCast(predictor_base.Predictor):
         num_message_passing_steps=1,
         use_layer_norm=True,
         include_sent_messages_in_node_update=False,
-        activation= "gelu", # MLF: change from swish to gelu.
+        activation= activation, # MLF: change from swish to gelu.
         f32_aggregation=True,
         aggregate_normalization=None,
         name="grid2mesh_gnn",
@@ -194,7 +203,7 @@ class GraphCast(predictor_base.Predictor):
         num_message_passing_steps=model_config.gnn_msg_steps,
         use_layer_norm=True,
         include_sent_messages_in_node_update=False,
-        activation="gelu", # MLF: change from swish to gelu.
+        activation=activation, # MLF: change from swish to gelu.
         f32_aggregation=False,
         name="mesh_gnn",
         
@@ -227,7 +236,7 @@ class GraphCast(predictor_base.Predictor):
         num_message_passing_steps=1,
         use_layer_norm=True, 
         include_sent_messages_in_node_update=False,
-        activation= "gelu", # MLF: change from swish to gelu.
+        activation= activation, # MLF: change from swish to gelu.
         f32_aggregation=False,
         name="mesh2grid_gnn",
     )

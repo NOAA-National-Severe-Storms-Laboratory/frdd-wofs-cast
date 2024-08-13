@@ -698,7 +698,7 @@ def stacked_to_dataset(
   channels = {name: np.prod(list(unstack_sizes.values()), dtype=np.int64)
               for name, unstack_sizes in unstack_from_channels_sizes.items()}
 
-  #print(channels, template_dataset) 
+  #print(channels)#, template_dataset) 
 
   total_expected_channels = sum(channels.values())
   found_channels = stacked_array.sizes["channels"]
