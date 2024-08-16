@@ -83,7 +83,8 @@ graphcast_name = 'params_GraphCast - ERA5 1979-2017 - resolution 0.25 - pressure
 
 def construct_wrapped_graphcast(model_config: graphcast.ModelConfig, 
                                 task_config: graphcast.TaskConfig,
-                                norm_stats: dict
+                                norm_stats: dict,
+                                noise_level : Optional[float]=None
                                ):
     """Constructs and wraps the GraphCast Predictor. Wrappers include 
     floating point precision convertion, normalization, and autoregression. 
@@ -105,19 +106,19 @@ def construct_wrapped_graphcast(model_config: graphcast.ModelConfig,
     )
 
     # Wraps everything so the one-step model can produce trajectories.
-    predictor = autoregressive.Predictor(predictor, gradient_checkpointing=True)
+    predictor = autoregressive.Predictor(predictor, noise_level=noise_level, gradient_checkpointing=True)
     
     return predictor
 
 # Function for deployment. Used to make predictions on new data and rollout. 
 @hk.transform_with_state
-def run_forward(model_config, task_config, norm_stats, inputs, targets_template, forcings):
-    predictor = construct_wrapped_graphcast(model_config, task_config, norm_stats)
+def run_forward(model_config, task_config, norm_stats, noise_level, inputs, targets_template, forcings):
+    predictor = construct_wrapped_graphcast(model_config, task_config, norm_stats, noise_level)
     return predictor(inputs, targets_template=targets_template, forcings=forcings)
 
 @hk.transform_with_state
-def loss_fn(model_config, task_config, norm_stats, inputs, targets, forcings):
-    predictor = construct_wrapped_graphcast(model_config, task_config, norm_stats)
+def loss_fn(model_config, task_config, norm_stats, noise_level, inputs, targets, forcings):
+    predictor = construct_wrapped_graphcast(model_config, task_config, norm_stats, noise_level)
     loss, diagnostics = predictor.loss(inputs, targets, forcings)
     return xarray_tree.map_structure(
       lambda x: xarray_jax.unwrap_data(x.mean(), require_jax=True),
@@ -126,11 +127,11 @@ def loss_fn(model_config, task_config, norm_stats, inputs, targets, forcings):
 # Jax doesn't seem to like passing configs as args through the jit. Passing it
 # in via partial (instead of capture by closure) forces jax to invalidate the
 # jit cache if you change configs.
-def with_configs(fn, model_obj, norm_stats):
+def with_configs(fn, model_obj, norm_stats, noise_level):
     return functools.partial(
       fn, model_config=model_obj.model_config, 
         task_config=model_obj.task_config, 
-        norm_stats=norm_stats)
+        norm_stats=norm_stats, noise_level=noise_level)
 
 # Our models aren't stateful, so the state is always empty, so just return the
 # predictions. This is requiredy by our rollout code, and generally simpler.
@@ -152,14 +153,15 @@ def train_step_parallel(params,
                         forcings, 
                         model_config, 
                         task_config, 
-                        norm_stats, 
+                        norm_stats,
+                        noise_level, 
                         optimizer):
     
     def compute_loss(params, state, inputs, targets, forcings):
         (loss, diagnostics), next_state = loss_fn.apply(params, state, 
                                                         jax.random.PRNGKey(0), 
                                                         model_config, 
-                                                        task_config, norm_stats, 
+                                                        task_config, norm_stats, noise_level,
                                                         inputs, targets, forcings)
         return loss, (diagnostics, next_state)
     
@@ -247,6 +249,7 @@ class WoFSCastModel:
                  task_config : graphcast.TaskConfig = None, 
                  mesh_size : int = 3, 
                  loss_weights = None, 
+                 noise_level: Optional[float] = None,
                  
                  # Model architecture
                  latent_size : int = 32, 
@@ -269,6 +272,19 @@ class WoFSCastModel:
                  verbose=1,
                 ):
         
+        
+        self.wandb_config = {'mesh_size' : mesh_size, 
+                             'latent_size' : latent_size,
+                             'loss_weights' : loss_weights,
+                             'gnn_msg_steps' : gnn_msg_steps,
+                             'hidden_layers' : hidden_layers,
+                             'grid_to_mesh_node_dist' : grid_to_mesh_node_dist,
+                             'n_steps' : n_steps, 
+                             'checkpoint_interval' : checkpoint_interval,
+                             'task_config' : task_config,
+                             'noise_level' : noise_level
+                            }
+        
         self.graphcast_pretrain = graphcast_pretrain
         if self.graphcast_pretrain:
             assert latent_size == 512, 'If graphcast_pretrain==True, latent_size must equal 512'
@@ -280,6 +296,7 @@ class WoFSCastModel:
         self.n_steps = n_steps 
         self.k_hop = k_hop
         self.loss_weights = loss_weights 
+        self.noise_level = noise_level
         
         self.verbose = verbose
         
@@ -305,6 +322,10 @@ class WoFSCastModel:
         
         self.clip_norm = 32.0 # used to clip gradients.  
         self.parallel = parallel
+        
+        self.wandb_config['out_path'] = self.out_path
+        self.wandb_config['model_config'] = self.model_config 
+        
     
     def fit_generator(self, 
                       generator, 
@@ -324,13 +345,8 @@ class WoFSCastModel:
         ---------------
             generator: A data generator that returns inputs, targets, forcings. 
         """
-        # Initialize the Weights & Biases project for logging and tracking 
-        # training loss and other metrics. 
-        project_name = os.path.basename(self.out_path).replace('.npz', '')
-        wandb.init(project='wofscast',
-                   name = project_name,
-                  ) 
-        
+        # Initialize the optimizer. The setting used match Lam et al. (GraphCast)
+        # and are hardcoded expect the learning rate scheduler, which is a class arg. 
         optimizer = optax.chain(
                 optax.clip(self.clip_norm), # Clip gradients,.
                 optax.adamw(
@@ -341,7 +357,17 @@ class WoFSCastModel:
                 weight_decay=0.1
             )
             )
-      
+        
+        self.wandb_config['optimizer'] = optimizer 
+        
+        # Initialize the Weights & Biases project for logging and tracking 
+        # training loss and other metrics. 
+        project_name = os.path.basename(self.out_path).replace('.npz', '')
+        wandb.init(project='wofscast',
+                   name = project_name,
+                   config = self.wandb_config
+                  ) 
+
         self.num_devices = 1 
         if self.parallel: 
             # Assume you have N GPUs
@@ -352,12 +378,13 @@ class WoFSCastModel:
             # Note: Using the GraphCast xarray-based JAX pmap; JAX documentation 
             # says we dont need to jit the function, pmap will handle it. 
             train_step_jitted = xarray_jax.pmap(with_optimizer(
-                                                with_configs(train_step_parallel, self, self.norm_stats), 
+                                                with_configs(train_step_parallel, self, self.norm_stats, self.noise_level), 
                                                 optimizer), 
                                               dim='devices', axis_name='devices')
       
         else:
-            train_step_jitted = jax.jit(with_optimizer(with_configs(grads_fn, self, self.norm_stats)), optimizer)
+            train_step_jitted = jax.jit(with_optimizer(with_configs(grads_fn, self, 
+                                                                    self.norm_stats, self.noise_level)), optimizer)
 
 
         # Load a single batch. These pre-allocate space 
@@ -368,7 +395,6 @@ class WoFSCastModel:
         #print(f'{inputs=}')
         #print(f'{targets=}')
         #print(f'{forcings=}')
-        
         
         # Since we are dealing with multiple prediction tasks
         # and therefore different normalization stat files,
@@ -385,7 +411,7 @@ class WoFSCastModel:
         
         if model_params is None: 
         
-            init_jitted = jax.jit(with_configs(run_forward.init, self, self.norm_stats))
+            init_jitted = jax.jit(with_configs(run_forward.init, self, self.norm_stats, self.noise_level))
 
             # To initialize the model parameters and state, select data from 
             # one device and use only a single batch to speed up compilation time. 
