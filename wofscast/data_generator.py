@@ -90,6 +90,7 @@ class ZarrDataGenerator:
                  batch_size: int = 32, 
                  num_devices=1, 
                  prefetch_size=2,
+                 decode_times = False,
                  random_seed=123):
         
         self.random_seed = random_seed
@@ -105,6 +106,7 @@ class ZarrDataGenerator:
         self.preprocess_fn = preprocess_fn
         self.num_devices = num_devices
         self.prefetch_size = prefetch_size
+        self.decode_times = decode_times
         
         self.lock = threading.Lock()
         self.seed_generator = SeedGenerator(initial_seed=random_seed)
@@ -120,7 +122,8 @@ class ZarrDataGenerator:
     def _generate_batch(self, seed):
         rs = np.random.RandomState(seed)
         sampled_paths = rs.choice(self.paths, self.batch_size, replace=True)
-        batch = load_chunk(sampled_paths, len(sampled_paths), preprocess_fn=self.preprocess_fn)
+        batch = load_chunk(sampled_paths, len(sampled_paths), preprocess_fn=self.preprocess_fn, 
+                          decode_times=self.decode_times)
         batch_sharded = shard_xarray_dataset(batch, self.num_devices)
         inputs, targets, forcings = dataset_to_input(batch_sharded, self.task_config, 
                                                      target_lead_times=self.target_lead_times,
@@ -233,16 +236,32 @@ def replicate_for_devices(params, num_devices=None):
 
 
 def to_static_vars(dataset):
-    # Select the first time index for 'HGT' and 'XLAND' variables
-    hgt_selected = dataset['HGT'].isel(time=0).drop('time')
-    xland_selected = dataset['XLAND'].isel(time=0).drop('time')
+    """
+    Convert time-varying variables 'HGT' and 'XLAND' in the dataset to static variables
+    by selecting the first time index, if they have a time dimension. If the time dimension
+    does not exist for these variables, they are left unchanged.
+    
+    Parameters:
+    dataset (xarray.Dataset): The input dataset containing 'HGT' and 'XLAND' variables.
+    
+    Returns:
+    xarray.Dataset: The dataset with 'HGT' and 'XLAND' converted to static variables, if applicable.
+    """
+    if 'time' in dataset['HGT'].dims:
+        # Select the first time index and drop the 'time' dimension for 'HGT'
+        hgt_selected = dataset['HGT'].isel(time=0).drop('time')
+        dataset = dataset.drop_vars('HGT')
+        dataset['HGT'] = hgt_selected
 
-    # Now, replace the 'HGT' and 'XLAND' in the original dataset with these selected versions
-    dataset = dataset.drop_vars(['HGT', 'XLAND'])
-    dataset['HGT'] = hgt_selected
-    dataset['XLAND'] = xland_selected
+    if 'time' in dataset['XLAND'].dims:
+        # Select the first time index and drop the 'time' dimension for 'XLAND'
+        xland_selected = dataset['XLAND'].isel(time=0).drop('time')
+        dataset = dataset.drop_vars('XLAND')
+        dataset['XLAND'] = xland_selected
 
     return dataset
+
+
 
 def extract_datetime_from_path(zarr_path):
     # Example string
@@ -333,14 +352,17 @@ def load_chunk(paths_chunk, batch_over_time=False, gpu_batch_size=32, preprocess
     return dataset
 '''
 
-
-def load_chunk(paths, gpu_batch_size, preprocess_fn=None):
+def load_chunk(paths, gpu_batch_size, preprocess_fn=None, decode_times=False):
     dataset =  xr.open_mfdataset(paths, engine='zarr', consolidated=True, 
-                       decode_times=False, chunks={},
-                        combine='nested', concat_dim='batch', 
-                       preprocess=preprocess_fn, combine_attrs='drop'
+                       decode_times=decode_times, chunks={},
+                        combine='nested', 
+                        concat_dim='batch', 
+                        preprocess=preprocess_fn, combine_attrs='drop'
                       )
-    
+    # creates an actual 'batch' coordinate, which I believe causes the 
+    # the data sharding function to fail. 
+    #dataset['batch'] = np.arange(dataset.dims['batch'])
+
     # Chunk the dataset
     dataset = dataset.chunk({'batch': gpu_batch_size})
     
@@ -697,7 +719,7 @@ def add_local_solar_time(data: xr.Dataset) -> xr.Dataset:
                                                    'lon': data.coords['lon']})
     '''
     
-    #data = data.drop_vars('datetime', errors='ignore')
+    data = data.drop_vars('datetime', errors='ignore')
     
     return data
     

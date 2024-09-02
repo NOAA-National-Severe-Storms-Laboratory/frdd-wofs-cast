@@ -70,6 +70,14 @@ def get_hierarchy_of_tiled_triangular_meshes(tiling, domain_size, mesh_size=5):
             mesh_levels_list.append(meshes)
     
     combined_meshes = concatenate_mesh_levels(mesh_levels_list)
+    
+    for i in range(len(combined_meshes)):
+        combined_meshes[i] = add_boundary_triangles(combined_meshes[i], tiling, domain_size)
+
+    
+    #combined_meshes[-1] = add_boundary_triangles(combined_meshes[-1], tiling, domain_size)
+
+    
     return combined_meshes
 
 def merge_tiled_meshes(mesh_list: Sequence[TriangularMesh]) -> TriangularMesh:
@@ -96,7 +104,54 @@ def merge_tiled_meshes(mesh_list: Sequence[TriangularMesh]) -> TriangularMesh:
 
     return TriangularMesh(vertices=combined_vertices, faces=combined_faces)
 
-
+def add_boundary_triangles(mesh: TriangularMesh, tiling, domain_size, offset=2):
+    """Add triangles along the boundaries of the tiled mesh patches, respecting the offset."""
+    vertices = mesh.vertices
+    faces = list(mesh.faces)
+    
+    # Define boundaries, adjusting for the offsets
+    x_boundaries = [i * domain_size for i in range(1, tiling[0])]
+    y_boundaries = [j * domain_size for j in range(1, tiling[1])]
+    
+    # Handle vertical boundaries (connecting patches left to right)
+    for x_boundary in x_boundaries:
+        left_boundary_vertices = np.where(vertices[:, 0] == x_boundary + offset)[0]
+        right_boundary_vertices = np.where(vertices[:, 0] == x_boundary - offset)[0]  # Adjusting for offset
+        
+        # Sort vertices by their y-coordinate to match them correctly
+        left_boundary_vertices = left_boundary_vertices[np.argsort(vertices[left_boundary_vertices, 1])]
+        right_boundary_vertices = right_boundary_vertices[np.argsort(vertices[right_boundary_vertices, 1])]
+        
+        for idx in range(len(left_boundary_vertices)):
+            p1 = left_boundary_vertices[idx]
+            adj_p1 = right_boundary_vertices[idx]
+            # Find next vertex along the boundary in the current patch
+            if idx + 1 < len(left_boundary_vertices):
+                p2 = left_boundary_vertices[idx + 1]
+                adj_p2 = right_boundary_vertices[idx + 1]
+                faces.append([p1, adj_p1, p2])
+                faces.append([p2, adj_p1, adj_p2])
+    
+    # Handle horizontal boundaries (connecting patches top to bottom)
+    for y_boundary in y_boundaries:
+        bottom_boundary_vertices = np.where(vertices[:, 1] == y_boundary + offset)[0]
+        top_boundary_vertices = np.where(vertices[:, 1] == y_boundary - offset)[0]  # Adjusting for offset
+        
+        # Sort vertices by their x-coordinate to match them correctly
+        bottom_boundary_vertices = bottom_boundary_vertices[np.argsort(vertices[bottom_boundary_vertices, 0])]
+        top_boundary_vertices = top_boundary_vertices[np.argsort(vertices[top_boundary_vertices, 0])]
+        
+        for idx in range(len(bottom_boundary_vertices)):
+            p1 = bottom_boundary_vertices[idx]
+            adj_p1 = top_boundary_vertices[idx]
+            # Find next vertex along the boundary in the current patch
+            if idx + 1 < len(bottom_boundary_vertices):
+                p2 = bottom_boundary_vertices[idx + 1]
+                adj_p2 = top_boundary_vertices[idx + 1]
+                faces.append([p1, adj_p1, p2])
+                faces.append([p2, adj_p1, adj_p2])
+    
+    return TriangularMesh(vertices=vertices, faces=np.array(faces))
 
 def merge_meshes(
     mesh_list: Sequence[TriangularMesh]) -> TriangularMesh:
@@ -121,7 +176,7 @@ def merge_meshes(
       faces=np.concatenate([mesh.faces for mesh in mesh_list], axis=0))
 
 
-def concatenate_meshes(tiling: Tuple[int, int], domain_size: int) -> TriangularMesh:
+def concatenate_meshes(tiling: Tuple[int, int], domain_size: int, offset: int = 2) -> TriangularMesh:
     """
     Concatenate multiple triangular meshes to form a larger tiled mesh.
     
@@ -139,7 +194,7 @@ def concatenate_meshes(tiling: Tuple[int, int], domain_size: int) -> TriangularM
     
     for i in range(nx):
         for j in range(ny):
-            mesh = get_tri_mesh(i * domain_size, j * domain_size, domain_size, offset=2)
+            mesh = get_tri_mesh(i * domain_size, j * domain_size, domain_size, offset=offset)
             all_vertices.append(mesh.vertices)
             all_faces.append(mesh.faces + vertex_offset)
             vertex_offset += mesh.vertices.shape[0]
@@ -360,8 +415,6 @@ def radius_query_indices(
     mesh_edge_indices = np.concatenate(mesh_edge_indices, axis=0).astype(int)
 
     return grid_edge_indices, mesh_edge_indices
-
-
 
 def in_mesh_triangle_indices(
     *,

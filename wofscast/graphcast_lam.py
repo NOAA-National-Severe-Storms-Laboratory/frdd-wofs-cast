@@ -139,7 +139,7 @@ class GraphCast(predictor_base.Predictor):
     domain_size = task_config.domain_size
     tiling = task_config.tiling
     
-    print('MAKE SURE YOU HAVE THE CORRECT ACTIVATION FUNCTION!') 
+    #print('MAKE SURE YOU HAVE THE CORRECT ACTIVATION FUNCTION!') 
     #try:
     #    activation = task_config.activation 
     #except:
@@ -162,7 +162,6 @@ class GraphCast(predictor_base.Predictor):
     self._loss_weights = model_config.loss_weights
 
     # Specification of the multimesh.
-  
     self._meshes = (
           square_mesh.get_hierarchy_of_triangular_meshes(
             splits=model_config.mesh_size, domain_size=domain_size, tiling=tiling))
@@ -502,6 +501,7 @@ class GraphCast(predictor_base.Predictor):
 
     # Create some edges according to how the grid nodes are contained by
     # mesh triangles.
+    
     (grid_indices,
      mesh_indices) = square_mesh.in_mesh_triangle_indices(
          grid_size=len(self._grid_lat),

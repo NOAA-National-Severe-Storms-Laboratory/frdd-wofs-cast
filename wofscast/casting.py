@@ -101,7 +101,7 @@ class Bfloat16Cast(predictor_base.Predictor):
       return self._predictor.loss_and_predictions(inputs, targets, forcings,  # pytype: disable=bad-return-type  # jax-ndarray
                                                   **kwargs)
 
-    with bfloat16_variable_view():
+    with bfloat16_variable_view(): 
       (loss, scalars), predictions = self._predictor.loss_and_predictions(
           *_all_inputs_to_bfloat16(inputs, targets, forcings), **kwargs)
 

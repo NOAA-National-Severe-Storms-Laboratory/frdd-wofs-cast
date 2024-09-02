@@ -91,6 +91,8 @@ def chunked_prediction(
     diffusion_model=None,
     scaler = None,
     n_diffusion_steps=50,
+    sampler_kwargs={},
+    variables=None,
 ) -> xarray.Dataset:
   """Outputs a long trajectory by iteratively concatenating chunked predictions.
 
@@ -123,6 +125,8 @@ def chunked_prediction(
       diffusion_model=diffusion_model,
       scaler=scaler,
       n_diffusion_steps=n_diffusion_steps,
+      sampler_kwargs=sampler_kwargs,
+     variables=variables,
   ):
     chunks_list.append(jax.device_get(prediction_chunk))
   return xarray.concat(chunks_list, dim="time")
@@ -139,7 +143,9 @@ def chunked_prediction_generator(
     replace_bdry= True, 
     diffusion_model = None, 
     scaler=None, 
-    n_diffusion_steps=50
+    n_diffusion_steps=50,
+    sampler_kwargs={},
+    variables=None,
 ) -> Iterator[xarray.Dataset]:
   """Outputs a long trajectory by yielding chunked predictions.
 
@@ -231,7 +237,9 @@ def chunked_prediction_generator(
     # TEMPORARY. Add diffusion to the composite reflectivity. 
     if diffusion_model:
         predictions = apply_diffusion(predictions, targets_template, 
-                                      diffusion_model, scaler, num_steps=n_diffusion_steps)
+                                      diffusion_model, scaler, num_steps=n_diffusion_steps, 
+                                      sampler_kwargs=sampler_kwargs, 
+                                     variables=variables)
     
     next_frame = xarray.merge([predictions, current_forcings])
     next_inputs = _get_next_inputs(current_inputs, next_frame)
@@ -297,7 +305,10 @@ def extend_targets_template(
   time = targets_template.coords["time"]
 
   # Assert the first target time corresponds to the timestep.
-  timestep = time[1].data - time[0].data
+  try:
+      timestep = time[1].data - time[0].data
+  except IndexError:
+      timestep = time[0].data  
   
   # MLF: commented this out for the moment. 
   #if time.shape[0] > 1:

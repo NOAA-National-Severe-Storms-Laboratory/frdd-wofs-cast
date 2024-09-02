@@ -1,247 +1,229 @@
-# Disable XLA preallocation
 import os
+import sys
+import warnings
+import argparse
+import numpy as np
+from os.path import join
+from concurrent.futures import ThreadPoolExecutor
+import optax
+from copy import copy 
+
+# Environment Configuration
 os.environ['XLA_PYTHON_CLIENT_PREALLOCATE'] = 'true'
 os.environ['XLA_PYTHON_CLIENT_MEM_FRACTION'] = '0.95'
 
-# XLA FLAGS set for GPU performance (https://jax.readthedocs.io/en/latest/gpu_performance_tips.html)
-"""
-os.environ['XLA_FLAGS'] = (
-    #'--xla_gpu_enable_triton_softmax_fusion=true ' # Caused issues for the transformer layer. 
-    '--xla_gpu_triton_gemm_any=True '
-    '--xla_gpu_enable_async_collectives=true '
-    '--xla_gpu_enable_latency_hiding_scheduler=true '
-    '--xla_gpu_enable_highest_priority_async_stream=true '
+# Optional: Uncomment to set XLA GPU performance flags
+# os.environ['XLA_FLAGS'] = (
+#     '--xla_gpu_triton_gemm_any=True '
+#     '--xla_gpu_enable_async_collectives=true '
+#     '--xla_gpu_enable_latency_hiding_scheduler=true '
+#     '--xla_gpu_enable_highest_priority_async_stream=true '
+# )
+
+# Suppress specific RuntimeWarnings
+warnings.filterwarnings(
+    "ignore", 
+    category=RuntimeWarning, 
+    message="os.fork() was called. os.fork() is incompatible with multithreaded code, and JAX is multithreaded, so this will likely lead to a deadlock."
 )
-"""
 
-
-# WoFSCast 
-import warnings
-# Suppress the specific RuntimeWarning about os.fork(),  multithreaded code, and JAX
-warnings.filterwarnings("ignore", category=RuntimeWarning, message="os.fork() was called. os.fork() is incompatible with multithreaded code, and JAX is multithreaded, so this will likely lead to a deadlock.")
-
-import sys, os 
+# Add project directory to the system path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.getcwd())))
 
+# WoFSCast imports
 from wofscast.model import WoFSCastModel
-from wofscast.wofscast_task_config import (WOFS_TASK_CONFIG, 
-                                           DBZ_TASK_CONFIG, 
-                                           WOFS_TASK_CONFIG_5MIN, 
-                                           WOFS_TASK_CONFIG_1HR,
-                                           WOFS_TASK_CONFIG_ALL_LEVELS
-                                          )
-from wofscast.data_generator import (ZarrDataGenerator, 
-                                     SingleZarrDataGenerator, 
-                                     add_local_solar_time, 
-                                     WoFSDataProcessor) 
-
+from wofscast import wofscast_task_config
+from wofscast.data_generator import (
+    ZarrDataGenerator, 
+    SingleZarrDataGenerator, 
+    add_local_solar_time, 
+    WoFSDataProcessor
+)
 from wofscast import checkpoint
-from wofscast.utils import get_random_subset,  truncate_to_chunk_size
+from wofscast.utils import get_random_subset, truncate_to_chunk_size, load_yaml
 
-import optax 
+# Configurations
+BASE_CONFIG_PATH = 'training_configs'
 
-import os
-from os.path import join
-from concurrent.futures import ThreadPoolExecutor
+def parse_arguments():
+    """Parse command-line arguments."""
+    parser = argparse.ArgumentParser(description='Load and parse configuration file.')
+    parser.add_argument('--config', type=str, required=True, help='Path to the config.yaml file relative to the base config directory.')
+    return parser.parse_args()
 
-# Using the Weights & Biases package: 
-# Create an account : https://docs.wandb.ai/quickstart
+def load_configuration(config_file):
+    """Load the YAML configuration file."""
+    config_path = os.path.join(BASE_CONFIG_PATH, config_file)
+    return load_yaml(config_path)
 
-def get_files_for_year(year):
-    """Get all zarr files within a directory."""
+def get_files_for_year(year, base_path):
+    """Get all zarr files within a directory for a given year."""
     year_path = join(base_path, year)
     with os.scandir(year_path) as it:
         return [join(year_path, entry.name) for entry in it if entry.is_dir() and entry.name.endswith('.zarr')] 
 
+def get_paths(base_paths, years=['2019', '2020']):
+    """Get file paths from multiple base paths and years."""
+    paths = []
 
-# >>> python -m wandb login
+    # Use a thread pool to retrieve files in parallel
+    with ThreadPoolExecutor() as executor:
+        future_to_year = {
+            executor.submit(get_files_for_year, year, base_path): (year, base_path) 
+            for base_path in base_paths for year in years
+        }
+        for future in future_to_year:
+            paths.extend(future.result())  # Collect results from futures
+
+    return paths
+
 if __name__ == '__main__':
-    """ usage: stdbuf -oL python -u train_wofscast.py > & log_training & """
+    """Main script execution."""
     
-    # USER SET ARGS------------------------------------------------------------------------
-    # Whether to initialize the model with existing model weights 
-    # TaskConfig and ModelConfig are re-built using the checkpoint
-    # provided. 
-    fine_tune = False
+    """ usage: stdbuf -oL python -u train_wofscast.py --config train_10min_finetune_full_domain_config.yaml > & log_training & """
     
-    seed = 123
-    
-    # Where the model weights are stored
-    out_path = f'/work/mflora/wofs-cast-data/model/wofscast_all_levels.npz'
-    
-    # The task config contains details like the input variables, 
-    # target variables, time step, etc.
-    task_config = WOFS_TASK_CONFIG_ALL_LEVELS
-    
-    # Whether to use the 36.7M parameter GraphCast model weights 
-    # Must set parameters identical to those paper 
-    graphcast_pretrain = False
-    
-    # Number of samples processed during a single gradient descent step
-    # If using multiple GPUs, batch_size / n_gpus samples are sent 
-    # to each GPU. 
-    batch_size = 24
-    
-    loss_weights = {
-                    # Any variables not specified here are weighted as 1.0.
-                    'U' : 1.0, 
-                    'V': 1.0, 
-                    'W': 1.0, 
-                    'T': 1.0, 
-                    'GEOPOT': 1.0, 
-                    'QVAPOR': 1.0,
-                    'T2' : 0.1, 
-                    'COMPOSITE_REFL_10CM' : 1.0, 
-                    #'UP_HELI_MAX' : 0.1,
-                    'RAIN_AMOUNT' : 0.1,
-                    }
+    args = parse_arguments()
+    config_dict = load_configuration(args.config)
+
+    # Extract configuration values
+    fine_tune = config_dict.get('fine_tune', False)
+    seed = config_dict.get('seed', 42)
+    out_path = config_dict.get('model_save_path', 'wofscast_default.npz')
+    task_config = getattr(wofscast_task_config, config_dict.get('task_config'))
+    graphcast_pretrain = config_dict.get('graphcast_pretrain', False)
+    batch_size = config_dict.get('batch_size', 24)
+    loss_weights = config_dict.get('loss_weights', {})
+    norm_stats_path = config_dict.get('norm_stats_path', None)
     
     if fine_tune: 
-        # For fine tuning, training is perform autoregressively on 
-        # multi time step rollout. The lead time ranges to be evaluated 
-        # are given below. Based on n_steps, each time range is 
-        # evenly trained on. 
-        n_steps = 10
-        target_lead_times = [slice('10min', '20min'), slice('10min', '30min'), slice('10min', '40min')]
+        # Determine whether the fine tuning includes loading data for 
+        # more than one time step. 
+        rollout = config_dict.get('rollout' , False)
+        if rollout:
+            target_lead_times = [slice(t[0], t[1]) for t in config_dict['target_lead_times']]
+        else:
+            target_lead_times = None
+            
+        # Fine-tuning settings
+        n_steps = config_dict['n_fine_tune_steps']
+        base_paths = config_dict['fine_tune_data_paths']
         
-        # Location of the datasets with longer lead times. 
-        base_path = '/work/mflora/wofs-cast-data/datasets_2hr_zarr'
-   
-        model_path = out_path.copy() 
-    
-        # Do not want to replace the existing checkpoint! 
+        # Avoid overwriting existing checkpoint
+        model_path = copy(out_path)
         out_path = model_path.replace('.npz', '_fine_tune.npz') 
         
-        # For fine tuning, we adopt the constant, but small learning rate. 
-        scheduler = optax.constant_schedule(3e-6)
-        
-        # Build the TaskConfig and ModelConfig inputs. 
-        trainer = WoFSCastModel(learning_rate_scheduler = scheduler, 
-        
-                 checkpoint=True, # Save the model periodically
+        new_save_path = config_dict.get('new_save_path', None)
+        if new_save_path: 
+            out_path = os.path.join(new_save_path, os.path.basename(out_path))
             
-                 norm_stats_path = '/work/mflora/wofs-cast-data/full_normalization_stats',
+        print('Performing fine tuning...')
+        print(f'Saving model to {out_path}..')
         
-                 # Path where the model is saved. The file name (os.path.basename)
-                 # is the named used for the Weights & Biases project. 
-                 out_path = out_path,
-                 
-                 checkpoint_interval = 1, # How often to save the weights (in terms of epochs) 
-                 verbose = 1, # Set to 3 to get all possible printouts
-                 loss_weights = loss_weights,
-                 parallel = True)    
+        scheduler = optax.constant_schedule(float(config_dict['fine_tune_learning_rate']))
         
-        # Load the model, which will also load the TaskConfig and ModelConfig.
-        trainer.load_model(model_path)
+        trainer = WoFSCastModel(
+            learning_rate_scheduler=scheduler, 
+            checkpoint=True, 
+            norm_stats_path=norm_stats_path, # Should come from the saved file! 
+            out_path=out_path,
+            checkpoint_interval=config_dict['checkpoint_interval'],  
+            verbose=1, 
+            n_steps = n_steps, 
+            loss_weights=loss_weights,
+            parallel=True
+        )
+        
+        # Load the model
+        print(f'Loading {model_path}...')
+        
+        full_domain = config_dict.get('full_domain', False)
+        
+        if full_domain:
+            # At the moment, we have a model trained on 150 x 150 grid point patches. 
+            # Thus, for the full domain, if set tiling = (2,2), it will create a 2 x 2 
+            # quilt of the original mesh to cover the full 300 x 300 WoFS domain.
+            trainer.load_model(model_path, **{'tiling' : (2,2)})
+        else:
+            trainer.load_model(model_path)
+            
         model_params, state = trainer.model_params, trainer.state 
         
     else:
-        # For general training, we adopt the linear increase in learning rate 
-        # during a 'warm-up' period followed by a cosine decay in learning rate
+        base_paths = config_dict['data_paths'] 
         
-        warmup_steps = 500
-        decay_steps = 300000
+        # General training settings
+        warmup_steps = config_dict['warmup_steps']
+        decay_steps = config_dict['decay_steps']
         n_steps = warmup_steps + decay_steps
         
         scheduler = optax.warmup_cosine_decay_schedule(
-              init_value=0,
-              peak_value=1e-3,
-              warmup_steps=warmup_steps,
-              decay_steps=decay_steps,
-              end_value=0.0,
-            )
+            init_value=0,
+            peak_value=float(config_dict['peak_learning_rate']),
+            warmup_steps=warmup_steps,
+            decay_steps=decay_steps,
+            end_value=0.0,
+        )
         
         model_params, state = None, {}
-        target_lead_times= None # Defaults to target lead times in the TaskConfig.
-        # Location of the dataset. 
-        #base_path = '/work/mflora/wofs-cast-data/datasets_zarr'
-        
-        base_path = '/work2/mflora/wofscast_datasets/dataset_10min_all_vertical_levels'
-        norm_stats_path = '/work2/mflora/wofscast_norm_stats/dataset_10min_all_vertical_levels'
-        
-        #if '5min' in base_path:
-        #    norm_stats_path = '/work/mflora/wofs-cast-data/norm_stats_5min/'
-        #elif 'hourly' in base_path:
-        #    norm_stats_path = '/work/mflora/wofs-cast-data/norm_stats_hourly/'
-        #else:    
-        #    norm_stats_path = '/work/mflora/wofs-cast-data/full_normalization_stats'
-        
-        # Hardcoded to analyze 5-min data impacts. 
-        #norm_stats_path = '/work/mflora/wofs-cast-data/norm_stats_5min/'
-        
-        print(f'Using {norm_stats_path=}')
+        target_lead_times = None  # Defaults to TaskConfig's target lead times
         
         trainer = WoFSCastModel(
-                 task_config = task_config, 
-                 mesh_size=5, # Number of Mesh refinements or more higher resolution layers. 
-                 
-                 # Parameters for the MLPs-------------------
-                 latent_size=512, 
-                 gnn_msg_steps=16, # Increasing this allows for connecting information from farther away. 
-                 hidden_layers=1, 
-                 grid_to_mesh_node_dist=5,  # Fraction of the maximum distance between mesh nodes on the 
-                                             # finest mesh level. @ level 5, max distance ~ 4.5 km, 
-                                             # so connecting to those grid points with 1-2 km 
-        
-                                             # OR integer as the distance 
-                 #--------------------------------------------
-                 # Parameters if using a transformer layer for processor (mesh)
-                 # the transformer also relies on the latent_size arg above.
-                 use_transformer = False, 
-                 k_hop = 8,
-                 num_attn_heads  = 4, 
-        
-                 n_steps = n_steps, 
-                 learning_rate_scheduler = scheduler, 
-        
-                 checkpoint=True, # Save the model periodically
-            
-                 norm_stats_path = norm_stats_path,
-        
-                 # Path where the model is saved. The file name (os.path.basename)
-                 # is the named used for the Weights & Biases project. 
-                 out_path = out_path,
-                 
-                 checkpoint_interval = 250, # How often to save the weights (in terms of epochs) 
-                 verbose = 1, # Set to 3 to get all possible printouts
-                 loss_weights = loss_weights,
-                 parallel = True,
-                 graphcast_pretrain = graphcast_pretrain
+            task_config=task_config, 
+            mesh_size=config_dict['mesh_size'], 
+            latent_size=config_dict['latent_size'], 
+            gnn_msg_steps=config_dict['gnn_msg_steps'], 
+            hidden_layers=config_dict['hidden_layers'], 
+            noise_level=config_dict.get('noise_level', None), 
+            grid_to_mesh_node_dist=config_dict['grid_to_mesh_node_dist'],  
+            use_transformer=config_dict['use_transformer'], 
+            k_hop=config_dict['k_hop'],
+            num_attn_heads=config_dict['num_attn_heads'], 
+            n_steps=n_steps, 
+            learning_rate_scheduler=scheduler, 
+            checkpoint=True, 
+            norm_stats_path=norm_stats_path,
+            out_path=out_path,
+            checkpoint_interval=config_dict['checkpoint_interval'],
+            verbose=1, 
+            loss_weights=loss_weights,
+            parallel=True,
+            graphcast_pretrain=graphcast_pretrain
         )
     
-    #'''
-    years = ['2019', '2020']
-    with ThreadPoolExecutor() as executor:
-        paths = []
-        for files in executor.map(get_files_for_year, years):
-            paths.extend(files)
+    paths = get_paths(base_paths, years=['2019', '2020'])
+    
+    # Shuffle paths
+    rs = np.random.RandomState(seed)
+    rs.shuffle(paths)
     
     print(f'Number of Paths: {len(paths)}')
     
-    generator = ZarrDataGenerator(paths, 
-                              task_config, 
-                              target_lead_times=None,
-                              batch_size=batch_size, 
-                              num_devices=2, 
-                              preprocess_fn=add_local_solar_time,
-                              prefetch_size=2,
-                              random_seed=seed, 
-                             )
-    '''
+    def preprocess_fn(ds):
+        # Example preprocessing: Add local solar time
+        ds = add_local_solar_time(ds)
+        return ds
     
-    zarr_path = '/work/mflora/wofs-cast-data/datasets_5min/training_dataset/wofs_data_2019-2020.zarr'
-    generator = SingleZarrDataGenerator(zarr_path, 
-                              task_config, 
-                              target_lead_times=None,
-                              batch_size=batch_size, 
-                              num_devices=2, 
-                              prefetch_size=2,
-                              random_seed=seed, 
-                             )
-    '''
-    
-    trainer.fit_generator(generator, 
-                          model_params=model_params, 
-                          state=state, 
-                          )
+    generator = ZarrDataGenerator(
+        paths=paths, 
+        task_config=task_config, 
+        target_lead_times=target_lead_times,
+        batch_size=batch_size, 
+        num_devices=2, 
+        preprocess_fn=preprocess_fn,
+        prefetch_size=2,
+        random_seed=seed, 
+    )
 
+    # Optional: Uncomment to use SingleZarrDataGenerator instead
+    # zarr_path = '/work/mflora/wofs-cast-data/datasets_5min/training_dataset/wofs_data_2019-2020.zarr'
+    # generator = SingleZarrDataGenerator(
+    #     zarr_path=zarr_path, 
+    #     task_config=task_config, 
+    #     target_lead_times=None,
+    #     batch_size=batch_size, 
+    #     num_devices=2, 
+    #     prefetch_size=2,
+    #     random_seed=seed, 
+    # )
+    
+    trainer.fit_generator(generator, model_params=model_params, state=state)

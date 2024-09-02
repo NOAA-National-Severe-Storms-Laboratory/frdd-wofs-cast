@@ -10,8 +10,17 @@ import traceback
 from collections import ChainMap
 import warnings
 from copy import copy
+import yaml 
 
 import random
+
+def load_yaml(yaml_fname):
+    """
+    Load yaml file as a python dict
+    """
+    with open(yaml_fname) as yaml_file:
+        adict = yaml.full_load(yaml_file)
+    return adict
 
 def truncate_to_chunk_size(input_list, chunk_size=512):
     # Calculate the new length as the smallest multiple of chunk_size

@@ -23,10 +23,20 @@ FORCING_VARS = (
             'local_solar_time_sin',
             'local_solar_time_cos',
         )
+
+GC_FORCINGS_VARS = (
+    'TISR',
+    #'day_progress', 
+    'day_progress_cos', 
+    'day_progress_sin', 
+    #'year_progress', 
+    #'year_progress_cos', 
+    #'year_progress_sin', 
+)
+
 # Not pressure levels, but just vertical array indices at the moment. 
 # When I created the wrfwof files, I pre-sampled every 3 levels. 
 PRESSURE_LEVELS = np.arange(17)
-
 
 # Loads data from the past 20 minutes (2 steps) and 
 # creates a target over the next 10-60 min. 
@@ -45,6 +55,20 @@ WOFS_TASK_CONFIG = graphcast.TaskConfig(
       tiling=None,
       train_lead_times = train_lead_times,
  )
+
+
+WOFS_TASK_CONFIG_GC = graphcast.TaskConfig(
+      input_variables=INPUT_VARS,
+      target_variables=TARGET_VARS,
+      forcing_variables=GC_FORCINGS_VARS,
+      pressure_levels=PRESSURE_LEVELS,
+      input_duration=INPUT_DURATION,
+      n_vars_2D = len(VARS_2D),
+      domain_size = DOMAIN_SIZE,
+      tiling=None,
+      train_lead_times = train_lead_times,
+ )
+
 
 LEVELS_EVERY_3 = list(np.arange(0,50,3))
 LEVELS_EVERY_2 = list(np.arange(0,50,2))

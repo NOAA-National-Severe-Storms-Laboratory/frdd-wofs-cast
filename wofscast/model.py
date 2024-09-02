@@ -55,6 +55,7 @@ import jax
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 import xarray #as xr
 
 from .utils import count_total_parameters, save_model_params, load_model_params 
@@ -73,6 +74,8 @@ import time
 import wandb
 from tqdm import tqdm 
 
+from datetime import datetime
+
 # Saves jax compiled code, which can speed up 
 # compilation speeds for re-runs. If parameters are
 # changed, then the code has to be re-compiled.
@@ -84,7 +87,8 @@ graphcast_name = 'params_GraphCast - ERA5 1979-2017 - resolution 0.25 - pressure
 def construct_wrapped_graphcast(model_config: graphcast.ModelConfig, 
                                 task_config: graphcast.TaskConfig,
                                 norm_stats: dict,
-                                noise_level : Optional[float]=None
+                                noise_level : Optional[float]=None,
+                                gradient_checkpointing=False # For fine tuning on longer rollouts, then test turning it True.
                                ):
     """Constructs and wraps the GraphCast Predictor. Wrappers include 
     floating point precision convertion, normalization, and autoregression. 
@@ -106,7 +110,7 @@ def construct_wrapped_graphcast(model_config: graphcast.ModelConfig,
     )
 
     # Wraps everything so the one-step model can produce trajectories.
-    predictor = autoregressive.Predictor(predictor, noise_level=noise_level, gradient_checkpointing=True)
+    predictor = autoregressive.Predictor(predictor, noise_level=noise_level, gradient_checkpointing=gradient_checkpointing)
     
     return predictor
 
@@ -270,9 +274,11 @@ class WoFSCastModel:
                  
                  graphcast_pretrain=False,
                  verbose=1,
+                 use_wandb = True,
+                 adam_weight_decay = 0.1
                 ):
         
-        
+        self.use_wandb = use_wandb
         self.wandb_config = {'mesh_size' : mesh_size, 
                              'latent_size' : latent_size,
                              'loss_weights' : loss_weights,
@@ -292,6 +298,7 @@ class WoFSCastModel:
             assert hidden_layers == 1, 'If graphcast_pretrain==True, hidden_layers must equal 1'
             assert use_transformer == False, 'If graphcast_pretrain==True, use_transformer=False'
 
+        self.adam_weight_decay = adam_weight_decay    
         self.learning_rate_scheduler = learning_rate_scheduler 
         self.n_steps = n_steps 
         self.k_hop = k_hop
@@ -322,11 +329,7 @@ class WoFSCastModel:
         
         self.clip_norm = 32.0 # used to clip gradients.  
         self.parallel = parallel
-        
-        self.wandb_config['out_path'] = self.out_path
-        self.wandb_config['model_config'] = self.model_config 
-        
-    
+      
     def fit_generator(self, 
                       generator, 
                       model_params=None, 
@@ -354,7 +357,7 @@ class WoFSCastModel:
                 b1=0.9,
                 b2=0.95,
                 eps=1e-8,
-                weight_decay=0.1
+                weight_decay=self.adam_weight_decay
             )
             )
         
@@ -363,7 +366,9 @@ class WoFSCastModel:
         # Initialize the Weights & Biases project for logging and tracking 
         # training loss and other metrics. 
         project_name = os.path.basename(self.out_path).replace('.npz', '')
-        wandb.init(project='wofscast',
+        
+        if self.use_wandb:
+            wandb.init(project='wofscast',
                    name = project_name,
                    config = self.wandb_config
                   ) 
@@ -500,6 +505,10 @@ class WoFSCastModel:
             for var_name, var in new_forcings.data_vars.items():
                 forcings[var_name] = forcings[var_name].copy(deep=False, data=var.values)
             
+            #print(f'{inputs=}')
+            #print(f'{targets=}')
+            #print(f'{forcings=}')
+            
             model_params_replicated, opt_state_replicated, loss, diagnostics = train_step_jitted(
                    model_params_replicated, 
                    state_replicated,
@@ -516,7 +525,14 @@ class WoFSCastModel:
                 raise ValueError('Loss includes NaN value. Ending the training...')
 
             # Log metrics to wandb
-            wandb.log({f"Loss": loss_val, "Epoch Time" : time.time() - start_time})
+            logs = {f"Loss": loss_val, 
+                       "Epoch Time" : time.time() - start_time, 
+                      }
+            diagnostics = {f'{v}_loss' : np.mean(np.asarray(diagnostics[v])).item() for v in 
+                           diagnostics.keys()} 
+            
+            if self.use_wandb: 
+                wandb.log({**logs, **diagnostics})
  
             # Save the model ever so often!
             if step % self.checkpoint_interval == 0 and self.checkpoint:
@@ -531,27 +547,85 @@ class WoFSCastModel:
         if return_params:
             return jax.device_get(jax.tree_map(lambda x: x[0], model_params)), state
     
-    def predict(self, inputs, targets, forcings, replace_bdry=True, 
-                diffusion_model=None, scaler=None, n_diffusion_steps=50): 
+    def predict(self, inputs, targets, forcings, 
+                initial_datetime=None, 
+                n_steps=None, replace_bdry=True, 
+                diffusion_model=None, scaler=None, 
+                n_diffusion_steps=50, sampler_kwargs={}, variables=None): 
         """Predict using the WoFSCast"""
-        # TODO: use the extend_targets_template from rollout.py. 
-        #targets_template = self.expand_time_dim(targets) * np.nan
-        targets_template = targets 
         
+        # Ensure 'batch' dimension exists
+        inputs = ensure_batch_dim(inputs, 'batch')
+        targets = ensure_batch_dim(targets, 'batch')
+        forcings = ensure_batch_dim(forcings, 'batch')
+        
+        extended_targets = targets
+        extended_forcings = forcings
+        
+        if n_steps: 
+            if initial_datetime is None:
+                raise ValueError('If using n_steps, must provide an initial_datetime str or pd.Timestamp for the forcings')
+       
+            # Expects a pandas.Timestamp object. If it's a string or other format,
+            # it will convert to a Timestamp object.
+            if not isinstance(initial_datetime, pd.Timestamp):
+    
+                if isinstance(initial_datetime, str):
+                    # Convert string to pandas.Timestamp
+                    initial_datetime = pd.Timestamp(initial_datetime)
+    
+                else:
+                    # If it's not a string, assume it's in datetime format and convert
+                    # using the appropriate format string (adjust as needed).
+                    init_dt_obj = datetime.strptime(initial_datetime, '%Y%m%d%H%M')
+                    initial_datetime = pd.Timestamp(init_dt_obj)
+ 
+                if n_steps and replace_bdry:
+                    replace_bdry=False
+                    print('If using n_steps, then replace_bdry must be False. Setting it to False.')
+                
+            extended_targets = rollout.extend_targets_template(targets, 
+                                                           required_num_steps=n_steps)
+        
+            extended_targets = extended_targets.transpose('batch', 'time', 'level', 'lat', 'lon')
+        
+            # Create the new datetime coordinate by adding the timedeltas to the initial datetime
+            #print(f'{initial_datetime=}')
+            #print(f"{extended_targets['time'].data=}")
+            datetime_coord = initial_datetime + extended_targets['time'].data
+
+            # Assign the new datetime coordinate to the dataset
+            extended_targets = extended_targets.assign_coords(datetime=datetime_coord)
+
+            extended_forcings = add_local_solar_time(extended_targets.copy(deep=True))
+            extended_forcings = extended_forcings[self.task_config.forcing_variables]
+            
+            #Expand the batch size since the add local solar time will drop it. 
+            #extended_forcings = extended_forcings.expand_dims('batch', axis=0)
+            batch_size = inputs.dims['batch'] 
+            # Repeat the data along the 'batch' dimension 18 times
+            extended_forcings = xarray.concat([extended_forcings] * batch_size, dim='batch')  
+                
+            extended_forcings = extended_forcings.drop_vars('datetime', errors='ignore')
+            extended_targets = extended_targets.drop_vars('datetime', errors='ignore')
+    
+        noise_level = None
         run_forward_jitted = drop_state(with_params(jax.jit(with_configs(
-            run_forward.apply, self, self.norm_stats)), self))
+            run_forward.apply, self, self.norm_stats, noise_level)), self))
 
         # @title Autoregressive rollout (keep the loop in JAX)
         predictions = rollout.chunked_prediction(
             run_forward_jitted,
             rng=jax.random.PRNGKey(0),
             inputs=inputs,
-            targets_template=targets_template,
-            forcings=forcings, 
+            targets_template=extended_targets,
+            forcings=extended_forcings, 
             replace_bdry=replace_bdry,
             diffusion_model=diffusion_model, 
             scaler=scaler,
-            n_diffusion_steps=n_diffusion_steps
+            n_diffusion_steps=n_diffusion_steps,
+            sampler_kwargs=sampler_kwargs,
+            variables=variables
         )
 
         return predictions
@@ -594,7 +668,7 @@ class WoFSCastModel:
         if self.norm_stats_path is None: 
             self.norm_stats_path = str(data.get('norm_stats_path', self.norm_stats_path))
         
-        print(f'{self.norm_stats_path=}')
+        ###print(f'{self.norm_stats_path=}')
         self._load_norm_stats(self.norm_stats_path)
     
     def _init_task_config_run(self, data, **additional_config): 
@@ -751,7 +825,23 @@ class WoFSCastModel:
         with open(self.out_path, 'wb') as io_byte:
             checkpoint.dump(io_byte, model_data)
              
- 
+def ensure_batch_dim(data, dim_name='batch'):
+    """
+    Ensure that the input xarray DataArray or Dataset has the specified dimension.
+    If not, expand dimensions to include it.
+
+    Parameters:
+    data (xarray.DataArray or xarray.Dataset): The data to check and possibly modify.
+    dim_name (str): The name of the dimension to ensure exists.
+
+    Returns:
+    xarray.DataArray or xarray.Dataset: The modified data with the specified dimension.
+    """
+    if dim_name not in data.dims:
+        data = data.expand_dims(dim=dim_name)
+    return data 
+
+
 def modify_path_if_exists(original_path):
     """
     Modifies the given file path by appending a version number if the path already exists.

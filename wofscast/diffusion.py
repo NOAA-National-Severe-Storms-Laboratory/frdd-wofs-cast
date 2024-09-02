@@ -212,31 +212,50 @@ def edm_sampler(
 
     return x_next
 
-def apply_diffusion(predictions, targets_template, model, scaler, num_steps=100, sampler_kwargs={}):
+def apply_diffusion(predictions, targets_template, model, scaler, num_steps=100, sampler_kwargs={}, variables=None):
     """Apply a diffusion model to the current time step output."""
     #run sampler 
     batch_size = len(predictions.batch)
-    domain_size = 160 # Expected domain size for the diffuser. Made it larger for deeper U-net. 
-    n_channels = 105
+    #domain_size = 160 # Expected domain size for the diffuser. Made it larger for deeper U-net. 
+    #n_channels = 105
+    original_domain_size = predictions.dims['lat']
     
     rnd = StackedRandomGenerator('cuda',np.arange(0,batch_size,1).astype(int).tolist())
     
+    # If the diffusion model is only meant to be applied to a subset of variables.
+    if variables:
+        n_channels = len(variables)
+        if isinstance(variables, str):
+            variables = [variables] 
+        
+        predictions_subset = predictions[variables].copy(deep=True) 
+    else:
+        variables = list(predictions.data_vars)
+        predictions_subset = predictions.copy(deep=True) 
+    
     # Normalize the input, drop the time dimension, and stack.
-    predictions_scaled = scaler.scale(predictions)
+    predictions_scaled = scaler.scale(predictions_subset)
+    
     pred_stacked = dataset_to_stacked(
         predictions_scaled.squeeze(dim='time')).transpose('batch', 'channels', 'lat', 'lon').values 
     pred_stacked_tensor = torch.tensor(pred_stacked, dtype=torch.float32).cuda() 
  
     # Convert to torch tensor and add padding. Move the tensor to the GPU
-    predicted_tensor_pad = pad_to_multiple_of_16(pred_stacked_tensor)
+    if original_domain_size == 150:
+        predicted_tensor_pad = pad_to_multiple_of_16(pred_stacked_tensor)
+    else:
+        predicted_tensor_pad = F.pad(pred_stacked_tensor, (10, 10, 10, 10), mode='replicate')
+        # (300,300) -> (320,320); hacky!
     
-    latents = rnd.randn([batch_size, n_channels, domain_size, domain_size], device='cuda')
+    #latents = rnd.randn([batch_size, n_channels, domain_size, domain_size], device='cuda')
 
+    latents = torch.randn(predicted_tensor_pad.shape, device='cuda')
+    
     # The output is the normalized residual. 
     residual = edm_sampler(model, latents, predicted_tensor_pad, num_steps=num_steps, **sampler_kwargs)
     
     # Crop the tensor back to the original size
-    residual_cropped = crop_to_original_size(residual, 150, 150)
+    residual_cropped = crop_to_original_size(residual, original_domain_size, original_domain_size)
     
     residual_xarray = xr.DataArray(
         data=residual_cropped.cpu().numpy(),
@@ -245,7 +264,7 @@ def apply_diffusion(predictions, targets_template, model, scaler, num_steps=100,
     residual_xarray =  residual_xarray.transpose("batch", "lat", "lon", "channels")
     
     residual_dataset = stacked_to_dataset( residual_xarray.variable, 
-                                         predictions.squeeze(dim='time'), 
+                                         predictions_subset.squeeze(dim='time'), 
                                          preserved_dims=("batch", "lat", "lon")) 
     
     # Add the time dimension back and tranpose 
@@ -257,9 +276,10 @@ def apply_diffusion(predictions, targets_template, model, scaler, num_steps=100,
     # Unnormalize the target residuals and add them to the unscaled 
     # inputs to get the updated predictions. 
     unscaled_residual = scaler.unscale_residuals(residual_dataset)
-    updated_predictions = predictions + unscaled_residual
+    for v in variables:
+        predictions[v] = predictions[v] + unscaled_residual[v]
     
-    return updated_predictions
+    return predictions
 
 
 

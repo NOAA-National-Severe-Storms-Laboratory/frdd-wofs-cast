@@ -21,6 +21,7 @@ from typing_extensions import Protocol
 import xarray
 
 import xarray
+import jax
 
 
 LossAndDiagnostics = tuple[xarray.DataArray, xarray.Dataset]
@@ -201,17 +202,36 @@ def sum_per_variable_losses(
     weighted_per_variable_losses = {
         name: loss * weights.get(name, 1) for name, loss in per_variable_losses.items()
     }
+    
+    # MLF: For a yet unknown reason, when loading saved weights and running the model
+    # for finetuning training the "total" loss switched dtype from bfloat16 to float32, 
+    # despite all the variables in per_variable_losses being bfloat16. Though
+    # it may be suboptimal, forcing the loss dtype to bfloat16 avoids the issue.
+    
     total = xarray.concat(
         weighted_per_variable_losses.values(), dim="variable", join="exact"
-    ).sum("variable", skipna=False)
-
+    ).sum("variable", skipna=False).astype(jax.numpy.bfloat16)
+    
     return total, per_variable_losses  # pytype: disable=bad-return-type
 
+# Deprecated from the original GraphCast code.
+#def normalized_level_weights(data: xarray.DataArray) -> xarray.DataArray:
+#    """Weights proportional to pressure at each level."""
+#    level = data.coords["level"]
+#    return level / level.mean(skipna=False)
 
 def normalized_level_weights(data: xarray.DataArray) -> xarray.DataArray:
-    """Weights proportional to pressure at each level."""
+    """Weights inversely proportional to level, giving more weight to lower levels."""
     level = data.coords["level"]
-    return level / level.mean(skipna=False)
+    
+    # Invert the level values to give more weight to lower levels
+    inverted_level = level.max(skipna=False) - level + 1
+    
+    # Normalize the weights so that they sum to 1 or keep relative weighting
+    weights = inverted_level / inverted_level.mean(skipna=False)
+    
+    return weights
+
 
 
 def normalized_latitude_weights(data: xarray.DataArray) -> xarray.DataArray:
