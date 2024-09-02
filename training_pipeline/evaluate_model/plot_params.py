@@ -22,6 +22,6 @@ units_mapper = {'T': 'K',
                 'V': 'm/s', 
                 'W': 'm/s', 
                 'GEOPOT': 'm', 
-                'RAIN_AMOUNT': 'in', 
+                'RAIN_AMOUNT': 'mm / 10 min', 
                 'COMPOSITE_REFL_10CM': 'dBZ'
                }
