@@ -1,66 +1,89 @@
-#!/usr/bin/env python
-# coding: utf-8
+#Format WoFS WRFOUTs (netcdf or zarr) into GraphCast-Friendly Format 
 
-# ## Format WoFS WRFOUTs into GraphCast-Friendly Format 
-# 
-# This notebook reads the raw WoFS WRFOUT files and formats them in xarray dataset formatted
-# for the GraphCast code.
-# 
+# Add --debug to run a single case! 
 
-""" usage: stdbuf -oL python -u format_wofs_wrfouts.py > & log_formatter & """
+""" usage: stdbuf -oL python -u format_wofs_wrfouts.py --config dataset_10min_test_full_domain_config.yaml  > & log_formatter & """
 
 import sys, os 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.getcwd())))
-
 from wrfout_file_formatter import FileFormatter, filter_dates 
-
+from wofscast.utils import load_yaml
 import numpy as np 
+import time
+import argparse 
+import yaml 
 
-formatter = FileFormatter(n_jobs = 3, #35 for one timestep, 20 for multitimesteps
-                          duration_minutes=130, # 2 hours.  
-                          timestep_minutes=10, 
-                          offset = 60, 
-                          domain_size =150, 
-                          out_path = '/work/mflora/wofs-cast-data/full_domain_datasets',
-                          debug=False)
+# Config files are assumed to be stored in data_gen_configs/
+BASE_CONFIG_PATH = 'data_gen_configs'
 
-# Notes: 
-# 15 hrs to process this configuration. 
+parser = argparse.ArgumentParser()
+parser.add_argument('--config', type=str, help='config.yaml path')
+parser.add_argument('--debug', action='store_true', help='whether to process a single date.')
+args = parser.parse_args()
 
-# Only sample from top of the hour to potential sample 6 hrs of forecast. 
-# Not sampling earlier in the data due to WoFS data quality.
-init_times = ['1900', '1930', 
-              '2000', '2030', 
-              '2100', '2130', 
-              '2200', '2230', 
-              '2300', '2330',
-              '0000', '0030',
-              '0100', '0130',
-              '0200', '0230',
-              '0300']
+print(f'{args.debug=}')
 
-# Subsample ensemble members to increase diversity in sample.
-mems = np.arange(1, 18+1)
+config_path = os.path.join(BASE_CONFIG_PATH, args.config)
+config_dict = load_yaml(config_path)
 
+# Set the config parameters. 
+BASE_PATH = config_dict['BASE_PATH']
+OUT_PATH = config_dict['OUT_PATH']
+timestep_minutes = config_dict['timestep_minutes']
+n_timesteps = config_dict['n_timesteps']
+offset = config_dict['offset']
 
-init_times = ['2000', '0200']
-mems = [9] 
+years = config_dict['years']
+mems = config_dict['mems']
+init_times = config_dict['init_times']
+n_jobs = config_dict.get('n_jobs', 35)
+resize = config_dict.get('resize', True)
+subset_vertical_levels = config_dict.get('subset_vertical_levels', True)
+                              
+duration_minutes = n_timesteps*timestep_minutes 
 
+vars_to_keep = config_dict['VARS_TO_KEEP']
 
+process_multi_date = False if args.debug else True
+do_drop_vars=True
+legacy = True 
+overwrite=False
 
-process_multi_date = False
+processes = [] 
+if resize:
+    processes.append('resize')
+    
+if subset_vertical_levels:
+    processes.append('subset_vertical_levels')
+    
+subset_dates = config_dict.get('subset_dates', False)
+   
+
+formatter = FileFormatter(n_jobs = n_jobs, #35 for one timestep, 20 for multitimesteps
+                          duration_minutes=duration_minutes, 
+                          timestep_minutes=timestep_minutes, 
+                          offset = offset, # Time in minutes after forecast initialization to start sampling. 
+                          domain_size = 150, 
+                          out_path = OUT_PATH,
+                          debug=False, 
+                          overwrite=overwrite, 
+                          legacy=legacy,
+                          do_drop_vars=do_drop_vars,
+                          vars_to_keep=vars_to_keep,
+                          processes = processes
+                         )
+
 
 file_paths_set = []
 if process_multi_date:
     all_dates = [] 
-    years = ['2019', '2020', '2021']
     for year in years: 
-        base_path = os.path.join('/work2/wof/realtime/FCST/', year)
+        base_path = os.path.join(BASE_PATH, year)
         possible_dates = os.listdir(base_path)
-    
-        good_dates = filter_dates(possible_dates)
         
-        good_dates = [good_dates[0]]
+        good_dates = filter_dates(possible_dates)#[:5]
+        if subset_dates:
+            good_dates = good_dates[:2] 
         
         all_dates.extend(good_dates)
     
@@ -73,15 +96,23 @@ if process_multi_date:
     single_case=False
     
 else:    
-    year = '2021'
-    good_dates = ['20210603']
-    init_times = ['2200']
+    year = '2019'
+    good_dates = ['20190513']
+    init_times = ['0200']
     mems = [9]
-    base_path = os.path.join('/work2/wof/realtime/FCST/', year)
+    base_path = os.path.join(BASE_PATH, year)
     
     all_file_paths = list(formatter.gen_file_paths(base_path, good_dates, init_times, mems))  
+    print(f'{all_file_paths=}')
     file_paths_set.extend(all_file_paths)    
     single_case=True
-    
+
+start_time = time.time()
+
 ds = formatter.run(file_paths_set, single_case)
+
+print(f'Finished! Time elapsed: {time.time()-start_time:.3f} secs')
+
+
+
 

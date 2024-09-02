@@ -1,0 +1,65 @@
+# CONFIGURATION FILE FOR THE 10-MIN WOFSCAST TRAINING
+# FOR FINETUNING ON THE FULL WOFS DOMAIN. 
+
+
+# Model output path and filename 
+# Where the model weights are stored.
+# If the path already exists, the code will not overwrite 
+# and instead create a new version with an append _v1, v2, etc.
+model_save_path : '/work/cpotvin/WOFSCAST/model/wofscast_test_v178.npz'
+new_save_path : '/work2/mflora/wofs-cast-data/model'
+
+
+#--------------------------------------------
+# Path to the normalization statistics 
+norm_stats_path : '/work/mflora/wofs-cast-data/full_normalization_stats/'
+#--------------------------------------------
+
+
+# How often to save the weights (in terms of gradient descent steps) 
+checkpoint_interval : 5
+
+# Number of samples processed during a single gradient descent step
+# If using multiple GPUs, batch_size / n_gpus samples are sent 
+# to each GPU. 
+
+# 24 was too big for memory. 
+batch_size : 12
+
+# Whether to initialize the model with existing model weights 
+# TaskConfig and ModelConfig are re-built using the checkpoint
+# provided. 
+fine_tune : True
+rollout : False 
+full_domain : True
+
+n_fine_tune_steps : 10000 
+               
+fine_tune_data_paths : [
+        '/work2/mflora/wofscast_datasets/dataset_10min_full_domain/'
+        ]
+
+fine_tune_learning_rate : 3e-6
+                     
+# Random seed used for the data generator. 
+seed : 42
+
+# The task config contains details like the input variables, 
+# target variables, time step, etc.
+task_config : 'WOFS_TASK_CONFIG' 
+
+# Per-channel weight of variables in the MSE loss equation in wofscast/losses.py
+loss_weights : {
+                    # Any variables not specified here are weighted as 1.0.
+                    'U' : 1.0, 
+                    'V': 1.0, 
+                    'W': 1.0, 
+                    'T': 1.0, 
+                    'GEOPOT': 1.0, 
+                    'QVAPOR': 1.0,
+                    'T2' : 0.1, 
+                    'COMPOSITE_REFL_10CM' : 1.0, 
+                    #'UP_HELI_MAX' : 0.1,
+                    'RAIN_AMOUNT' : 0.1,
+                    }
+

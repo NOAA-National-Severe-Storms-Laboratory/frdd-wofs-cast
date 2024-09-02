@@ -10,6 +10,55 @@ import traceback
 from collections import ChainMap
 import warnings
 from copy import copy
+import yaml 
+
+import random
+
+def load_yaml(yaml_fname):
+    """
+    Load yaml file as a python dict
+    """
+    with open(yaml_fname) as yaml_file:
+        adict = yaml.full_load(yaml_file)
+    return adict
+
+def truncate_to_chunk_size(input_list, chunk_size=512):
+    # Calculate the new length as the smallest multiple of chunk_size
+    # that is greater than or equal to the length of the list
+    new_length = ((len(input_list) + chunk_size - 1) // chunk_size) * chunk_size
+    # If the list is already a multiple of chunk_size, no need to truncate
+    if new_length > len(input_list):
+        new_length -= chunk_size
+    # Truncate the list
+    return input_list[:new_length]
+
+
+
+def get_random_subset(input_list, subset_size, seed=123):
+    """
+    Get a random subset of a specified size from the input list.
+
+    Parameters:
+    -----------
+    input_list : list
+        The original list from which to draw the subset.
+    subset_size : int
+        The size of the subset to be drawn.
+    seed : int, optional
+        The seed for the random number generator. Default is None.
+
+    Returns:
+    --------
+    list
+        A random subset of the input list.
+    """
+    if subset_size > len(input_list):
+        raise ValueError("subset_size must be less than or equal to the length of the input list")
+    
+    if seed is not None:
+        random.seed(seed)
+
+    return random.sample(input_list, subset_size)
 
 
 def count_total_parameters(params_dict):

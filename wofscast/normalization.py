@@ -70,6 +70,21 @@ def unnormalize(values: xarray.Dataset,
   return xarray_tree.map_structure(unnormalize_array, values)
 
 
+class PyTorchScaler:
+    def __init__(self, mean, std, diff_std):
+        self.mean = mean 
+        self.std = std 
+        self.diff_std = diff_std
+
+    def scale(self, x):
+        return normalize(x, self.std, self.mean)
+
+    def unscale(self, x): 
+        return unnormalize(x, self.std, self.mean)
+    
+    def unscale_residuals(self, x):
+        return unnormalize(x, self.diff_std, None)
+
 class InputsAndResiduals(predictor_base.Predictor):
   """Wraps with a residual connection, normalizing inputs and target residuals.
 
@@ -176,6 +191,11 @@ class InputsAndResiduals(predictor_base.Predictor):
     norm_target_residuals = xarray_tree.map_structure(
         lambda t: self._subtract_input_and_normalize_target(inputs, t),
         targets)
+    
+    #print(f'{norm_inputs=}')
+    #print(f'{norm_forcings=}')
+    #print(f'{norm_target_residuals=}')
+    
     return self._predictor.loss(
         norm_inputs, norm_target_residuals, forcings=norm_forcings, **kwargs)
 

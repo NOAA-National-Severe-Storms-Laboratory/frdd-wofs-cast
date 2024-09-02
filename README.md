@@ -1,21 +1,20 @@
 # WoFSCast: AI-NWP For Storm-Scale Applications 
 
-This repository has code for running, training, and visualizing the preliminary "WoFSCast" model. 
+This repository has code for running, training, and visualizing the  "WoFSCast" model. 
 The repository is derived from the original [GraphCast](https://github.com/google-deepmind/graphcast). Primary changes include 
 reconfiguring the meshing and autoregressive rollout for a limited area domain rather than a full global. This is an actively developed project, file paths and configurations are subject to change.
 
 
-### Reformating WRFOUTs for GraphCast code 
-Rather than refactor the graphcast code, I've opted to reformat the WoFS WRFOUT files. The files are reformated with 
-[`training_pipeline/build_dataset/wrfout_file_formatter.py`](https://github.com/NOAA-National-Severe-Storms-Laboratory/frdd-wofs-cast/blob/master/training_pipeline/build_dataset/wrfout_file_formatter.py) and [`training_pipeline/build_dataset/format_wofs_wrfouts`](https://github.com/NOAA-National-Severe-Storms-Laboratory/frdd-wofs-cast/blob/master/training_pipeline/build_dataset/format_wofs_wrfouts.py).
-The reformatting includes: 
-1. Combining multiple times into a single file 
-2. Convert perturbation variables into the full variables
-3. Renaming coordinates 
-4. Destaggering the grid 
-5. Reducing the number of vertical levels 
+### Installing the Conda Environment 
 
-This list is not exhaustive. 
+Create the conda environment with
+
+```
+conda env create -f environment_12_1.yaml
+```
+Depending on the CUDA binary available on your GPU cluster, you may need to install the 11.8 or 12.1 version. 
+For different version, you'll need to select the approach JAX and PyTorch versions. However, the code was not 
+tested other CUDA versions, so user beware. 
 
 
 ### Training WoFSCast 
@@ -35,7 +34,7 @@ Visualizing the WoFSCast output is found in [`training_pipeline/evaluate_model/v
     to produce a sequence of predictions by auto-regressively feeding the
     outputs back as inputs at each step, in JAX a differentiable way. Modified from the original 
     GraphCast code to allow for updating boundary conditions for limited area modelling. 
-*   `my_graphcast.py`: A modified version of the original GraphCast model architecture for one-step of
+*   `graphcast_lam.py`: A modified version of the original GraphCast model architecture for one-step of
     predictions.
 *   `square_mesh.py`: Definitionof a square multi-mesh and tools for converting between regular grids 
      and the mesh grid. 

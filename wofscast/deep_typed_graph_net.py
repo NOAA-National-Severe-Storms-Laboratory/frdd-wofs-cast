@@ -212,6 +212,12 @@ class DeepTypedGraphNet(hk.Module):
                     create_offset=True,
                     name=name + "_layer_norm",
                 )
+                ## Add GRU layer. 
+                #gru_layer = hk.GRU(
+                #    hidden_size=self._mlp_hidden_size, 
+                #    name = name + "_gru"               
+                #                  )
+
                 network = hk.Sequential([network, layer_norm])
             return jraph.concatenated_args(network)
 

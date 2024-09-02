@@ -1,0 +1,55 @@
+# Configuration file to generate the 10-min timestep WoFSCast training dataset
+# with the original set of variables. Uses the legacy version of the 
+# data generation, which will use the non-negative longitude, etc. 
+
+#BASE_PATH = '/work2/wof/realtime/FCST/' 
+BASE_PATH : '/work2/wofs_zarr'
+OUT_PATH : '/work2/mflora/wofscast_datasets/dataset_10min_full_domain'
+
+# Timestep resolution for the dataset. 
+timestep_minutes : 10  # 60, 5, 10
+# Number of timesteps to include in one sample. 
+n_timesteps : 3        # 3, 24, 12
+# Time in minutes after forecast initialization to start sampling. 
+offset : 60            # 0, 60, 60
+
+years : ['2019', '2020'] 
+
+resize : False 
+subset_dates : False
+
+VARS_TO_KEEP : ['U', 
+                'V', 
+                'W', 
+                'T', 
+                'PH', 
+                'PHB', 
+                'QVAPOR', 
+                'T2', 
+                'RAINNC', 
+                'COMPOSITE_REFL_10CM', 
+                'UP_HELI_MAX',
+                'HGT', 'XLAND'
+                ]
+
+
+mems : [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18]
+
+init_times : [
+              '1900', '1930', 
+              '2000', '2030', 
+              '2100', '2130', 
+              '2200', '2230', 
+              '2300', '2330',
+              '0000', '0030',
+              '0100', '0130',
+              '0200', '0230',
+              '0300']
+
+# Number of random samples used for generating the 
+# normalization statistics. 
+n_samples_for_norm : 10              
+
+# Batch chunk size used for the 
+# normalization stat computation
+batch_size : 64

@@ -4,6 +4,11 @@ from diffusers import UNet2DModel
 import xarray as xr 
 import numpy as np
 
+from .model_utils import dataset_to_stacked, stacked_to_dataset
+from . import model_utils
+
+from typing import Tuple
+
 def pad_to_multiple_of_16(tensor):
     _, _, h, w = tensor.size()
     pad_h = (16 - h % 16) % 16
@@ -12,7 +17,7 @@ def pad_to_multiple_of_16(tensor):
     pad_bottom = pad_h - pad_top
     pad_left = pad_w // 2
     pad_right = pad_w - pad_left
-    padded_tensor = F.pad(tensor, (pad_left, pad_right, pad_top, pad_bottom))
+    padded_tensor = F.pad(tensor, (pad_left, pad_right, pad_top, pad_bottom), mode='replicate')
     return padded_tensor
 
 def crop_to_original_size(tensor, original_height, original_width):
@@ -27,18 +32,24 @@ def crop_to_original_size(tensor, original_height, original_width):
 
 
 class EDMPrecond(torch.nn.Module):
-    """ adapted from https://github.com/NVlabs/edm/blob/008a4e5316c8e3bfe61a62f874bddba254295afb/training/networks.py#L519 """
+    """ Original Func:: https://github.com/NVlabs/edm/blob/008a4e5316c8e3bfe61a62f874bddba254295afb/training/networks.py#L519
+    
+    This is a wrapper for your pytorch model. It's purpose is to apply the preconditioning that is talked about in Karras et al. (2022)'s EDM paper. 
+    
+    I adapted the linked function to take a conditional input. Note for now, the condition is concatenated to the dimension you want denoise (dim:0 for one channel prediction). 
+    
+    
+    
+    """
     def __init__(self,
         img_resolution,                     # Image resolution.
-        img_channels,                       # Number of color channels.
+        img_channels,                       # idk if this is still needed..?
         model,                              # pytorch model from diffusers 
-        label_dim       = 0,                # Number of class labels, 0 = unconditional.
-        use_fp16        = False,            # Execute the underlying model at FP16 precision?
+        label_dim       = 0,                # Ignore this for now 
+        use_fp16        = True,            # Execute the underlying model at FP16 precision?
         sigma_min       = 0,                # Minimum supported noise level.
         sigma_max       = float('inf'),     # Maximum supported noise level.
-        sigma_data      = 0.5,              # Expected standard deviation of the training data.
-        model_type      = 'DhariwalUNet',   # Class name of the underlying model.
-        **model_kwargs,                     # Keyword arguments for the underlying model.
+        sigma_data      = 0.5,              # Expected standard deviation of the training data. this was the default from above
     ):
         super().__init__()
         self.img_resolution = img_resolution
@@ -50,33 +61,46 @@ class EDMPrecond(torch.nn.Module):
         self.sigma_data = sigma_data
         self.model = model
 
-    def forward(self, x, sigma, class_labels=None, force_fp32=False, **model_kwargs):
+    def forward(self, inputs, noisy_targets, sigma, force_fp32=False, **model_kwargs):
         
-        """ note for conditional, it expects x to have the condition in the channel dim. and the image to already be noised """
+        """ 
+        Call method. Preconditioning model from the Karras EDM Paper. 
         
-        x = x.to(torch.float32)
+        inputs : PyTorch Tensor of shape (batch, n_channels, ny, nx)
+            Conditional input images. 
+        targets : PyTorch Tensor of shape (batch, n_channels, ny, nx) 
+            Target images with noise-level sigma applied. 
+        """
+        # To follow the naming convention from RJC and Karras original code. 
+        x_condition = inputs.to(torch.float32)
+        x_noisy = noisy_targets.to(torch.float32) 
         sigma = sigma.to(torch.float32).reshape(-1, 1, 1, 1)
-        class_labels = None if self.label_dim == 0 else torch.zeros([1, self.label_dim], device=x.device) if class_labels is None else class_labels.to(torch.float32).reshape(-1, self.label_dim)
-        dtype = torch.float16 if (self.use_fp16 and not force_fp32 and x.device.type == 'cuda') else torch.float32
-
+        
+        #forcing dtype matching?
+        dtype = torch.float16 if (self.use_fp16 and not force_fp32 and noisy_targets.device.type == 'cuda') else torch.float32
+        
+        #get weights from EDM 
         c_skip = self.sigma_data ** 2 / (sigma ** 2 + self.sigma_data ** 2)
         c_out = sigma * self.sigma_data / (sigma ** 2 + self.sigma_data ** 2).sqrt()
         c_in = 1 / (self.sigma_data ** 2 + sigma ** 2).sqrt()
         c_noise = sigma.log() / 4
-        
-        #split out the noisy image 
-        x_noisy = torch.clone(x[:,[0]])
-        x_condition = torch.clone(x[:,[1]])
-        #concatinate back 
-        model_input_images = torch.cat([x_noisy*c_in, x_condition], dim=1)
-        F_x = self.model((model_input_images).to(dtype), c_noise.flatten(), return_dict=False)[0]
 
+        #concatenate back with the scaling applied to the noisy image 
+        model_input_images = torch.cat([x_noisy*c_in, x_condition], dim=1)
+        
+        #do the model call 
+        F_x = self.model((model_input_images).to(dtype), c_noise.flatten(), return_dict=False)[0]
+ 
+        #is this needed? RJC 
         assert F_x.dtype == dtype
+        #do scaling from EDM 
         D_x = c_skip * x_noisy + c_out * F_x.to(torch.float32)
+        
         return D_x
 
     def round_sigma(self, sigma):
         return torch.as_tensor(sigma)
+
     
 class StackedRandomGenerator:  # pragma: no cover
     """
@@ -122,9 +146,26 @@ class StackedRandomGenerator:  # pragma: no cover
 #################### Funcs ########################
 
 def edm_sampler(
-    net, latents, condition_images,class_labels=None, randn_like=torch.randn_like,
-    num_steps=18, sigma_min=0.002, sigma_max=80, rho=7,
-    S_churn=0, S_min=0, S_max=float('inf'), S_noise=1,
+    net, latents, condition_images, class_labels=None, randn_like=torch.randn_like,
+    num_steps=18, 
+    
+    # Setting from GenCast. 
+    sigma_min = 0.002, # Match CorrDiff
+    sigma_max= 800, # Match CorrDiff
+    rho = 7,
+    #S_churn = 2.5,
+    #S_min = 0.75,
+    #S_max = 80, 
+    #S_noise = 1.05, 
+    
+    # original settings.
+    #sigma_min=0.002, 
+    #sigma_max=80, 
+    #rho=7,
+    S_churn=0.0, 
+    S_min=0, 
+    S_max=float('inf'), 
+    S_noise=1,
 ):
     """ adapted from: https://github.com/NVlabs/edm/blob/008a4e5316c8e3bfe61a62f874bddba254295afb/generate.py 
     
@@ -142,6 +183,7 @@ def edm_sampler(
     
     # Main sampling loop.
     x_next = latents.to(torch.float64) * t_steps[0]
+    
     for i, (t_cur, t_next) in enumerate(zip(t_steps[:-1], t_steps[1:])): # 0, ..., N-1
         x_cur = x_next
 
@@ -151,85 +193,97 @@ def edm_sampler(
         x_hat = x_cur + (t_hat ** 2 - t_cur ** 2).sqrt() * S_noise * randn_like(x_cur)
 
         #need to concat the condition here 
-        model_input_images = torch.cat([x_hat, condition_images], dim=1)
+        #model_input_images = torch.cat([x_hat, condition_images], dim=1)
         # Euler step.
         with torch.no_grad():
-            denoised = net(model_input_images, t_hat).to(torch.float64)
+            denoised = net(condition_images, x_hat, t_hat, force_fp32=True).to(torch.float64)
 
         d_cur = (x_hat - denoised) / t_hat
         x_next = x_hat + (t_next - t_hat) * d_cur
 
         # Apply 2nd order correction.
         if i < num_steps - 1:
-            model_input_images = torch.cat([x_next, condition_images], dim=1)
+            #model_input_images = torch.cat([x_next, condition_images], dim=1)
             with torch.no_grad():
-                denoised = net(model_input_images, t_next).to(torch.float64)
+                #denoised = net(model_input_images, t_next).to(torch.float64)
+                denoised = net(condition_images, x_next, t_next, force_fp32=True).to(torch.float64)
             d_prime = (x_next - denoised) / t_next
             x_next = x_hat + (t_next - t_hat) * (0.5 * d_cur + 0.5 * d_prime)
 
     return x_next
 
-def unscale(data, std=13.0, mean=7.348):
-    data = data * std
-    data = data + mean
-    return data
-
-def scale(data, std=13.0, mean=7.348):
-    scaled_data = (data - mean) / std
-    return scaled_data
-
-def apply_diffusion(predictions, model, num_steps=100):
-    """Apply a diffusion model to the composite reflectivity predictions"""
+def apply_diffusion(predictions, targets_template, model, scaler, num_steps=100, sampler_kwargs={}, variables=None):
+    """Apply a diffusion model to the current time step output."""
     #run sampler 
     batch_size = len(predictions.batch)
-    domain_size = 160 # Expected domain size for the diffuser. Made it larger for deeper U-net. 
+    #domain_size = 160 # Expected domain size for the diffuser. Made it larger for deeper U-net. 
+    #n_channels = 105
+    original_domain_size = predictions.dims['lat']
     
     rnd = StackedRandomGenerator('cuda',np.arange(0,batch_size,1).astype(int).tolist())
     
-    # Reorder so time dim is first. 
-    predictions = predictions.transpose('time', 'batch', 'lat', 'lon', 'level')
-    predicted_refl = predictions['COMPOSITE_REFL_10CM'].values # shape= time, batch, ny, nx 
-    
-    #scale data
-    predicted_refl_scaled = scale(predicted_refl)
-
-    
-    data_over_time = []
-    for t in range(predicted_refl.shape[0]):
-        this_predicted_refl = predicted_refl_scaled[t,...]
-    
-        # Add channel dimension
-        this_predicted_refl = this_predicted_refl[:, np.newaxis, :, :]
-
-        # Convert to torch tensor and add padding. Move the tensor to the GPU
-        predicted_refl_tensor = torch.tensor(this_predicted_refl, dtype=torch.float32).cuda()
-        predicted_refl_tensor = pad_to_multiple_of_16(predicted_refl_tensor)
-    
-        latents = rnd.randn([batch_size, 1, domain_size, domain_size],device='cuda')
-        images_batch = edm_sampler(model,latents, predicted_refl_tensor, num_steps=num_steps)
-    
-        # Crop the tensor back to the original size
-        images_batch_cropped = crop_to_original_size(images_batch, 150, 150)
-    
-        # Convert the torch tensor back to numpy; also need to add the time dimension
-        # Also unscale the data. 
-        images_batch_np = unscale(images_batch_cropped.cpu().numpy())
-    
-        # Create a new DataArray with the updated predictions
-        data = xr.DataArray(images_batch_np, 
-                        dims=['batch', 'channel', 'lat', 'lon'])
-    
-        # Remove the channel dimension
-        data = data.squeeze('channel')
+    # If the diffusion model is only meant to be applied to a subset of variables.
+    if variables:
+        n_channels = len(variables)
+        if isinstance(variables, str):
+            variables = [variables] 
         
-        # Add the time dimension back
-        data = data.expand_dims('time').assign_coords(time=[predictions['time'][t].values])
+        predictions_subset = predictions[variables].copy(deep=True) 
+    else:
+        variables = list(predictions.data_vars)
+        predictions_subset = predictions.copy(deep=True) 
     
-        data_over_time.append(data)
+    # Normalize the input, drop the time dimension, and stack.
+    predictions_scaled = scaler.scale(predictions_subset)
     
-    data = xr.concat(data_over_time, dim='time')
+    pred_stacked = dataset_to_stacked(
+        predictions_scaled.squeeze(dim='time')).transpose('batch', 'channels', 'lat', 'lon').values 
+    pred_stacked_tensor = torch.tensor(pred_stacked, dtype=torch.float32).cuda() 
+ 
+    # Convert to torch tensor and add padding. Move the tensor to the GPU
+    if original_domain_size == 150:
+        predicted_tensor_pad = pad_to_multiple_of_16(pred_stacked_tensor)
+    else:
+        predicted_tensor_pad = F.pad(pred_stacked_tensor, (10, 10, 10, 10), mode='replicate')
+        # (300,300) -> (320,320); hacky!
     
-    # Replace the original predictions with the new data
-    predictions['COMPOSITE_REFL_10CM'] = data
+    #latents = rnd.randn([batch_size, n_channels, domain_size, domain_size], device='cuda')
 
-    return predictions 
+    latents = torch.randn(predicted_tensor_pad.shape, device='cuda')
+    
+    # The output is the normalized residual. 
+    residual = edm_sampler(model, latents, predicted_tensor_pad, num_steps=num_steps, **sampler_kwargs)
+    
+    # Crop the tensor back to the original size
+    residual_cropped = crop_to_original_size(residual, original_domain_size, original_domain_size)
+    
+    residual_xarray = xr.DataArray(
+        data=residual_cropped.cpu().numpy(),
+        dims=("batch", "channels", "lat", "lon"))
+    
+    residual_xarray =  residual_xarray.transpose("batch", "lat", "lon", "channels")
+    
+    residual_dataset = stacked_to_dataset( residual_xarray.variable, 
+                                         predictions_subset.squeeze(dim='time'), 
+                                         preserved_dims=("batch", "lat", "lon")) 
+    
+    # Add the time dimension back and tranpose 
+    residual_dataset = residual_dataset.expand_dims('time').assign_coords(time=[predictions['time'][0].values])
+
+    dims = ('batch', 'time', 'lat', 'lon', 'level')
+    residual_dataset = residual_dataset.transpose(*dims, missing_dims='ignore')
+    
+    # Unnormalize the target residuals and add them to the unscaled 
+    # inputs to get the updated predictions. 
+    unscaled_residual = scaler.unscale_residuals(residual_dataset)
+    for v in variables:
+        predictions[v] = predictions[v] + unscaled_residual[v]
+    
+    return predictions
+
+
+
+
+
+
+    

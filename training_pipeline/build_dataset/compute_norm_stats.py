@@ -1,24 +1,17 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# ## Compute the normalization statistics for the GraphCast code
-
-# In[1]:
+# Compute the normalization statistics for the GraphCast code
 
 
-import xarray as xr 
-import numpy as np
-from glob import glob
-
-import random 
-import os
-
+""" usage: stdbuf -oL python -u compute_norm_stats.py --config dataset_5min_train_config.yaml > & log_compute_norm_stats & """
+# Add the relative path to the wofscast package. 
 import sys, os 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.getcwd())))
 
+from wofscast.utils import get_random_subset, load_yaml
+from wofscast import data_utils
 from wofscast import graphcast_lam as graphcast
-import dask 
-
 from wofscast.data_generator import (add_local_solar_time, 
                                      to_static_vars, 
                                      load_chunk, 
@@ -27,133 +20,130 @@ from wofscast.data_generator import (add_local_solar_time,
                                      WRFZarrFileProcessor,
                                      WoFSDataProcessor
                                     )
-from wofscast import data_utils
 from wofscast.wofscast_task_config import (DBZ_TASK_CONFIG, 
                                            WOFS_TASK_CONFIG, 
+                                           WOFS_TASK_CONFIG_GC,
                                            DBZ_TASK_CONFIG_1HR,
-                                           DBZ_TASK_CONFIG_FULL
+                                           DBZ_TASK_CONFIG_FULL,
+                                           WOFS_TASK_CONFIG_5MIN,
+                                           WOFS_TASK_CONFIG_1HR
                                           )
+
+import xarray as xr 
+import numpy as np
+from glob import glob
+import time 
+import random 
+import dask 
+import argparse 
+
 from os.path import join
-
-
-import random
-
-def get_random_subset(input_list, subset_size, seed=123):
-    """
-    Get a random subset of a specified size from the input list.
-
-    Parameters:
-    -----------
-    input_list : list
-        The original list from which to draw the subset.
-    subset_size : int
-        The size of the subset to be drawn.
-    seed : int, optional
-        The seed for the random number generator. Default is None.
-
-    Returns:
-    --------
-    list
-        A random subset of the input list.
-    """
-    if subset_size > len(input_list):
-        raise ValueError("subset_size must be less than or equal to the length of the input list")
-    
-    if seed is not None:
-        random.seed(seed)
-
-    return random.sample(input_list, subset_size)
-
-
+from concurrent.futures import ThreadPoolExecutor
 from dask.diagnostics import ProgressBar
 
-def compute_normalization_stats(paths, gpu_batch_size, task_config, save_path, 
-                                batch_over_time=False, preprocess_fn=None): 
+
+def compute_normalization_stats(paths, gpu_batch_size, save_path, 
+                                compute_metrics=['mean', 'stddev', 'diffs_stddev'], 
+                                preprocess_fn=None):
 
     with dask.config.set(**{'array.slicing.split_large_chunks': False}):
         
-        full_dataset = load_chunk(paths, batch_over_time, 
-                                  gpu_batch_size, preprocess_fn) 
-
-        full_dataset = full_dataset.chunk({'lat' : 50, 'lon' : 50, 'batch' : 128})
+        full_dataset = load_chunk(paths, gpu_batch_size, preprocess_fn) 
         
-        # Setup computations using scattered data
-        mean_by_level = full_dataset.mean(dim=['time', 'lat', 'lon', 'batch'])
-        stddev_by_level = full_dataset.std(dim=['time', 'lat', 'lon', 'batch'], ddof=1)
+        full_dataset = full_dataset.chunk({'lat': 50, 
+                                           'lon': 50, 
+                                           'batch': gpu_batch_size})
 
-        time_diffs = full_dataset.diff(dim='time')
-        diffs_stddev_by_level = time_diffs.std(dim=['time', 'lat', 'lon', 'batch'], ddof=1)
-
-        # Save results to NetCDF files (this triggers the computation)
-        # Save results to NetCDF files (this triggers the computation)
-        with ProgressBar():
-            mean_by_level.to_netcdf(os.path.join(save_path, 'mean_by_level.nc'))
-            stddev_by_level.to_netcdf(os.path.join(save_path, 'stddev_by_level.nc'))
-            diffs_stddev_by_level.to_netcdf(os.path.join(save_path, 'diffs_stddev_by_level.nc'))
+        all_datasets = [full_dataset]
+        
+        if 'mean' in compute_metrics:
+            mean_by_level = full_dataset.mean(dim=['time', 'lat', 'lon', 'batch'])
+            all_datasets.append(mean_by_level)
+            with ProgressBar():
+                mean_by_level.to_netcdf(os.path.join(save_path, 'mean_by_level.nc'))
+        
+        if 'stddev' in compute_metrics:
+            stddev_by_level = full_dataset.std(dim=['time', 'lat', 'lon', 'batch'], ddof=1)
+            all_datasets.append(stddev_by_level)
+            with ProgressBar():
+                stddev_by_level.to_netcdf(os.path.join(save_path, 'stddev_by_level.nc'))
+        
+        if 'diffs_stddev' in compute_metrics:
+            time_diffs = full_dataset.diff(dim='time')
+            diffs_stddev_by_level = time_diffs.std(dim=['time', 'lat', 'lon', 'batch'], ddof=1)
+            all_datasets.append(diffs_stddev_by_level)
+            with ProgressBar():
+                diffs_stddev_by_level.to_netcdf(os.path.join(save_path, 'diffs_stddev_by_level.nc'))
 
         # Close all datasets
-        all_datasets = [full_dataset, mean_by_level, stddev_by_level, diffs_stddev_by_level]
-        
         for ds in all_datasets:
             ds.close()
-
-import os
-from os.path import join
-from concurrent.futures import ThreadPoolExecutor
-
-base_path = '/work/mflora/wofs-cast-data/datasets_zarr'
-years = ['2019', '2020']
-
+        
 def get_files_for_year(year):
     year_path = join(base_path, year)
     with os.scandir(year_path) as it:
         return [join(year_path, entry.name) for entry in it if entry.is_dir() and entry.name.endswith('.zarr')]
-        #return [join(year_path, entry.name) for entry in it if entry.is_file()]
+
+if __name__ == "__main__": 
     
-with ThreadPoolExecutor() as executor:
-    paths = []
-    for files in executor.map(get_files_for_year, years):
-        paths.extend(files)
+    # Config files are assumed to be stored in data_gen_configs/
+    BASE_CONFIG_PATH = 'data_gen_configs'
 
-print(len(paths))
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--config', type=str, help='config.yaml path')
+    args = parser.parse_args()
 
-#random_paths = get_random_subset(paths, 4096)
-# Save to NetCDF files
-save_path = '/work/mflora/wofs-cast-data/full_normalization_stats/'
+    config_path = os.path.join(BASE_CONFIG_PATH, args.config)
+    config_dict = load_yaml(config_path)
+    
+    base_path = config_dict['OUT_PATH']
+    save_path = config_dict['OUT_NORM_PATH'] 
+    n_samples_for_norm = config_dict['n_samples_for_norm']
+    years = config_dict['years'] 
+    
+    if not os.path.exists(save_path):
+        os.makedirs(save_path, exist_ok=True) 
+    
+    with ThreadPoolExecutor() as executor:
+        paths = []
+        for files in executor.map(get_files_for_year, years):
+            paths.extend(files)
+         
+    random_paths = get_random_subset(paths, n_samples_for_norm)
+    
+    start_time = time.time() 
+    # Configure Dask to use a single-threaded scheduler
+    dask.config.set(scheduler='threads', num_workers=4)
+      
+    compute_normalization_stats(random_paths, 
+                            gpu_batch_size=config_dict['batch_size'], 
+                            save_path=save_path, 
+                            compute_metrics=[
+                                             #'mean', 
+                                             #'stddev', 
+                                             'diffs_stddev'
+                                    ]
+                           )
 
-compute_normalization_stats(paths, 
-                            gpu_batch_size=len(paths), 
-                            task_config=WOFS_TASK_CONFIG, 
-                            save_path=save_path)
+    end_time = time.time()
+    time_to_run = end_time - start_time
+    time_to_run_minutes = time_to_run / 60
 
+    print(f'Time to Run: {time_to_run_minutes:.3f} mins')
+    
+''' Deprecated! 
+    def preprocess_fn(dataset):
+        _path = '/work/mflora/wofs-cast-data/datasets_zarr/2021/'
+        latlon_path = os.path.join(_path, 'wrfwof_2021-05-15_040000_to_2021-05-15_043000__10min__ens_mem_09.zarr')
+        fn = WoFSDataProcessor(latlon_path=latlon_path)
+        
+        dataset = fn(dataset)
+        
+        dataset = add_local_solar_time(dataset) 
+        
+        level_values = np.arange(dataset.dims['level'])
+        dataset = dataset.assign_coords(level=("level", level_values))
+        
+        return dataset     
 '''
-# ### Compute normalization statistics from DBZ_TASK_CONFIG_1HR
-#%%time 
-# Usage
-base_path = '/work2/wofs_zarr/'
-years = ['2019', '2020']
-resolution_minutes = 10
-
-# Specify the restrictions for testing
-restricted_dates = None
-restricted_times = ['1900', '2000', '2100', '2200', '2300', '0000', '0100', '0200', '0300']
-restricted_members = ['ENS_MEM_1', 'ENS_MEM_12', 'ENS_MEM_17', 'ENS_MEM_5']#, 'ENS_MEM_10', 'ENS_MEM_11']
-
-processor = WRFZarrFileProcessor(base_path, years, 
-                             resolution_minutes, 
-                             restricted_dates, 
-                             restricted_times, restricted_members)
-
-paths = processor.run()
-
-random_paths = get_random_subset(paths, 6)
-
-save_path = '/work/mflora/wofs-cast-data/normalization_stats_full_domain'
-
-preprocessor = WoFSDataProcessor()
-
-compute_normalization_stats(random_paths, gpu_batch_size=len(random_paths), 
-                            task_config=DBZ_TASK_CONFIG_FULL, 
-                            save_path=save_path, batch_over_time=True, 
-                            preprocess_fn=preprocessor)
-'''
+    

@@ -1,18 +1,9 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# ## Goals
-# 
-# 
-# 1. For a given ensemble member, combine WRFOUTs from forecast times into a single Zarr file
-#     - Compute the add_local_solar_time during this phase? 
-#     - Store full 3D (all vertical levels and 5 min resolution)? 
-# 
-# - Store data for ensemble members separately? 
-# - Add dim for init times & ensemble members? 
-# - upscaled 1 km 
-
-# In[1]:
+# THIS SCRIPT CONVERTS THE WRFOUT NETCDF FILES TO ZARR FILES.
+# INCLUDES PRE-PROCESSING SUCH AS DESTAGGERING THE GRID, 
+# COMPUTING FULL TEMP AND GEOPOT, 
 
 
 import pandas as pd

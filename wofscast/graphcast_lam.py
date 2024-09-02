@@ -139,6 +139,15 @@ class GraphCast(predictor_base.Predictor):
     domain_size = task_config.domain_size
     tiling = task_config.tiling
     
+    #print('MAKE SURE YOU HAVE THE CORRECT ACTIVATION FUNCTION!') 
+    #try:
+    #    activation = task_config.activation 
+    #except:
+    #    activation = "swish" 
+    
+    #activation = "gelu" # For new training, need to make this retro-factored for older models.
+    activation = "swish" 
+    
     self._spatial_features_kwargs = dict(
         # Since we are using a limited area domain and assuming a single 
         # lat/lon grid, removed node lat/lon as predictions. But kept 
@@ -154,7 +163,7 @@ class GraphCast(predictor_base.Predictor):
 
     # Specification of the multimesh.
     self._meshes = (
-        square_mesh.get_hierarchy_of_triangular_meshes(
+          square_mesh.get_hierarchy_of_triangular_meshes(
             splits=model_config.mesh_size, domain_size=domain_size, tiling=tiling))
 
     # Encoder, which moves data from the grid to the mesh with a single message
@@ -171,7 +180,7 @@ class GraphCast(predictor_base.Predictor):
         num_message_passing_steps=1,
         use_layer_norm=True,
         include_sent_messages_in_node_update=False,
-        activation="swish",
+        activation= activation, # MLF: change from swish to gelu.
         f32_aggregation=True,
         aggregate_normalization=None,
         name="grid2mesh_gnn",
@@ -193,7 +202,7 @@ class GraphCast(predictor_base.Predictor):
         num_message_passing_steps=model_config.gnn_msg_steps,
         use_layer_norm=True,
         include_sent_messages_in_node_update=False,
-        activation="swish",
+        activation=activation, # MLF: change from swish to gelu.
         f32_aggregation=False,
         name="mesh_gnn",
         
@@ -209,7 +218,7 @@ class GraphCast(predictor_base.Predictor):
           
     # Compute the number of expected output.
     num_outputs = n_vars_2D + (n_levels * n_vars_3D)
-
+    
     # Decoder, which moves data from the mesh back into the grid with a single
     # message passing step.
     self._mesh2grid_gnn = deep_typed_graph_net.DeepTypedGraphNet(
@@ -224,9 +233,9 @@ class GraphCast(predictor_base.Predictor):
         mlp_hidden_size=model_config.latent_size,
         mlp_num_hidden_layers=model_config.hidden_layers,
         num_message_passing_steps=1,
-        use_layer_norm=False, # Paper says this is suppose to be False!!
+        use_layer_norm=True, 
         include_sent_messages_in_node_update=False,
-        activation="swish",
+        activation= activation, # MLF: change from swish to gelu.
         f32_aggregation=False,
         name="mesh2grid_gnn",
     )
@@ -243,6 +252,8 @@ class GraphCast(predictor_base.Predictor):
     self._mesh2grid_edge_normalization_factor = (
         model_config.mesh2grid_edge_normalization_factor
     )
+    
+    ###print(f'{self._mesh2grid_edge_normalization_factor=}')
 
     # Other initialization is delayed until the first call (`_maybe_init`)
     # when we get some sample data so we know the lat/lon values.
@@ -288,7 +299,7 @@ class GraphCast(predictor_base.Predictor):
     # [num_mesh_nodes, batch, latent_size], [num_grid_nodes, batch, latent_size]
     (latent_mesh_nodes, latent_grid_nodes
      ) = self._run_grid2mesh_gnn(grid_node_features)
-
+    
     # Run message passing in the multimesh.
     # [num_mesh_nodes, batch, latent_size]
     updated_latent_mesh_nodes = self._run_mesh_gnn(latent_mesh_nodes)
@@ -367,6 +378,7 @@ class GraphCast(predictor_base.Predictor):
     mesh_nodes_lon, mesh_nodes_lat = square_mesh.get_mesh_coords(self._finest_mesh, 
                                                                  self._grid_lat , 
                                                                  self._grid_lon)
+    
     # Convert to f32 to ensure the lat/lon features aren't in f64.
     self._mesh_nodes_lat = mesh_nodes_lat.astype(np.float32)
     self._mesh_nodes_lon = mesh_nodes_lon.astype(np.float32)
@@ -398,7 +410,7 @@ class GraphCast(predictor_base.Predictor):
     # Edges sending info from grid to mesh.
     senders = grid_indices
     receivers = mesh_indices
-
+ 
     # Precompute structural node and edge features according to config options.
     # Structural features are those that depend on the fixed values of the
     # latitude and longitudes of the nodes.
@@ -438,6 +450,7 @@ class GraphCast(predictor_base.Predictor):
 
   def _init_mesh_graph(self) -> typed_graph.TypedGraph:
     """Build Mesh graph."""
+
     merged_mesh = square_mesh.merge_meshes(self._meshes)
 
     # Work simply on the mesh edges.
@@ -488,6 +501,7 @@ class GraphCast(predictor_base.Predictor):
 
     # Create some edges according to how the grid nodes are contained by
     # mesh triangles.
+    
     (grid_indices,
      mesh_indices) = square_mesh.in_mesh_triangle_indices(
          grid_size=len(self._grid_lat),
