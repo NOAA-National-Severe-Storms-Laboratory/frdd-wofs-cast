@@ -9,7 +9,9 @@ from plot_params import target_vars, display_name_mapper, units_mapper
 from wofscast.data_generator import (load_chunk, 
                                      WRFZarrFileProcessor,
                                      WoFSDataProcessor, 
-                                     dataset_to_input
+                                     dataset_to_input,
+                                     add_local_solar_time,
+                                     open_zarr
                                     )
 
 # Third-party
@@ -18,14 +20,89 @@ import xarray
 import numpy as np 
 import matplotlib.pyplot as plt
 from glob import glob
+from datetime import datetime, timedelta
 
 import pandas as pd
 import xarray as xr
+from tqdm import tqdm
+from wofscast.diffusion import EDMPrecond
+from diffusers import UNet2DModel
+import itertools 
 
 
 import sys
 sys.path.insert(0, '/home/monte.flora/python_packages/MontePython')
 import monte_python
+
+from pathlib import Path 
+class MRMSDataLoader: 
+    
+    MRMS_PATH = '/work/rt_obs/MRMS/RAD_AZS_MSH/'
+    
+    def __init__(self, case_date, datetime_rng):
+        self.case_date = case_date
+        self.datetime_rng = datetime_rng 
+
+    def find_mrms_files(self):
+        """
+        When given a start and end date, this function will find any MRMS RAD 
+        files between those time periods. It will check if the path exists. 
+        """
+        year = str(self.datetime_rng[0].year) 
+        mrms_filenames = [date.strftime('wofs_MRMS_RAD_%Y%m%d_%H%M.nc') for date in self.datetime_rng]
+
+        mrms_filepaths = [Path(self.MRMS_PATH).joinpath(year, self.case_date, f) 
+                          if Path(self.MRMS_PATH).joinpath(year, self.case_date, f).is_file() else None
+                          for f in mrms_filenames 
+                 ]
+       
+        return mrms_filepaths 
+    
+    def resize(self, ds, n_lat=300, n_lon=300, domain_size=150):
+        """Resize the domain"""
+        start_lat, start_lon = (n_lat - domain_size) // 2, (n_lon - domain_size) // 2
+        end_lat, end_lon = start_lat + domain_size, start_lon + domain_size
+        
+        # Subsetting the dataset to the central size x size grid
+        ds_subset = ds.isel(lat=slice(start_lat, end_lat), lon=slice(start_lon, end_lon))
+        
+        return ds_subset
+    
+    def load(self):
+
+        files = self.find_mrms_files()
+        
+        # Initialize an empty list to store the datasets with 'mesh_consv' variable
+        data = np.zeros((len(files), 150, 150))
+
+        # Load 'mesh_consv' variable from each file and append to the datasets list
+        for t, file in enumerate(files):
+            if file is not None: 
+                ds = xr.open_dataset(file, drop_variables=['lat', 'lon'])
+                
+                # Resize the output to 150 x 150
+                ds = self.resize(ds)
+                
+                data[t,:,:] = ds['dz_consv'].values
+    
+                ds.close()
+        
+
+        return data
+
+def get_case_date(path):
+    name = os.path.basename(path)
+    comps = name.split('_')
+    
+    start_date = comps[1]+'_'+comps[2]
+    start_date_dt = datetime.strptime(start_date, '%Y-%m-%d_%H%M%S')
+    
+    if start_date_dt.hour < 14:
+        case_date = start_date_dt.date() - timedelta(days=1)
+    else:
+        case_date = start_date_dt.date() 
+        
+    return case_date.strftime('%Y%m%d')
 
 def to_datetimes(path, n_times = 13):  
     name, freq, ens_mem = os.path.basename(path).split('__')
@@ -33,6 +110,9 @@ def to_datetimes(path, n_times = 13):
     start_time = pd.Timestamp(start_time_dt)
     
     dt_list = pd.date_range(start=start_time, periods=n_times, freq=freq)
+    
+    # Remove the first 2 time steps, since those aren't plotted 
+    # as they are used as the initial input. 
     return dt_list[2:]
 
 
@@ -117,35 +197,66 @@ def accumulate_rmse(targets, predictions, target_vars, rmse_dict):
         
     return rmse_dict
 
-def process_time_step(this_pred, this_tar):
-    # Identify objects
+def process_time_step(this_pred, this_tar, this_mrms):
+        
+    # Identify WoFSCast storm objects.
     labels_pred, pred_object_props = monte_python.label(
-        input_data=this_pred['COMPOSITE_REFL_10CM'],
-        method='single_threshold', 
-        return_object_properties=True, 
-        params={'bdry_thresh': 40})
-
+            input_data=this_pred['COMPOSITE_REFL_10CM'],
+            method='single_threshold', 
+            return_object_properties=True, 
+            params={'bdry_thresh': 47})
+        
+    # Identify the WoFS storm objects.
     labels_tar, tar_object_props = monte_python.label(
-        input_data=this_tar['COMPOSITE_REFL_10CM'],
-        method='single_threshold', 
-        return_object_properties=True, 
-        params={'bdry_thresh': 40})
-
+            input_data=this_tar['COMPOSITE_REFL_10CM'],
+            method='single_threshold', 
+            return_object_properties=True, 
+            params={'bdry_thresh': 47})
+    
+    # WoFS has a high reflectivity bias, so for percentile-matching
+    # use a lower MRMS dBZ threshold. Using Skinner et al. (2018)
+    # 40 MRMS ~ 44-45 WOFS. 
+    labels_mrms, mrms_object_props = monte_python.label(
+            input_data=this_mrms,
+            method='single_threshold', 
+            return_object_properties=True, 
+            params={'bdry_thresh': 40})
+    
     # Quality control
     labels_pred, pred_object_props = qcer.quality_control(
-        this_pred['COMPOSITE_REFL_10CM'], labels_pred, pred_object_props, qc_params)
+            this_pred['COMPOSITE_REFL_10CM'], labels_pred, pred_object_props, qc_params)
 
     labels_tar, tar_object_props = qcer.quality_control(
-        this_tar['COMPOSITE_REFL_10CM'], labels_tar, tar_object_props, qc_params)
-
-    # Update metrics
+            this_tar['COMPOSITE_REFL_10CM'], labels_tar, tar_object_props, qc_params)
+    
+    labels_mrms, mrms_object_props = qcer.quality_control(
+            this_mrms, labels_mrms, mrms_object_props, qc_params)
+    
+    # Update metrics for WoFSCast vs. WoFS
     obj_verifier.update_metrics(labels_tar, labels_pred)
-    results = {key: getattr(obj_verifier, f"{key}_") for key in ["hits", "false_alarms", "misses"]}
+    results1 = {f'wofscast_vs_wofs_{key}': getattr(obj_verifier, f"{key}_") 
+                for key in ["hits", "false_alarms", "misses"]}
     
     obj_verifier.reset_metrics()
     
+    # Update metrics for WoFSCast vs. MRMS 
+    obj_verifier.update_metrics(labels_mrms, labels_pred)
+    results2 = {f'wofscast_vs_mrms_{key}': getattr(obj_verifier, f"{key}_")
+                    for key in ["hits", "false_alarms", "misses"]}
+    
+    obj_verifier.reset_metrics()
+    
+    # Update metrics for WoFS vs. MRMS 
+    obj_verifier.update_metrics(labels_mrms, labels_tar)
+    results3 = {f'wofs_vs_mrms_{key}': getattr(obj_verifier, f"{key}_") 
+                    for key in ["hits", "false_alarms", "misses"]}
+    
+    obj_verifier.reset_metrics()
+    
+    return {**results1, **results2, **results3}
+        
     return results
-
+        
 def replace_zeros(data): 
     return np.where(data==0, 1e-5, data)
 
@@ -181,11 +292,12 @@ def rmse_dict_to_dataframe(rmse_dict):
     return df
 
 
-
 if __name__ == "__main__":
     
-    matcher = monte_python.ObjectMatcher(cent_dist_max = 7, 
-                                     min_dist_max = 7, 
+    """ usage: stdbuf -oL python -u evaluate-models-and-save-results.py > & log_evaluate & """
+    
+    matcher = monte_python.ObjectMatcher(cent_dist_max = 14, # 40 km distance to match 
+                                     min_dist_max = 14, 
                                      time_max=0, 
                                      score_thresh=0.2, 
                                      one_to_one = True)
@@ -194,58 +306,108 @@ if __name__ == "__main__":
     qcer = monte_python.QualityControler()
     qc_params = [('min_area', 12)]
     
-    
     # For the time series
     #MODEL_PATH = '/work/mflora/wofs-cast-data/model/wofscast_baseline_full_v2.npz'
-    MODEL_PATH = '/work/mflora/wofs-cast-data/model/wofscast_baseline.npz'
+    #MODEL_PATH = '/work/mflora/wofs-cast-data/model/wofscast_baseline.npz'
 
+    #MODEL_PATH = '/work/mflora/wofs-cast-data/model/wofscast_reproducibility_test_seed_42.npz'
+    
+    MODEL_PATH = '/work/cpotvin/WOFSCAST/model/wofscast_test_v203.npz'
+    
+    #MODEL_PATH = '/work/mflora/wofs-cast-data/model/wofscast_best_10min_model.npz'
+
+    #MODEL_PATH = '/work/mflora/wofs-cast-data/model/wofscast_10min_model_noise_v1.npz'
+    
+    tag = '_47dbz' #'_15min'
+    
+    use_diffusion = False
+    model_wrapped = None
+    if use_diffusion: 
+        #wrap diffusers/pytorch model 
+        domain_size = 160
+        diffusion_model_path = "/work/mflora/wofs-cast-data/diffusion_models/diffusion_v2"
+        diffusion_model = UNet2DModel.from_pretrained(diffusion_model_path).to('cuda')
+        model_wrapped = EDMPrecond(domain_size, 1, diffusion_model)
+    
+    
     model = WoFSCastModel()
 
     model.load_model(MODEL_PATH)
-
 
     n_times = 12 
 
     rmse_dict = { 'Full Domain' : {v : np.zeros((n_times,)) for v in target_vars},
                   'Convective Regions' : {v : np.zeros((n_times,)) for v in target_vars},
             }
+    
 
-    cont_dict = {metric : np.zeros((n_times)) for metric in ['hits', 'misses', 'false_alarms']}
+    metrics = ['hits', 'misses', 'false_alarms']
+    subkeys = ['wofscast_vs_wofs', 'wofscast_vs_mrms', 'wofs_vs_mrms'] 
 
+    cont_dict={}
+    for m, s in itertools.product(metrics, subkeys):
+        cont_dict[f'{s}_{m}'] = np.zeros((n_times))
+    
 
     # Selecting a single ensemble member. 
-    base_path = '/work/mflora/wofs-cast-data/datasets_2hr_zarr/2021/*_ens_mem_09.zarr'
+    #base_path = '/work/mflora/wofs-cast-data/datasets_2hr_zarr/2021/*_ens_mem_09.zarr'
+    base_path = '/work2/mflora/wofscast_datasets/dataset_10min_15min_init/2021/*_ens_mem_09.zarr'
+    
     paths = glob(base_path)
     paths.sort()
 
-    N_SAMPLES = 5
+    N_SAMPLES = 100
 
     rs = np.random.RandomState(42)
     random_paths = rs.choice(paths, size=N_SAMPLES, replace=False)
 
     N = len(random_paths)
-
-    for path in random_paths: 
+  
+    for path in tqdm(random_paths): 
         print(f"Evaluating {path}...")
-        dataset = load_chunk([path], batch_over_time=False, gpu_batch_size=32)
+        #dataset = load_chunk([path], gpu_batch_size=1, preprocess_fn=add_local_solar_time)
+        
+        dataset = open_zarr(path)
+        dataset = add_local_solar_time(dataset)
+        # Reset the levels coordinate
+        #if '15min_init' in base_path:
+        #    dataset.coords['level'] = np.arange(dataset.dims['level'])
+
+        dataset = dataset.expand_dims(dim='batch', axis=0)
+        
         dataset = dataset.compute() 
         inputs, targets, forcings = dataset_to_input(dataset, model.task_config, 
                                              target_lead_times=slice('10min', '120min'), 
                                              batch_over_time=False, n_target_steps=12)
 
-        predictions = model.predict(inputs, targets, forcings)
+        predictions = model.predict(inputs, targets, forcings, diffusion_model=model_wrapped)
         predictions = predictions.transpose('batch', 'time', 'level', 'lat', 'lon')
-
+        
+        # Load the MRMS data and compute object verification statistics 
+        # against both the WoFS and MRMS. 
+        case_date = get_case_date(path)
+        dts = to_datetimes(path, n_times = len(predictions.time)+2)
+        loader = MRMSDataLoader(case_date, dts)
+        try:
+            mrms_dz = loader.load() 
+            
+            results = [process_time_step(predictions.isel(time=t, batch=0), 
+                                     targets.isel(time=t, batch=0),
+                                     mrms_dz[t,...]
+                                    )
+                          for t in np.arange(n_times)]
+    
+            for t, result in enumerate(results):
+                for key in cont_dict.keys():
+                    cont_dict[key][t] += result[key]
+            
+            
+        except OSError:
+            print(f'Unable to load MRMS data for {case_date}')
+        
+        # Compute the RMSE statistics. 
         rmse_dict = accumulate_rmse(targets, predictions, target_vars, rmse_dict)
 
-        results = [process_time_step(predictions.isel(time=t, batch=0), targets.isel(time=t, batch=0))
-              for t in np.arange(n_times)]
-    
-        for t, result in enumerate(results):
-            for key in cont_dict.keys():
-                cont_dict[key][t] += result[key]
-    
-    
     for key in rmse_dict.keys():
         for v in target_vars:
             rmse_dict[key][v]/=N
@@ -253,22 +415,29 @@ if __name__ == "__main__":
     # Save the RMSE results. 
     df = rmse_dict_to_dataframe(rmse_dict)
     out_path = '/work/mflora/wofs-cast-data/verification_results'
-    df.to_parquet(os.path.join(out_path, f"MSE_{os.path.basename(MODEL_PATH).replace('.npz','')}.parquet"))
+    df.to_parquet(os.path.join(out_path, f"MSE_{os.path.basename(MODEL_PATH).replace('.npz','')}{tag}.parquet"))
               
     # Save objects-based results.
-    cont_dict['hits'] = replace_zeros(cont_dict['hits'])
-    cont_dict['misses'] = replace_zeros(cont_dict['misses'])
-    cont_dict['false_alarms'] = replace_zeros(cont_dict['false_alarms'])
+    data = {} 
+    for subkey in subkeys: 
+    
+        cont_dict[f'{subkey}_hits'] = replace_zeros(cont_dict[f'{subkey}_hits'])
+        cont_dict[f'{subkey}_misses'] = replace_zeros(cont_dict[f'{subkey}_misses'])
+        cont_dict[f'{subkey}_false_alarms'] = replace_zeros(cont_dict[f'{subkey}_false_alarms'])
 
-    pod = cont_dict['hits'] / (cont_dict['hits'] + cont_dict['misses'])
-    sr = cont_dict['hits'] / (cont_dict['hits'] + cont_dict['false_alarms'])
-    csi = cont_dict['hits'] / (cont_dict['hits'] + cont_dict['misses'] + cont_dict['false_alarms'])
-              
-    df_object = pd.DataFrame(
-    data = {'POD' : pod, 
-        'SR' : sr, 
-        'CSI' : csi, 
-       })
-    df_object.to_json(os.path.join(out_path, f"objects_{os.path.basename(MODEL_PATH).replace('.npz','')}.json"))
+        pod = cont_dict[f'{subkey}_hits'] / (cont_dict[f'{subkey}_hits'] + cont_dict[f'{subkey}_misses'])
+        sr = cont_dict[f'{subkey}_hits'] / (cont_dict[f'{subkey}_hits'] + cont_dict[f'{subkey}_false_alarms'])
+        
+        denom = (cont_dict[f'{subkey}_hits'] + cont_dict[f'{subkey}_misses'] + cont_dict[f'{subkey}_false_alarms'])
+        csi = cont_dict[f'{subkey}_hits'] / denom
+    
+        data[f'{subkey}_POD'] = pod 
+        data[f'{subkey}_SR'] = sr
+        data[f'{subkey}_CSI'] = csi
+        data[f'{subkey}_FB'] = pod / sr 
+    
+    df_object = pd.DataFrame(data)
+    
+    df_object.to_json(os.path.join(out_path, f"objects_{os.path.basename(MODEL_PATH).replace('.npz','')}{tag}.json"))
 
 
