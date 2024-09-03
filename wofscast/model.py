@@ -550,8 +550,8 @@ class WoFSCastModel:
     def predict(self, inputs, targets, forcings, 
                 initial_datetime=None, 
                 n_steps=None, replace_bdry=True, 
-                diffusion_model=None, scaler=None, 
-                n_diffusion_steps=50, sampler_kwargs={}, variables=None): 
+                diffusion_model=None, 
+                n_diffusion_steps=50): 
         """Predict using the WoFSCast"""
         
         # Ensure 'batch' dimension exists
@@ -622,10 +622,7 @@ class WoFSCastModel:
             forcings=extended_forcings, 
             replace_bdry=replace_bdry,
             diffusion_model=diffusion_model, 
-            scaler=scaler,
             n_diffusion_steps=n_diffusion_steps,
-            sampler_kwargs=sampler_kwargs,
-            variables=variables
         )
 
         return predictions

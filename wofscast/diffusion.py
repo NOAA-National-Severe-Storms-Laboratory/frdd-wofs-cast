@@ -3,11 +3,110 @@ import torch
 from diffusers import UNet2DModel
 import xarray as xr 
 import numpy as np
+import os
 
 from .model_utils import dataset_to_stacked, stacked_to_dataset
 from . import model_utils
+from .normalization import PyTorchScaler
 
 from typing import Tuple
+
+class DiffusionModel:
+    def __init__(self, 
+                 refl_only=False,
+                 domain_size=150, 
+                 sigma_data=0.5, 
+                 sigma_max = float('inf'),
+                 sigma_min=0.,
+                 sampler_kwargs = dict(
+                    sigma_min = 0.0002,
+                    sigma_max = 1000, 
+                    S_churn=0,#np.sqrt(2)-1, 
+                    S_min=0.02, 
+                    S_max=1000, 
+                    S_noise=1.5) ,
+                 device='cuda', 
+                 norm_stats_path = '/work/mflora/wofs-cast-data/full_normalization_stats'
+                ): 
+        
+        self.norm_stats_path = norm_stats_path 
+        self.device = device 
+        self._load_model(refl_only, domain_size, sigma_data, sigma_max, sigma_min)
+        self._load_scaler()
+        self.sampler_kwargs = sampler_kwargs
+        
+    def sample(self, dataset, num_steps=20):
+        # Apply the diffusion process or any other update
+        return apply_diffusion(dataset, 
+                               self.model_wrapped, 
+                               self.scaler, num_steps=num_steps, 
+                               sampler_kwargs=self.sampler_kwargs, 
+                               variables = self.variables, 
+                               device=self.device
+                                        )
+    
+    def sample_in_post(self, dataset, num_steps=20):    
+        # Notes:
+        # 1. Lowering the S_churn improved the RMSE; I think thats lower noise though 
+        # 2. Increaseing S_max improved prediction of the higher refl. values (subjectively)
+        # 3. Lowering S_noise didn't seem to do much, but that was while S_churn = 0.0, otherwise
+        #    it does seem to help if S_churn > 0.0. However, it makes the image more noisy 
+        # 4. Setting sigma_data=0.5, really weakened storms!! Despite the model being trained on sigma_data=1.0
+ 
+        # Make a copy of the predictions to update
+        updated_dataset = dataset.copy(deep=True)
+
+        # Loop through each time index and update the predictions
+        for t in range(dataset.sizes['time']):
+            # Select predictions for the current time coordinate
+            these_data = updated_dataset.isel(time=[t])
+    
+            # Apply the diffusion process or any other update
+            updated_data = self.sample(these_data, num_steps)
+    
+            # Assign the updated prediction back to the correct time index in the updated_predictions dataset
+            updated_dataset[dict(time=[t])] = updated_data
+            
+        return updated_dataset
+        
+    def _load_scaler(self):
+        # Load the normalization statistics and initialize the 
+        # scaler used for the diffusion model. 
+        mean_by_level = xr.load_dataset(os.path.join(self.norm_stats_path, 'mean_by_level.nc'))
+        stddev_by_level = xr.load_dataset(os.path.join(self.norm_stats_path, 'stddev_by_level.nc'))
+        diffs_stddev_by_level = xr.load_dataset(os.path.join(self.norm_stats_path, 'diffs_stddev_by_level.nc'))
+
+        self.scaler = PyTorchScaler(mean_by_level, stddev_by_level, diffs_stddev_by_level)
+        
+    def _load_model(self, refl_only, domain_size, sigma_data, sigma_max, sigma_min):    
+        
+        if refl_only:
+            n_channels=1
+            self.variables = ['COMPOSITE_REFL_10CM']
+            diffusion_model_path = "/work/mflora/wofs-cast-data/diffusion_models/diffusion_refl_only_v7"
+        else:
+            n_channels=105
+            self.variables = None
+            diffusion_model_path = "/work/mflora/wofs-cast-data/diffusion_models/diffusion_all_vars_update_v1"
+
+        diffusion_model = UNet2DModel.from_pretrained(diffusion_model_path).to(self.device)
+     
+        self.model_wrapped = EDMPrecond(domain_size, n_channels, 
+                                   diffusion_model, 
+                                   sigma_data=sigma_data, 
+                                   sigma_max=sigma_max, 
+                                   sigma_min=sigma_min)
+    @property     
+    def params_count(self):
+        total_params = sum(p.numel() for p in self.model_wrapped.parameters())
+        print(f"Number of parameters: {total_params/1_000_000:.2f} Million")
+        return total_params 
+    
+
+
+
+
+
 
 def pad_to_multiple_of_16(tensor):
     _, _, h, w = tensor.size()
@@ -71,6 +170,8 @@ class EDMPrecond(torch.nn.Module):
         targets : PyTorch Tensor of shape (batch, n_channels, ny, nx) 
             Target images with noise-level sigma applied. 
         """
+        device = model_kwargs.get('device', 'cuda') 
+        
         # To follow the naming convention from RJC and Karras original code. 
         x_condition = inputs.to(torch.float32)
         x_noisy = noisy_targets.to(torch.float32) 
@@ -196,7 +297,7 @@ def edm_sampler(
         #model_input_images = torch.cat([x_hat, condition_images], dim=1)
         # Euler step.
         with torch.no_grad():
-            denoised = net(condition_images, x_hat, t_hat, force_fp32=True).to(torch.float64)
+            denoised = net(condition_images, x_hat, t_hat, force_fp32=True, device=latents.device).to(torch.float64)
 
         d_cur = (x_hat - denoised) / t_hat
         x_next = x_hat + (t_next - t_hat) * d_cur
@@ -206,21 +307,19 @@ def edm_sampler(
             #model_input_images = torch.cat([x_next, condition_images], dim=1)
             with torch.no_grad():
                 #denoised = net(model_input_images, t_next).to(torch.float64)
-                denoised = net(condition_images, x_next, t_next, force_fp32=True).to(torch.float64)
+                denoised = net(condition_images, x_next, t_next, force_fp32=True, device=latents.device).to(torch.float64)
             d_prime = (x_next - denoised) / t_next
             x_next = x_hat + (t_next - t_hat) * (0.5 * d_cur + 0.5 * d_prime)
 
     return x_next
 
-def apply_diffusion(predictions, targets_template, model, scaler, num_steps=100, sampler_kwargs={}, variables=None):
+def apply_diffusion(predictions, model, scaler, num_steps=100, sampler_kwargs={}, variables=None, device='cuda'):
     """Apply a diffusion model to the current time step output."""
     #run sampler 
     batch_size = len(predictions.batch)
-    #domain_size = 160 # Expected domain size for the diffuser. Made it larger for deeper U-net. 
-    #n_channels = 105
     original_domain_size = predictions.dims['lat']
     
-    rnd = StackedRandomGenerator('cuda',np.arange(0,batch_size,1).astype(int).tolist())
+    rnd = StackedRandomGenerator(device, np.arange(0,batch_size,1).astype(int).tolist())
     
     # If the diffusion model is only meant to be applied to a subset of variables.
     if variables:
@@ -238,7 +337,8 @@ def apply_diffusion(predictions, targets_template, model, scaler, num_steps=100,
     
     pred_stacked = dataset_to_stacked(
         predictions_scaled.squeeze(dim='time')).transpose('batch', 'channels', 'lat', 'lon').values 
-    pred_stacked_tensor = torch.tensor(pred_stacked, dtype=torch.float32).cuda() 
+    # Move to the GPU.
+    pred_stacked_tensor = torch.tensor(pred_stacked, dtype=torch.float32).to(device) 
  
     # Convert to torch tensor and add padding. Move the tensor to the GPU
     if original_domain_size == 150:
@@ -247,9 +347,7 @@ def apply_diffusion(predictions, targets_template, model, scaler, num_steps=100,
         predicted_tensor_pad = F.pad(pred_stacked_tensor, (10, 10, 10, 10), mode='replicate')
         # (300,300) -> (320,320); hacky!
     
-    #latents = rnd.randn([batch_size, n_channels, domain_size, domain_size], device='cuda')
-
-    latents = torch.randn(predicted_tensor_pad.shape, device='cuda')
+    latents = torch.randn(predicted_tensor_pad.shape, device=device)
     
     # The output is the normalized residual. 
     residual = edm_sampler(model, latents, predicted_tensor_pad, num_steps=num_steps, **sampler_kwargs)

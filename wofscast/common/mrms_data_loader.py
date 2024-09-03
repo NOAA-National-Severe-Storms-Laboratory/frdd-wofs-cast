@@ -9,10 +9,11 @@ class MRMSDataLoader:
     MRMS_PATH = '/work/rt_obs/MRMS/RAD_AZS_MSH/'
     MRMS_QPE_PATH = '/work/rt_obs/MRMS/QPE/'
     
-    def __init__(self, case_date, datetime_rng, domain_size=150):
+    def __init__(self, case_date, datetime_rng, domain_size=150, resize_domain=True):
         self.case_date = case_date
         self.datetime_rng = datetime_rng 
         self.domain_size = domain_size
+        self.resize_domain = resize_domain 
 
     def find_mrms_files(self):
         """
@@ -77,8 +78,9 @@ class MRMSDataLoader:
             if file is not None: 
                 ds = xr.open_dataset(file, drop_variables=['lat', 'lon'])
                 
-                # Resize the output to 150 x 150
-                ds = self.resize(ds)
+                # Resize the output to 150 x 150\
+                if self.resize_domain: 
+                    ds = self.resize(ds)
                 
                 data[t,:,:] = ds['qpe_consv'].values
     
@@ -103,7 +105,8 @@ class MRMSDataLoader:
                 ds = xr.open_dataset(file, drop_variables=['lat', 'lon'])
                 
                 # Resize the output to 150 x 150
-                ds = self.resize(ds)
+                if self.resize_domain: 
+                    ds = self.resize(ds)
                 
                 data[t,:,:] = ds['dz_consv'].values
     

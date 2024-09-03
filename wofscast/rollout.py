@@ -89,10 +89,7 @@ def chunked_prediction(
     verbose: bool = False,
     replace_bdry = True, 
     diffusion_model=None,
-    scaler = None,
     n_diffusion_steps=50,
-    sampler_kwargs={},
-    variables=None,
 ) -> xarray.Dataset:
   """Outputs a long trajectory by iteratively concatenating chunked predictions.
 
@@ -123,10 +120,7 @@ def chunked_prediction(
       verbose=verbose, 
       replace_bdry=replace_bdry,
       diffusion_model=diffusion_model,
-      scaler=scaler,
       n_diffusion_steps=n_diffusion_steps,
-      sampler_kwargs=sampler_kwargs,
-     variables=variables,
   ):
     chunks_list.append(jax.device_get(prediction_chunk))
   return xarray.concat(chunks_list, dim="time")
@@ -142,10 +136,7 @@ def chunked_prediction_generator(
     verbose: bool = False,
     replace_bdry= True, 
     diffusion_model = None, 
-    scaler=None, 
     n_diffusion_steps=50,
-    sampler_kwargs={},
-    variables=None,
 ) -> Iterator[xarray.Dataset]:
   """Outputs a long trajectory by yielding chunked predictions.
 
@@ -236,11 +227,8 @@ def chunked_prediction_generator(
     
     # TEMPORARY. Add diffusion to the composite reflectivity. 
     if diffusion_model:
-        predictions = apply_diffusion(predictions, targets_template, 
-                                      diffusion_model, scaler, num_steps=n_diffusion_steps, 
-                                      sampler_kwargs=sampler_kwargs, 
-                                     variables=variables)
-    
+        predictions = diffusion_model.sample(predictions, n_diffusion_steps) 
+
     next_frame = xarray.merge([predictions, current_forcings])
     next_inputs = _get_next_inputs(current_inputs, next_frame)
 

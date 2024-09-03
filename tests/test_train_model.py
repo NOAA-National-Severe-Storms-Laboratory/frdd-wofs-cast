@@ -27,11 +27,20 @@ from wofscast.data_generator import (add_local_solar_time,
                                      load_chunk, 
                                      shard_xarray_dataset)
 
+from wofscast.common.wofs_data_loader import WoFSDataLoader
+
 from wofscast.graphcast_lam import TaskConfig
 from wofscast.common.helpers import to_datetimes
-from wofscast.normalization import PyTorchScaler
-from wofscast.diffusion import apply_diffusion, EDMPrecond
-from diffusers import UNet2DModel
+from wofscast.diffusion import DiffusionModel
+
+
+from dataclasses import dataclass
+
+import os
+os.environ['XLA_PYTHON_CLIENT_PREALLOCATE'] = 'true'
+# Set this lower, to allow for PyTorch Model to fit into memory
+os.environ['XLA_PYTHON_CLIENT_MEM_FRACTION'] = '0.90' 
+os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
 
 
 class FakeGenerator:
@@ -62,8 +71,6 @@ class FakeGenerator:
         return inputs, targets, forcings 
         
         
-
-
 def get_fake_task_config():
     
     FORCING_VARS = [
@@ -309,93 +316,55 @@ class TestWoFSCastModel(unittest.TestCase):
         # Test example loads v178 model, a 10-min timestep on the 150 x 150 area.
         # Test diffusion model includes all variables. 
         
+        
         test_dir = os.path.dirname(os.path.abspath(__file__))
         tmp_dir = os.path.join(test_dir, 'test_data')
         
-        model_path = os.path.join(tmp_dir, 'wofscast_test_v178.npz') 
+        model_path = os.path.join('/work/cpotvin/WOFSCAST/model/', 'wofscast_test_v178.npz') 
         data_path = os.path.join(tmp_dir, 'wrfwof_2021-05-15_020000_to_2021-05-15_041000__10min__ens_mem_09.zarr') 
+        diffusion_model_path = os.path.join(tmp_dir, 'diffusion_all_vars_update_v1') 
         
-        # Load the normalization statistics and initialize the 
-        # scaler used for the diffusion model. 
-        norm_stats_path = '/work/mflora/wofs-cast-data/full_normalization_stats'
-        mean_by_level = xr.load_dataset(os.path.join(norm_stats_path, 'mean_by_level.nc'))
-        stddev_by_level = xr.load_dataset(os.path.join(norm_stats_path, 'stddev_by_level.nc'))
-        diffs_stddev_by_level = xr.load_dataset(os.path.join(norm_stats_path, 'diffs_stddev_by_level.nc'))
-
-        scaler = PyTorchScaler(mean_by_level, stddev_by_level, diffs_stddev_by_level)
+        @dataclass
+        class RunnerConfig :
+            timestep = 10 
+            steps_per_hour = 60 // timestep # 60 min / 5 min time steps
+            hours = 3
+            n_steps = steps_per_hour * hours 
+            dts = to_datetimes(data_path, n_times = n_steps+2)
         
-        dataset = load_chunk([data_path], 1, add_local_solar_time)
-        dataset = dataset.compute()
+        config = RunnerConfig()
         
-        timestep = 10 
-        steps_per_hour = 60 // timestep # 60 min / 5 min time steps
-        hours = 3
-        n_steps = steps_per_hour * hours 
-        dts = to_datetimes(data_path, n_times = n_steps+2)
-        
-        # Load the base WoFSCast model.
+        # Load the base WoFSCast model and diffusion model.
         model = WoFSCastModel()
         model.load_model(model_path)
+        diffusion_model = DiffusionModel(device='cuda:0')
         
-        domain_size = dataset.dims['lat']
-        
-        # Load the diffusion model.
-        diffusion_model_path = os.path.join(tmp_dir, 'diffusion_all_vars_update_v1') 
-        diffusion_model = UNet2DModel.from_pretrained(diffusion_model_path).to('cuda')
-        n_channels = 1  # This arg is not used. 
-        model_wrapped = EDMPrecond(domain_size, n_channels, diffusion_model, 
-                               sigma_data=0.5, 
-                               sigma_max=float('inf'), 
-                               sigma_min=0.)
-        sampler_kwargs = dict(
-            sigma_min = 0.0002,
-            sigma_max = 1000, 
-            S_churn=0,#np.sqrt(2)-1, 
-            S_min=0.02, 
-            S_max=1000, 
-            S_noise=1.5) 
-        
-        inputs, targets, forcings = dataset_to_input(dataset, model.task_config, 
-                                             target_lead_times=slice('10min', '120min'),
-                                             batch_over_time=False, n_target_steps=2)
+        data_loader = WoFSDataLoader(config, model.task_config, 
+                             add_local_solar_time, 
+                             load_ensemble=False)     
+    
+        inputs, targets, forcings = data_loader.load_inputs_targets_forcings(data_path)
+        domain_size = inputs.dims['lat']
         
         # Base WoFSCast model prediction
         predictions = model.predict(inputs, targets, forcings, 
-                            initial_datetime=dts[0], 
-                            n_steps=n_steps,
+                            initial_datetime=config.dts[0], 
+                            n_steps=config.n_steps,
                             replace_bdry=False)
 
         # WoFSCast with diffusion in-step
         predictions_with_diff = model.predict(inputs, 
                             targets, 
                             forcings, 
-                            initial_datetime=dts[0], 
-                            n_steps=n_steps,             
-                            diffusion_model=model_wrapped, 
-                            scaler = scaler,             
+                            initial_datetime=config.dts[0], 
+                            n_steps=config.n_steps,             
+                            diffusion_model=diffusion_model, 
                             n_diffusion_steps=10,
-                            sampler_kwargs=sampler_kwargs, 
-                            variables = None
                            )
         
-        # WoFSCast with Diffusion applied in-post
-        updated_predictions = predictions.copy(deep=True)
-
-        for t in range(predictions.sizes['time']):
-            # Select predictions for the current time coordinate
-            these_predictions = updated_predictions.isel(time=[t])
-    
-            # Apply the diffusion process or any other update
-            updated_prediction = apply_diffusion(these_predictions, targets, 
-                                         model_wrapped, 
-                                         scaler, num_steps=10, 
-                                         sampler_kwargs=sampler_kwargs, 
-                                         variables = None # Predicting all variables
-                                        )
-            
-            # Assign the updated prediction back to the correct time index in the updated_predictions dataset
-            updated_predictions[dict(time=[t])] = updated_prediction
-
+        predictions_in_post =  diffusion_model.sample_in_post(predictions, num_steps=5)
+        
+       
         self.assertIsNotNone(predictions) 
  
 if __name__ == '__main__':
