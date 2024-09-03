@@ -4,6 +4,19 @@ import pandas as pd
 import numpy as np 
 from scipy.ndimage import maximum_filter
 import xarray as xr
+import argparse 
+from ..utils import load_yaml 
+
+def parse_arguments():
+    """Parse command-line arguments."""
+    parser = argparse.ArgumentParser(description='Load and parse configuration file.')
+    parser.add_argument('--config', type=str, required=True, help='Path to the config.yaml file relative to the base config directory.')
+    return parser.parse_args()
+
+def load_configuration(base_config_path, config_file):
+    """Load the YAML configuration file."""
+    config_path = os.path.join(base_config_path, config_file)
+    return load_yaml(config_path)
 
 
 def convert_rain_amount_to_inches(ds):
@@ -81,6 +94,27 @@ def border_difference_check(preds, tars, border_mask):
     border_diff_masked = np.where(border_mask, border_diff, np.nan)  # NaN where not border
     return np.nanmax(border_diff_masked)  # Get the maximum difference at the border
 
+def _border_mask(shape, N=10):
+    """
+    Create a border mask for an array of given shape.
+
+    Parameters:
+    - shape: tuple, the shape of the array (NY, NX).
+    - N: int, the width of the border where values should be True.
+
+    Returns:
+    - mask: jax.numpy.ndarray, a mask where border values are True and interior values are False.
+    """
+    NY, NX = shape
+    mask = np.zeros(shape, dtype=bool)
+
+    # Set the border to True
+    mask[:N, :] = True  # Top border
+    mask[-N:, :] = True  # Bottom border
+    mask[:, :N] = True  # Left border
+    mask[:, -N:] = True  # Right border
+
+    return mask
 
 def apply_maximum_filter(data, size=3):
     """
