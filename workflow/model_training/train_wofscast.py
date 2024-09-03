@@ -40,21 +40,11 @@ from wofscast.data_generator import (
     WoFSDataProcessor
 )
 from wofscast import checkpoint
-from wofscast.utils import get_random_subset, truncate_to_chunk_size, load_yaml
+from wofscast.utils import get_random_subset, truncate_to_chunk_size
+from wofscast.common.helpers import parse_arguments, load_configuration 
 
 # Configurations
 BASE_CONFIG_PATH = 'training_configs'
-
-def parse_arguments():
-    """Parse command-line arguments."""
-    parser = argparse.ArgumentParser(description='Load and parse configuration file.')
-    parser.add_argument('--config', type=str, required=True, help='Path to the config.yaml file relative to the base config directory.')
-    return parser.parse_args()
-
-def load_configuration(config_file):
-    """Load the YAML configuration file."""
-    config_path = os.path.join(BASE_CONFIG_PATH, config_file)
-    return load_yaml(config_path)
 
 def get_files_for_year(year, base_path):
     """Get all zarr files within a directory for a given year."""
@@ -80,10 +70,10 @@ def get_paths(base_paths, years=['2019', '2020']):
 if __name__ == '__main__':
     """Main script execution."""
     
-    """ usage: stdbuf -oL python -u train_wofscast.py --config train_10min_finetune_full_domain_config.yaml > & log_training & """
+    """ usage: stdbuf -oL python -u train_wofscast.py --config train_10min_v178_config.yaml > & log_training & """
     
     args = parse_arguments()
-    config_dict = load_configuration(args.config)
+    config_dict = load_configuration(BASE_CONFIG_PATH, args.config)
 
     # Extract configuration values
     fine_tune = config_dict.get('fine_tune', False)
