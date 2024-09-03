@@ -42,40 +42,84 @@ VARS_2D = ['COMPOSITE_REFL_10CM',
 
 
 class WoFSCastAnimator:
-    def __init__(self, domain_size, plot_border=False, dts=None):
+    def __init__(self, 
+                 inputs, 
+                 predictions, 
+                 targets, 
+                 mrms_dataset=None, 
+                 analysis_dataset=None,
+                 domain_size=150, 
+                 plot_border=False, 
+                 dts=None, 
+                 add_rmse=True, 
+                 for_randy=False):
+        
         self.dts = dts  # Placeholder, replace with your datetime conversion function
         self.plot_border = plot_border
         self.domain_size = domain_size
-    
-    def __call__(self, var, inputs, predictions, targets, level=0, mrms_dz=None, add_rmse=True, for_randy=False):
-        self.var = var
+        self.add_rmse = add_rmse 
+        self.for_randy = for_randy
         
+        self.inputs = inputs
+        self.predictions = predictions
+        self.targets = targets
+        self.mrms_dataset = mrms_dataset
+        self.analysis_dataset = analysis_dataset
+    
+    def set_level(self, var, level):
         if var in VARS_2D:
             level='none'
         
         self.level = level
-        self.inputs = inputs
-        self.predictions = predictions
-        self.targets = targets
-        self.mrms_dz = mrms_dz
-        self.add_rmse = add_rmse
-        self.for_randy = for_randy
-    
-        init_ds, pred, tars = self.drop_batch_dim(inputs, predictions, targets)
-    
+        
         level_txt = ''
         if level != 'none': 
-            level_txt = f', level={level}'
+            level_txt = f', Model level = {level}'
+            
+        return level_txt
     
-        self.titles = [f'WoFS {display_name_mapper.get(var, var)}{level_txt}', 
-                       f'WoFS-Cast {display_name_mapper.get(var, var)}{level_txt}']
-    
-        fig, self.axes = plt.subplots(dpi=200, figsize=(12, 6), ncols=2, 
-                                      gridspec_kw={'height_ratios': [1], 'bottom': 0.15})
+    def create_animation(self, var, level=0, ens_idx=0, animation_type='wofs_vs_wofscast'):
+        """
+        Generalized function to create different types of animations based on the animation_type.
+        
+        Parameters:
+        - var: Variable to animate.
+        - level: Vertical level to animate.
+        - animation_type: Type of animation ('wofs_vs_wofscast' or 'wofs_wofscast_analysis_mrms').
+        
+        Returns:
+        - FuncAnimation object.
+        """
+        self.animation_type = animation_type
+        self.var = var
+        level_txt = self.set_level(var, level)
+        
+        (self.inputs, 
+         self.predictions, 
+         self.targets) = self.drop_batch_dim(ens_idx, self.inputs, self.predictions, self.targets)
+        
+        if animation_type == 'wofs_vs_wofscast':
+            self.titles = [
+                f'WoFS {display_name_mapper.get(var, var)}{level_txt}', 
+                f'WoFS-Cast {display_name_mapper.get(var, var)}{level_txt}'
+            ]
+            fig, self.axes = plt.subplots(dpi=200, figsize=(12, 6), ncols=2, 
+                                          gridspec_kw={'height_ratios': [1], 'bottom': 0.15})
+        
+        elif animation_type == 'wofs_wofscast_analysis_mrms':
+            self.titles = [
+                f'WoFS {display_name_mapper.get(var, var)}{level_txt}', 
+                f'WoFS-Cast {display_name_mapper.get(var, var)}{level_txt}',
+                'Analysis Dataset', 
+                'MRMS Dataset'
+            ]
+            fig, self.axes = plt.subplots(dpi=200, figsize=(12, 12), nrows=2, ncols=2,
+                                          gridspec_kw={'height_ratios': [1, 1], 'bottom': 0.1})
         
         plt.tight_layout()
-    
-        zs, levels = self.get_target_and_pred_pair(init_ds, init_ds, t=0, level=level, return_rng=True)
+        
+        _, levels = self.get_target_and_pred_pair(self.inputs, self.inputs, 
+                                                  t=0, level=level, return_rng=True)
     
         self.cmap, self.levels = self.get_colormap_and_levels(var, levels)
     
@@ -86,15 +130,20 @@ class WoFSCastAnimator:
         self.cbar = None
         
         self.fig = fig
-        self.N = len(predictions.time)
+        self.N = len(self.predictions.time)
     
         return FuncAnimation(fig, self.update, frames=self.N, interval=200)
-    
-    def drop_batch_dim(self, inputs, predictions, targets):
+
+    def drop_batch_dim(self, ens_idx, inputs, predictions, targets):
         dims = ('time', 'level', 'lat', 'lon')
-        init_ds = inputs.squeeze(dim='batch', drop=True).isel(time=[-1]).transpose(*dims, missing_dims='ignore')
-        preds = predictions.squeeze(dim='batch', drop=True).transpose(*dims, missing_dims='ignore')
-        tars = targets.squeeze(dim='batch', drop=True).transpose(*dims, missing_dims='ignore')
+         
+        init_ds = inputs.isel(batch=ens_idx)
+        preds = predictions.isel(batch=ens_idx)
+        tars = targets.isel(batch=ens_idx)
+               
+        init_ds = init_ds.isel(time=[-1]).transpose(*dims, missing_dims='ignore')
+        preds = preds.transpose(*dims, missing_dims='ignore')
+        tars = tars.transpose(*dims, missing_dims='ignore')
     
         return init_ds, preds, tars
     
@@ -117,24 +166,29 @@ class WoFSCastAnimator:
             zs = [targets[self.var].isel(time=target_t, level=level).values, 
                   preds[self.var].isel(time=t, level=level).values]
     
-        if self.var == 'RAIN_AMOUNT':
-            zs = [z / 25.4 for z in zs]
-    
-        if self.var == 'T2':
-            zs = [(9.0 / 5.0 * (z - 273.15)) + 32.0 for z in zs]
-    
+        if self.animation_type == 'wofs_wofscast_analysis_mrms':
+            zs.append(self.analysis_dataset[t])
+        
         if return_rng:
             global_min = np.percentile(zs, 1)
             global_max = np.percentile(zs, 99)
             rng = np.linspace(global_min, global_max, 10)
             return zs, rng
-    
+        
+        # Add the MRMS after the range is computed above. 
+        if self.animation_type == 'wofs_wofscast_analysis_mrms':
+            zs.append(self.mrms_dataset[t])
+
         return zs 
 
     def get_colormap_and_levels(self, var, levels):
+        self.dz_cmap = WoFSColors.nws_dz_cmap
+        self.dz_levels = WoFSLevels.dz_levels_nws
+        
+        
         if var == 'COMPOSITE_REFL_10CM':
             cmap = WoFSColors.nws_dz_cmap
-            levels = WoFSLevels.dz_levels_nws
+            levels = WoFSLevels.dz_levels_nws            
         elif var == 'RAIN_AMOUNT':
             cmap = WoFSColors.rain_cmap
             levels = WoFSLevels.rain_rate_levels
@@ -157,8 +211,21 @@ class WoFSCastAnimator:
         
         return cmap, levels
     
+    def remove_ticks(self, ax):
+        
+        # Remove tick marks
+        ax.xaxis.set_ticks([])
+        ax.yaxis.set_ticks([])
+            
+        # Optionally, remove tick labels too
+        ax.xaxis.set_ticklabels([])
+        ax.yaxis.set_ticklabels([])
+    
+        return ax
+    
+    
     def update(self, t):
-        for ax in self.axes:
+        for ax in self.axes.flat:
             ax.clear()
 
         if t == 0:
@@ -167,47 +234,29 @@ class WoFSCastAnimator:
             zs = self.get_target_and_pred_pair(self.predictions, self.targets, t=t, level=self.level)
     
         rmse = np.sqrt(np.mean((zs[0] - zs[1])**2))
-
-        try:
-            u_pred, v_pred = self.predictions['U'][t].isel(level=0).values, self.predictions['V'][t].isel(level=0).values
-            u_tar, v_tar = self.targets['U'][t].isel(level=0).values, self.targets['V'][t].isel(level=0).values 
-            u_pred = u_pred[::5, ::5]
-            v_pred = v_pred[::5, ::5]
-            u_tar = u_tar[::5, ::5]
-            v_tar = v_tar[::5, ::5]
-            wind_pred = (u_pred, v_pred)
-            wind_tar = (u_tar, v_tar)
-            winds = [wind_tar, wind_pred]
-            x, y = np.meshgrid(np.arange(self.domain_size), np.arange(self.domain_size))
-            x = x[::5, ::5]
-            y = y[::5, ::5]
-        except:
-            winds = [None, None]
     
-        for i, (ax, z, wind) in enumerate(zip(self.axes, zs, winds)):
-            ax.axis('off')
-            
-            z = z.squeeze() 
+        for i, ax in enumerate(self.axes.flat):
+            ax = self.remove_ticks(ax)
+
+            z = zs[i].squeeze()
+
             
             if self.var in ['REFL_10CM', 'UP_HELI_MAX', 'COMPOSITE_REFL_10CM']:
                 z = np.ma.masked_where(z < 10, z)
             
-                #im = ax.pcolormesh(z, cmap=self.cmap, norm=self.norm)
-            #else:
-            im = ax.contourf(z, origin='lower', aspect='equal', cmap=self.cmap, levels=self.levels)
+            if self.animation_type == 'wofs_wofscast_analysis_mrms' and i == 3:
+                cmap = self.dz_cmap 
+                levels = self.dz_levels
+            else:
+                cmap=self.cmap 
+                levels=self.levels
             
- 
-            try:
-                u, v = wind
-                ax.quiver(x, y, u, v, alpha=0.5)
-            except:
-                pass
-
+            im = ax.contourf(z, origin='lower', aspect='equal', cmap=cmap, levels=levels)
+            
             ax.set_title(self.titles[i], fontweight='bold')
-            if i == 1:
+            if i == 1 and self.add_rmse:
                 dis_name = display_name_mapper.get(self.var, self.var)
-                if self.add_rmse:
-                    ax.annotate(f'RMSE of {dis_name} ({units_mapper.get(self.var, self.var)}): {rmse:.4f}', 
+                ax.annotate(f'RMSE of {dis_name} ({units_mapper.get(self.var, self.var)}): {rmse:.4f}', 
                             xy=(0.01, 0.95), xycoords='axes fraction', 
                             weight='bold', color='red', 
                             bbox=dict(facecolor='white', alpha=0.7, edgecolor='none'))
@@ -216,24 +265,23 @@ class WoFSCastAnimator:
                         weight='bold', color='red', fontsize=10, 
                         bbox=dict(facecolor='white', alpha=0.7, edgecolor='none'))
 
+            if self.mrms_dataset is not None and i < 3:
+                self.add_mrms_overlay(ax, z[1], t)
+    
             
-            if self.cbar is None:
-                self.cbar = self.fig.colorbar(im, cax=self.cbar_ax, orientation='horizontal')
-                self.cbar.set_label(f'{display_name_mapper.get(self.var, self.var)} ({units_mapper.get(self.var, self.var)})')
+        if self.cbar is None:
+            self.cbar = self.fig.colorbar(im, cax=self.cbar_ax, orientation='horizontal')
+            self.cbar.set_label(f'{display_name_mapper.get(self.var, self.var)} ({units_mapper.get(self.var, self.var)})')
 
-            # Plot the MRMS overlays
-            if self.mrms_dz is not None:
-                this_rmse = np.sqrt(np.mean((z - self.mrms_dz[t])**2))
-            
-                ax.contour(self.mrms_dz[t], 
-                         origin='lower', aspect='equal', 
-                        colors=['black', 'blue'], 
-                        levels=[35.0, 50.0], linewidths=[1.0, 1.5])
-            
-                dis_name = display_name_mapper.get(self.var, self.var)
-                if self.add_rmse:
-                    ax.annotate(f'RMSE with MRMS: {this_rmse:.4f}', 
-                            xy=(0.01, 0.90), xycoords='axes fraction', 
-                            weight='bold', color='k', 
-                            bbox=dict(facecolor='white', alpha=0.7, edgecolor='none'))
-            
+    def add_mrms_overlay(self, ax, pred, t):
+        this_rmse = np.sqrt(np.mean((pred - self.mrms_dataset[t]) ** 2))
+
+        ax.contour(self.mrms_dataset[t], 
+                   origin='lower', aspect='equal', 
+                   colors=['black', 'blue'], 
+                   levels=[35.0, 50.0], linewidths=[1.0, 1.5])
+        
+        ax.annotate(f'RMSE with MRMS: {this_rmse:.4f}', 
+                    xy=(0.01, 0.90), xycoords='axes fraction', 
+                    weight='bold', color='k', 
+                    bbox=dict(facecolor='white', alpha=0.7, edgecolor='none'))

@@ -2,6 +2,47 @@ import os
 from datetime import datetime, timedelta
 import pandas as pd
 import numpy as np 
+from scipy.ndimage import maximum_filter
+import xarray as xr
+
+
+def convert_rain_amount_to_inches(ds):
+    """
+    Converts the RAIN_AMOUNT variable from millimeters to inches in an xarray dataset.
+
+    Parameters:
+    ds (xarray.Dataset): The input dataset containing the RAIN_AMOUNT variable in millimeters.
+
+    Returns:
+    xarray.Dataset: The dataset with RAIN_AMOUNT converted to inches.
+    """
+    if 'RAIN_AMOUNT' in ds:
+        ds['RAIN_AMOUNT'] = ds['RAIN_AMOUNT'] / 25.4  # 1 inch = 25.4 mm
+        ds['RAIN_AMOUNT'].attrs['units'] = 'inches'
+    else:
+        raise ValueError("The dataset does not contain a variable named 'RAIN_AMOUNT'.")
+    
+    return ds
+
+
+def convert_T2_K_to_F(ds):
+    """
+    Converts the T2 variable from Kelvin to degrees Fahrenheit in an xarray dataset.
+
+    Parameters:
+    ds (xarray.Dataset): The input dataset containing the T2 variable in Kelvin.
+
+    Returns:
+    xarray.Dataset: The dataset with T2 converted to degrees Fahrenheit.
+    """
+    if 'T2' in ds:
+        ds['T2'] = (ds['T2'] - 273.15) * 9/5 + 32
+        ds['T2'].attrs['units'] = 'deg F'
+    else:
+        raise ValueError("The dataset does not contain a variable named 'T2'.")
+    
+    return ds
+
 
 def get_case_date(path):
     name = os.path.basename(path)
@@ -39,3 +80,55 @@ def border_difference_check(preds, tars, border_mask):
     # Apply the border mask to get differences only at the border
     border_diff_masked = np.where(border_mask, border_diff, np.nan)  # NaN where not border
     return np.nanmax(border_diff_masked)  # Get the maximum difference at the border
+
+
+def apply_maximum_filter(data, size=3):
+    """
+    Apply scipy's maximum filter to 2D data.
+
+    Parameters:
+    - data: 2D numpy array
+    - size: size of the filter
+
+    Returns:
+    - filtered_data: 2D numpy array with the maximum filter applied
+    """
+    return maximum_filter(data, size=size)
+
+
+def compute_nmep(dataset, var, threshold, filter_size=3):
+    """
+    Compute the Neighborhood Ensemble Probability (NMEP) for a given variable over all time steps using xarray,
+    apply a maximum filter, and then threshold the results.
+
+    Parameters:
+    - dataset: xarray.Dataset, the input dataset containing the ensemble data.
+    - var: str, the variable name to compute NMEP for.
+    - threshold: float, the threshold value to binarize the data.
+    - filter_size: int, the size of the maximum filter to apply.
+
+    Returns:
+    - xarray.Dataset, the dataset with the computed NMEP added as a new variable for each time step.
+    """
+    # Apply the maximum filter to the data
+    filtered_data = xr.apply_ufunc(
+        apply_maximum_filter,
+        dataset[var],
+        input_core_dims=[['lat', 'lon']],
+        output_core_dims=[['lat', 'lon']],
+        vectorize=True,
+        kwargs={'size': filter_size}
+    )
+    
+    # Binarize the data based on the threshold
+    data_binary = filtered_data >= threshold
+    
+    # Compute the probability (mean) across the ensemble dimension for each time step
+    # Replace 'batch' with the actual ensemble dimension name
+    probs = data_binary.mean(dim='batch')
+    
+    # Add the computed NMEP to the dataset as a new variable
+    dataset[f'{var}_nmep'] = probs
+    
+    return dataset
+
