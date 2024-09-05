@@ -10,10 +10,10 @@ import time
 
 if __name__ == "__main__":
     
-    config_name = "dataset_5min_train_config.yaml"
+    config_name = "dataset_10min_train_config.yaml"
 
     # Command to reformat the WoFS wrfout files or Zarr files
-    format_cmd = f"stdbuf -oL python -u format_wofs_wrfouts.py --config {config_name} --debug --overwrite >  logs/log_formatter 2>&1"
+    format_cmd = f"stdbuf -oL python -u format_wofs_wrfouts.py --config {config_name} --overwrite >  logs/log_formatter 2>&1"
     
     print("Running format command:")
     print(format_cmd)

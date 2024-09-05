@@ -2,7 +2,7 @@
 
 # Add --debug to run a single case! 
 
-""" usage: stdbuf -oL python -u format_wofs_wrfouts.py --config dataset_10min_test_full_domain_config.yaml  > & log_formatter & """
+""" usage: stdbuf -oL python -u format_wofs_wrfouts.py --config dataset_10min_test_full_domain_config.yaml --debug --legacy --do_drop_vars --overwrite > & log_formatter & """
 
 import sys, os 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.getcwd())))
@@ -18,7 +18,12 @@ BASE_CONFIG_PATH = 'data_gen_configs'
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--config', type=str, help='config.yaml path')
+# For those args with 'store_true', if they are provide, then they are True.
+# Otherwise, by default they are False.
 parser.add_argument('--debug', action='store_true', help='whether to process a single date.')
+parser.add_argument('--legacy', action='store_true', help='Run in legacy mode')
+parser.add_argument('--do_drop_vars', action='store_true', help='Drop variables to the original (for legacy)')
+parser.add_argument('--overwrite', action='store_true', help='Whether to overwrite an existing file.')
 args = parser.parse_args()
 
 print(f'{args.debug=}')
@@ -28,9 +33,17 @@ config_dict = load_yaml(config_path)
 
 # Set the config parameters. 
 BASE_PATH = config_dict['BASE_PATH']
-OUT_PATH = config_dict['OUT_PATH']
+if args.debug:
+    OUT_PATH = '/work2/mflora/wofscast_datasets/test_dir'
+else:
+    OUT_PATH = config_dict['OUT_PATH']
+    
 timestep_minutes = config_dict['timestep_minutes']
-n_timesteps = config_dict['n_timesteps']
+if args.debug:
+    n_timesteps = 3
+else:
+    n_timesteps = config_dict['n_timesteps']
+    
 offset = config_dict['offset']
 
 years = config_dict['years']
@@ -45,9 +58,9 @@ duration_minutes = n_timesteps*timestep_minutes
 vars_to_keep = config_dict['VARS_TO_KEEP']
 
 process_multi_date = False if args.debug else True
-do_drop_vars=True
-legacy = True 
-overwrite=False
+do_drop_vars = args.do_drop_vars 
+legacy = args.legacy 
+overwrite = args.overwrite
 
 processes = [] 
 if resize:
@@ -98,7 +111,7 @@ if process_multi_date:
 else:    
     year = '2019'
     good_dates = ['20190513']
-    init_times = ['0200']
+    init_times = ['1900']
     mems = [9]
     base_path = os.path.join(BASE_PATH, year)
     

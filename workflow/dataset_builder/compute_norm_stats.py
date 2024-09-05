@@ -13,22 +13,10 @@ from wofscast.utils import get_random_subset, load_yaml
 from wofscast import data_utils
 from wofscast import graphcast_lam as graphcast
 from wofscast.data_generator import (add_local_solar_time, 
-                                     to_static_vars, 
                                      load_chunk, 
                                      dataset_to_input,
                                      ZarrDataGenerator, 
-                                     WRFZarrFileProcessor,
-                                     WoFSDataProcessor
                                     )
-from wofscast.wofscast_task_config import (DBZ_TASK_CONFIG, 
-                                           WOFS_TASK_CONFIG, 
-                                           WOFS_TASK_CONFIG_GC,
-                                           DBZ_TASK_CONFIG_1HR,
-                                           DBZ_TASK_CONFIG_FULL,
-                                           WOFS_TASK_CONFIG_5MIN,
-                                           WOFS_TASK_CONFIG_1HR
-                                          )
-
 import xarray as xr 
 import numpy as np
 from glob import glob
@@ -119,8 +107,8 @@ if __name__ == "__main__":
                             gpu_batch_size=config_dict['batch_size'], 
                             save_path=save_path, 
                             compute_metrics=[
-                                             #'mean', 
-                                             #'stddev', 
+                                             'mean', 
+                                             'stddev', 
                                              'diffs_stddev'
                                     ]
                            )
