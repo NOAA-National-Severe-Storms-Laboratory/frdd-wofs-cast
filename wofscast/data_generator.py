@@ -578,67 +578,6 @@ class ZarrDataGenerator:
                 inner_start = inner_end
 '''       
                 
-class TOARadiationFlux:
-    def __init__(self):
-        # Solar constant in W/m^2
-        self.S0 = 1361
-
-    @staticmethod
-    @jit
-    def calculate_solar_declination(day_of_year):
-        """Calculate solar declination as a function of day of the year."""
-        return 23.45 * jnp.sin(jnp.radians((360 / 365) * (day_of_year - 81)))
-
-    @staticmethod
-    @jit#(nopython=True)
-    def calculate_hour_angle(utc_hour, longitude):
-        """Calculate solar hour angle based on UTC time."""
-        # Convert longitude to equivalent time (1 hour per 15 degrees)
-        longitude_time = longitude / 15.0
-        
-        # Calculate solar time from UTC time and longitude
-        solar_time = utc_hour + longitude_time
-        
-        # Hour angle, considering each hour is 15 degrees of rotation
-        hour_angle = (solar_time - 12) * 15
-        return hour_angle
-
-    @staticmethod
-    @jit
-    def calculate_solar_zenith_angle(latitude, declination, hour_angle):
-        """Calculate solar zenith angle."""
-        latitude_rad = jnp.radians(latitude)
-        declination_rad = jnp.radians(declination)
-        hour_angle_rad = jnp.radians(hour_angle)
-
-        cos_zenith = jnp.sin(latitude_rad) * jnp.sin(declination_rad) + \
-                     jnp.cos(latitude_rad) * jnp.cos(declination_rad) * jnp.cos(hour_angle_rad)
-        zenith_angle = jnp.degrees(jnp.arccos(cos_zenith))
-        return zenith_angle
-    
-        
-    def calculate_flux(self, date_times, lat_grid, lon_grid):
-        NT = len(date_times)
-        NY, NX = lat_grid.shape
-        flux = jnp.zeros((NT, NY, NX), dtype=jnp.float32)
-
-        # Loop through each datetime, calculate declination once per datetime
-        for i, datetime_obj in enumerate(date_times):
-            day_of_year = datetime_obj.timetuple().tm_yday
-            declination = self.calculate_solar_declination(day_of_year)
-
-            # Vectorized computation over latitude and longitude grids
-            for j in range(NY):
-                hour_angle = self.calculate_hour_angle(datetime_obj.hour + datetime_obj.minute / 60, 
-                                                       lon_grid[j])
-                zenith_angle = self.calculate_solar_zenith_angle(lat_grid[j], declination, hour_angle)
-                
-                # Calculate radiation flux
-                flux = flux.at[i, j, :].set(
-                    jnp.where(zenith_angle < 90, self.S0 * jnp.cos(jnp.radians(zenith_angle)), 0))
-                
-        return flux
-
 def check_datetime_dtype(dataset, coord='datetime'):
     if np.issubdtype(dataset[coord].dtype, np.int64):
         dataset = xr.decode_cf(dataset)
@@ -705,19 +644,6 @@ def add_local_solar_time(data: xr.Dataset) -> xr.Dataset:
     # Assign to the dataset
     data['local_solar_time_sin'] = local_solar_time_sin_da.astype('float32')
     data['local_solar_time_cos'] = local_solar_time_cos_da.astype('float32')
-    
-    # Add TOA (top-of-the-atmo) radiation 
-    # Calculate the TOA radiation flux for the defined dates, times, and grid
-    '''
-    lat_grid, lon_grid = np.meshgrid(data.lat, data.lon)  # Create 2D grid
-    flux = toa_radiation.calculate_flux(pd.to_datetime(data.datetime.values), 
-                                        lat_grid, lon_grid)
-    
-    data['toa_radiation'] = xr.DataArray(flux, dims=(time_dim, 'lat', 'lon'),
-                                           coords={time_dim: data.coords[time_dim], 
-                                                   'lat': data.coords['lat'],
-                                                   'lon': data.coords['lon']})
-    '''
     
     data = data.drop_vars('datetime', errors='ignore')
     

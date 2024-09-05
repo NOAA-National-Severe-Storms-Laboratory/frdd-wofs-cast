@@ -192,10 +192,6 @@ class InputsAndResiduals(predictor_base.Predictor):
         lambda t: self._subtract_input_and_normalize_target(inputs, t),
         targets)
     
-    #print(f'{norm_inputs=}')
-    #print(f'{norm_forcings=}')
-    #print(f'{norm_target_residuals=}')
-    
     return self._predictor.loss(
         norm_inputs, norm_target_residuals, forcings=norm_forcings, **kwargs)
 

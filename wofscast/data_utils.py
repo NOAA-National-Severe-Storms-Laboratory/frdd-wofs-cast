@@ -17,7 +17,7 @@ from typing import Any, Mapping, Sequence, Tuple, Union
 
 
 from . import data_generator
-from . import solar_radiation
+from . import solar_radiation_np as solar_radiation 
 import numpy as np
 import pandas as pd
 import xarray
