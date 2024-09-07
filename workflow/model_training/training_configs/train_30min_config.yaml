@@ -1,0 +1,106 @@
+# CONFIGURATION FILE FOR THE BEST 10-MIN WOFSCAST TRAINING
+
+# Path to the datasets used for training. Can be a list of different sets.
+
+data_paths : [
+                '/work2/mflora/wofscast_datasets/dataset_30min_'
+            ]
+            
+#--------------------------------------------
+# Path to the normalization statistics 
+norm_stats_path : '/work2/mflora/wofscast_norm_stats/dataset_30min'
+#--------------------------------------------
+
+# Model output path and filename 
+# Where the model weights are stored.
+# If the path already exists, the code will not overwrite 
+# and instead create a new version with an append _v1, v2, etc.
+model_save_path : '/work/mflora/wofs-cast-data/model/wofscast_test_30min.npz'
+
+
+add_local_solar_time : False
+
+decode_times : True
+
+
+# WoFSCast Model Parameters
+#--------------------------------------------
+# Number of Mesh refinements or more higher resolution layers. 
+mesh_size : 5
+latent_size : 512 
+# Increasing this allows for connecting information from farther away.
+gnn_msg_steps : 16 
+hidden_layers : 1 
+#noise_level : 0.0 (optional)
+
+# Fraction of the maximum distance between mesh nodes on the 
+# finest mesh level. @ level 5, max distance ~ 4.5 km, 
+# so connecting to those grid points with 1-2 km 
+# OR integer as the distance 
+grid_to_mesh_node_dist : 5
+
+# Parameters if using a transformer layer for processor (mesh)
+# the transformer also relies on the latent_size arg above.
+use_transformer : False 
+k_hop : 8
+num_attn_heads : 4 
+
+# How often to save the weights (in terms of gradient descent steps) 
+checkpoint_interval : 250
+
+# For general training, we adopt the linear increase in learning rate 
+# during a 'warm-up' period followed by a cosine decay in learning rate      
+warmup_steps : 3000 
+decay_steps : 200000
+
+peak_learning_rate : 1e-4 
+
+# Number of samples processed during a single gradient descent step
+# If using multiple GPUs, batch_size / n_gpus samples are sent 
+# to each GPU. 
+batch_size : 24
+
+# Whether to initialize the model with existing model weights 
+# TaskConfig and ModelConfig are re-built using the checkpoint
+# provided. 
+fine_tune : False
+# TODO: Add details for the fine tuning. 
+
+n_fine_tune_steps : 1000 
+target_lead_times:
+  - ['10min', '20min']
+  - ['10min', '30min']
+  - ['10min', '40min']
+                     
+fine_tune_data_paths : [
+        '/work/mflora/wofs-cast-data/datasets_2hr_zarr'
+        ]
+
+fine_tune_learning_rate : 3e-6
+                     
+# Random seed used for the data generator. 
+seed : 42
+
+# The task config contains details like the input variables, 
+# target variables, time step, etc.
+task_config : 'WOFS_TASK_CONFIG_GC' 
+
+# Whether to use the 36.7M parameter GraphCast model weights 
+# Must set parameters identical to those paper 
+graphcast_pretrain : False
+
+# Per-channel weight of variables in the MSE loss equation in wofscast/losses.py
+loss_weights : {
+                    # Any variables not specified here are weighted as 1.0.
+                    'U' : 1.0, 
+                    'V': 1.0, 
+                    'W': 1.0, 
+                    'T': 1.0, 
+                    'GEOPOT': 1.0, 
+                    'QVAPOR': 1.0,
+                    'T2' : 0.1, 
+                    'COMPOSITE_REFL_10CM' : 1.0, 
+                    #'UP_HELI_MAX' : 0.1,
+                    'RAIN_AMOUNT' : 0.1,
+                    }
+

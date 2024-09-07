@@ -70,7 +70,7 @@ def get_paths(base_paths, years=['2019', '2020']):
 if __name__ == '__main__':
     """Main script execution."""
     
-    """ usage: stdbuf -oL python -u train_wofscast.py --config train_10min_v178_config.yaml > & log_training & """
+    """ usage: stdbuf -oL python -u train_wofscast.py --config train_10min_v178_config_updated.yaml > & log_training & """
     
     args = parse_arguments()
     config_dict = load_configuration(BASE_CONFIG_PATH, args.config)
@@ -84,6 +84,9 @@ if __name__ == '__main__':
     batch_size = config_dict.get('batch_size', 24)
     loss_weights = config_dict.get('loss_weights', {})
     norm_stats_path = config_dict.get('norm_stats_path', None)
+    
+    do_add_solar_time = config_dict.get('add_local_solar_time', True) 
+    decode_times = config_dict.get('decode_times', False)
     
     if fine_tune: 
         # Determine whether the fine tuning includes loading data for 
@@ -188,10 +191,12 @@ if __name__ == '__main__':
     
     print(f'Number of Paths: {len(paths)}')
     
-    def preprocess_fn(ds):
-        # Example preprocessing: Add local solar time
-        ds = add_local_solar_time(ds)
-        return ds
+    preprocess_fn = None
+    if do_add_solar_time:
+        def preprocess_fn(ds):
+            # Example preprocessing: Add local solar time
+            ds = add_local_solar_time(ds)
+            return ds
     
     generator = ZarrDataGenerator(
         paths=paths, 
@@ -202,6 +207,7 @@ if __name__ == '__main__':
         preprocess_fn=preprocess_fn,
         prefetch_size=2,
         random_seed=seed, 
+        decode_times=decode_times,
     )
 
     # Optional: Uncomment to use SingleZarrDataGenerator instead
