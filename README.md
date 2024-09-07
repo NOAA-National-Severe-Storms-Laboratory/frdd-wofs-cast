@@ -10,10 +10,11 @@ reconfiguring the meshing and autoregressive rollout for a limited area domain r
 Create the conda environment with
 
 ```
-conda env create -f environment_12_1.yaml
+conda env create -f environment_11_8.yaml
 ```
+
 Depending on the CUDA binary available on your GPU cluster, you may need to install the 11.8 or 12.1 version. 
-For different version, you'll need to select the approach JAX and PyTorch versions. However, the code was not 
+For different version, you'll need to select the appropriate JAX and PyTorch versions. However, the code was not 
 tested other CUDA versions, so user beware. 
 
 
