@@ -83,7 +83,7 @@ seed : 42
 
 # The task config contains details like the input variables, 
 # target variables, time step, etc.
-task_config : 'WOFS_TASK_CONFIG_GC' 
+task_config : 'WOFS_TASK_CONFIG_30MIN_GC' 
 
 # Whether to use the 36.7M parameter GraphCast model weights 
 # Must set parameters identical to those paper 

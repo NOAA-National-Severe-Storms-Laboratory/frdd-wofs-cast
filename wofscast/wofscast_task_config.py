@@ -69,6 +69,20 @@ WOFS_TASK_CONFIG_GC = graphcast.TaskConfig(
       train_lead_times = train_lead_times,
  )
 
+WOFS_TASK_CONFIG_30MIN_GC = graphcast.TaskConfig(
+      input_variables=INPUT_VARS,
+      target_variables=TARGET_VARS,
+      forcing_variables=GC_FORCINGS_VARS,
+      pressure_levels=PRESSURE_LEVELS,
+      input_duration='60min',
+      n_vars_2D = len(VARS_2D),
+      domain_size = DOMAIN_SIZE,
+      tiling=None,
+      train_lead_times = '30min',
+ )
+
+
+
 
 LEVELS_EVERY_3 = list(np.arange(0,50,3))
 LEVELS_EVERY_2 = list(np.arange(0,50,2))
