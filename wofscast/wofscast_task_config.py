@@ -25,13 +25,13 @@ FORCING_VARS = (
         )
 
 GC_FORCINGS_VARS = (
-    'TISR',
+    'toa_radiation',
     #'day_progress', 
     'day_progress_cos', 
     'day_progress_sin', 
     #'year_progress', 
-    #'year_progress_cos', 
-    #'year_progress_sin', 
+    'year_progress_cos', 
+    'year_progress_sin', 
 )
 
 # Not pressure levels, but just vertical array indices at the moment. 
