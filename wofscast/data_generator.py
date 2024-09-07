@@ -584,7 +584,6 @@ def check_datetime_dtype(dataset, coord='datetime'):
         
     return dataset 
 
-
 def add_local_solar_time(data: xr.Dataset) -> xr.Dataset:
     """
     Adds sine and cosine-transformed local solar time variables to the dataset,

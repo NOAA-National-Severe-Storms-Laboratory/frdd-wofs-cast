@@ -49,6 +49,8 @@ from .data_generator import (ZarrDataGenerator,
                              to_static_vars, 
                              replicate_for_devices) 
 
+from .data_utils import add_derived_vars
+from .toa_radiation import TOARadiationFlux
 
 import haiku as hk
 import jax
@@ -83,6 +85,18 @@ jax.config.update("jax_compilation_cache_dir", ".")
 
 
 graphcast_name = 'params_GraphCast - ERA5 1979-2017 - resolution 0.25 - pressure levels 37 - mesh 2to6 - precipitation input and output.npz'
+
+def add_batch_dim(ds, batch_size):
+    # Expand the dataset with a new 'batch' dimension
+    ds_expanded = ds.expand_dims('batch')
+    
+    # Create a new 'batch' coordinate with the specified size
+    batch_coord = np.arange(batch_size)
+    
+    # Assign the batch coordinate to the dataset
+    ds_expanded = ds_expanded.assign_coords(batch=batch_coord)
+    
+    return ds_expanded
 
 def construct_wrapped_graphcast(model_config: graphcast.ModelConfig, 
                                 task_config: graphcast.TaskConfig,
@@ -597,7 +611,19 @@ class WoFSCastModel:
             # Assign the new datetime coordinate to the dataset
             extended_targets = extended_targets.assign_coords(datetime=datetime_coord)
 
-            extended_forcings = add_local_solar_time(extended_targets.copy(deep=True))
+            if 'toa_radiation' in self.task_config.forcing_variables:
+                # Add the local time and TOA radiation to the forcings datasets.
+                extended_forcings = add_derived_vars(extended_targets.isel(batch=0).copy(deep=True))
+                extended_forcings = TOARadiationFlux().add_toa_radiation(extended_forcings)
+                
+                # Add the batch dim back and ensure its the correct size. 
+                batch_size = inputs.dims['batch']
+                extended_forcings = add_batch_dim(extended_forcings, batch_size)
+                
+            else:
+                extended_forcings = add_local_solar_time(extended_targets.copy(deep=True))
+            
+            
             extended_forcings = extended_forcings[self.task_config.forcing_variables]
             
             #Expand the batch size since the add local solar time will drop it. 
