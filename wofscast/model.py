@@ -24,7 +24,7 @@ os.environ['XLA_FLAGS'] = (
     '--xla_gpu_enable_highest_priority_async_stream=true '
 )
 """
-
+import warnings
 import dataclasses
 import datetime
 import functools
@@ -163,72 +163,6 @@ def with_params(fn, model_obj):
 def with_optimizer(fn, optimizer):
     return functools.partial(fn, optimizer=optimizer)
     
-def train_step_parallel(params, 
-                        state, 
-                        opt_state,
-                        inputs, 
-                        targets, 
-                        forcings, 
-                        model_config, 
-                        task_config, 
-                        norm_stats,
-                        noise_level, 
-                        optimizer):
-    
-    def compute_loss(params, state, inputs, targets, forcings):
-        (loss, diagnostics), next_state = loss_fn.apply(params, state, 
-                                                        jax.random.PRNGKey(0), 
-                                                        model_config, 
-                                                        task_config, norm_stats, noise_level,
-                                                        inputs, targets, forcings)
-        return loss, (diagnostics, next_state)
-    
-    # Compute gradients and auxiliary outputs
-    (loss, (diagnostics, next_state)), grads = jax.value_and_grad(compute_loss, has_aux=True)(params, state, 
-                                                                                              inputs, targets, 
-                                                                                              forcings)
-    
-    # Combine the gradient across all devices (by taking their mean).
-    grads = jax.lax.pmean(grads, axis_name='devices')
-
-    # combine the loss across devices
-    loss = jax.lax.pmean(loss, axis_name='devices')
-    
-    updates, opt_state = optimizer.update(grads, opt_state, params=params)
-    new_params = optax.apply_updates(params, updates)
-    
-    return new_params, opt_state , loss, diagnostics
-
-def train_step(params, 
-               state, 
-               opt_state,
-               inputs, 
-               targets, 
-               forcings, 
-               model_config, 
-               task_config, 
-              ):
-    
-    def compute_loss(params, state, inputs, targets, forcings):
-        (loss, diagnostics), next_state = loss_fn.apply(params, state, 
-                                                        jax.random.PRNGKey(0), 
-                                                        model_config, 
-                                                        task_config, 
-                                                        norm_stats, 
-                                                        inputs, targets, forcings)
-        return loss, (diagnostics, next_state)
-    
-    # Compute gradients and auxiliary outputs
-    (loss, (diagnostics, next_state)), grads = jax.value_and_grad(compute_loss, has_aux=True)(params, state, 
-                                                                                              inputs, targets, 
-                                                                                              forcings)
-    
-    
-    updates, opt_state = optimizer.update(grads, opt_state, params=params)
-    new_params = optax.apply_updates(params, updates)
-    
-    return new_params, opt_state, loss, diagnostics
-
 
 class WoFSCastModel:
     """
@@ -348,7 +282,8 @@ class WoFSCastModel:
                       generator, 
                       model_params=None, 
                       state={}, 
-                      return_params=False
+                      return_params=False,
+                      raise_errors=False
                       ):
         
         """Fit the WoFSCast model using the 3-Phase method outlined in Lam et al.
@@ -361,7 +296,78 @@ class WoFSCastModel:
         Parameters
         ---------------
             generator: A data generator that returns inputs, targets, forcings. 
+            raise_errors : 
         """
+        def train_step_parallel(params, 
+                        state, 
+                        opt_state,
+                        inputs, 
+                        targets, 
+                        forcings, 
+                        model_config, 
+                        task_config, 
+                        norm_stats,
+                        noise_level, 
+                        optimizer):
+    
+            def compute_loss(params, state, inputs, targets, forcings):
+                (loss, diagnostics), next_state = loss_fn.apply(params, state, 
+                                                        jax.random.PRNGKey(0), 
+                                                        model_config, 
+                                                        task_config, norm_stats, noise_level,
+                                                        inputs, targets, forcings)
+                return loss, (diagnostics, next_state)
+    
+            # Compute gradients and auxiliary outputs
+            (loss, (diagnostics, next_state)), grads = jax.value_and_grad(compute_loss, has_aux=True)(params, state, 
+                                                                                              inputs, targets, 
+                                                                                              forcings)
+    
+            # Combine the gradient across all devices (by taking their mean).
+            grads = jax.lax.pmean(grads, axis_name='devices')
+
+            # combine the loss across devices
+            loss = jax.lax.pmean(loss, axis_name='devices')
+    
+            updates, opt_state = optimizer.update(grads, opt_state, params=params)
+            new_params = optax.apply_updates(params, updates)
+    
+            return new_params, opt_state , loss, diagnostics
+
+        def train_step(params, 
+               state, 
+               opt_state,
+               inputs, 
+               targets, 
+               forcings, 
+               model_config, 
+               task_config, 
+               norm_stats,
+               noise_level,
+               optimizer):
+    
+            def compute_loss(params, state, inputs, targets, forcings):
+                (loss, diagnostics), next_state = loss_fn.apply(params, state, 
+                                                        jax.random.PRNGKey(0), 
+                                                        model_config, 
+                                                        task_config, 
+                                                        norm_stats, 
+                                                        noise_level,
+                                                        inputs, targets, forcings)
+                return loss, (diagnostics, next_state)
+    
+            # Compute gradients and auxiliary outputs
+            (loss, (diagnostics, next_state)), grads = jax.value_and_grad(compute_loss, has_aux=True)(params, state, 
+                                                                                              inputs, targets, 
+                                                                                              forcings)
+    
+            # No need to average gradients across devices, as we are on a single device
+            updates, opt_state = optimizer.update(grads, opt_state, params=params)
+            new_params = optax.apply_updates(params, updates)
+    
+            return new_params, opt_state, loss, diagnostics
+
+        
         # Initialize the optimizer. The setting used match Lam et al. (GraphCast)
         # and are hardcoded expect the learning rate scheduler, which is a class arg. 
         optimizer = optax.chain(
@@ -386,47 +392,44 @@ class WoFSCastModel:
                    name = project_name,
                    config = self.wandb_config
                   ) 
+        
+        # Set the number of GPUs to the device count if parallel, otherwise set it to 1. 
+        self.num_devices = jax.local_device_count() if self.parallel else 1
 
-        self.num_devices = 1 
-        if self.parallel: 
-            # Assume you have N GPUs
-            self.num_devices = jax.local_device_count()
-            if self.num_devices == 1:
-                raise ValueError('parallel=True, but only 1 GPU is available!')
-            
-            # Note: Using the GraphCast xarray-based JAX pmap; JAX documentation 
-            # says we dont need to jit the function, pmap will handle it. 
-            train_step_jitted = xarray_jax.pmap(with_optimizer(
-                                                with_configs(train_step_parallel, self, self.norm_stats, self.noise_level), 
-                                                optimizer), 
-                                              dim='devices', axis_name='devices')
-      
+        if self.parallel and self.num_devices == 1:
+            if raise_errors:
+                raise ValueError('parallel=True, but only 1 GPU is available! Setting parallel=False')
+            else:
+                warnings.warn('parallel=True, but only 1 GPU is available! Setting parallel=False')
+            self.parallel = False
+
+        train_fn = with_optimizer(with_configs(train_step_parallel if self.parallel else train_step,
+                                       self, self.norm_stats, self.noise_level), optimizer)
+
+        if self.parallel:
+            # Use xarray-based JAX pmap
+            train_step_jitted = xarray_jax.pmap(train_fn, dim='devices', axis_name='devices')
         else:
-            train_step_jitted = jax.jit(with_optimizer(with_configs(grads_fn, self, 
-                                                                    self.norm_stats, self.noise_level)), optimizer)
-
-
+            train_step_jitted = jax.jit(train_fn)
+            
         # Load a single batch. These pre-allocate space 
         # and we'll use a trick below to update these datasets 
         # with data from newly loaded batches. 
         inputs, targets, forcings = generator.generate()    
         
-        #print(f'{inputs=}')
+        if self.num_devices==1: 
+            if 'devices' in inputs.dims:
+                if raise_errors:
+                    raise KeyError("Found 'devices' in the inputs dimensions, but num_devices=1")
+                else:
+                    warnings.warn("Found 'devices' in the inputs dimensions, but num_devices=1. Removing 'devices' dimension..")
+                inputs = inputs.isel(devices=0)
+                targets = targets.isel(devices=0)
+                forcings = forcings.isel(devices=0) 
+        
+        #print(f'{inputs.dims=}')
         #print(f'{targets=}')
         #print(f'{forcings=}')
-        
-        # Since we are dealing with multiple prediction tasks
-        # and therefore different normalization stat files,
-        # check we have the correct one! Otherwise, the
-        # code will attempt to run and give a bizarre error code. 
-        
-        # NOTE: There will be one baseline mean and standard deviation 
-        
-       # if 'level' in inputs.dims.keys(): 
-       #     norm_stat_count = self.norm_stats['mean_by_level']['level'].shape[0]
-       #     input_count = inputs['level'].shape[0]
-                
-       #     assert norm_stat_count == input_count, "Norm Stat is not compatiable with the inputs!"
         
         if model_params is None: 
         
@@ -482,12 +485,12 @@ class WoFSCastModel:
         model_params_replicated = replicate_for_devices(model_params, self.num_devices)
         state_replicated = replicate_for_devices(state, self.num_devices)
         opt_state_replicated = replicate_for_devices(opt_state, self.num_devices)
-        
+                
         del model_params, opt_state 
         
         # Run the code once to jit the train_step_jitted
         start_time = time.time()
-        print(f'Compiling the code..')
+        print(f'Compiling the model..')
         model_params_replicated, opt_state_replicated, loss, diagnostics = train_step_jitted(
                    model_params_replicated, 
                    state_replicated,
@@ -579,7 +582,7 @@ class WoFSCastModel:
         if n_steps: 
             if initial_datetime is None:
                 raise ValueError('If using n_steps, must provide an initial_datetime str or pd.Timestamp for the forcings')
-       
+            
             # Expects a pandas.Timestamp object. If it's a string or other format,
             # it will convert to a Timestamp object.
             if not isinstance(initial_datetime, pd.Timestamp):
@@ -593,10 +596,10 @@ class WoFSCastModel:
                     # using the appropriate format string (adjust as needed).
                     init_dt_obj = datetime.strptime(initial_datetime, '%Y%m%d%H%M')
                     initial_datetime = pd.Timestamp(init_dt_obj)
- 
+                
                 if n_steps and replace_bdry:
                     replace_bdry=False
-                    print('If using n_steps, then replace_bdry must be False. Setting it to False.')
+                    warnings.warn('If using n_steps, then replace_bdry must be False. Setting it to False.')
                 
             extended_targets = rollout.extend_targets_template(targets, 
                                                            required_num_steps=n_steps)
@@ -604,8 +607,6 @@ class WoFSCastModel:
             extended_targets = extended_targets.transpose('batch', 'time', 'level', 'lat', 'lon')
         
             # Create the new datetime coordinate by adding the timedeltas to the initial datetime
-            #print(f'{initial_datetime=}')
-            #print(f"{extended_targets['time'].data=}")
             datetime_coord = initial_datetime + extended_targets['time'].data
 
             # Assign the new datetime coordinate to the dataset
@@ -614,13 +615,15 @@ class WoFSCastModel:
             if 'toa_radiation' in self.task_config.forcing_variables:
                 # Add the local time and TOA radiation to the forcings datasets.
                 extended_forcings = add_derived_vars(extended_targets.isel(batch=0).copy(deep=True))
-                extended_forcings = TOARadiationFlux().add_toa_radiation(extended_forcings)
+                extended_forcings = TOARadiationFlux(
+                    longitude_range="[0, 360]").add_toa_radiation(extended_forcings)
                 
                 # Add the batch dim back and ensure its the correct size. 
                 batch_size = inputs.dims['batch']
                 extended_forcings = add_batch_dim(extended_forcings, batch_size)
                 
             else:
+                print(f'Adding forcing variables using add_local_solar_time')
                 extended_forcings = add_local_solar_time(extended_targets.copy(deep=True))
             
             
@@ -815,18 +818,6 @@ class WoFSCastModel:
         stddev_by_level = xarray.load_dataset(os.path.join(path, 'stddev_by_level.nc'))
         diffs_stddev_by_level = xarray.load_dataset(os.path.join(path, 'diffs_stddev_by_level.nc'))
   
-        ###print(f'{self.task_config.pressure_levels=}')
-        '''
-        Deprecated by MLF. 
-        if hasattr(self, 'task_config'): 
-            levels = self.task_config.pressure_levels
-        
-            if len(levels) < len(mean_by_level.level):
-                print('Selecting levels for norm stats...')
-                mean_by_level = mean_by_level.sel(level=list(levels))
-                stddev_by_level = stddev_by_level.sel(level=list(levels))
-                diffs_stddev_by_level = diffs_stddev_by_level.sel(level=list(levels))
-        '''   
         self.norm_stats = {'mean_by_level': mean_by_level, 
                       'stddev_by_level' : stddev_by_level,
                       'diffs_stddev_by_level' : diffs_stddev_by_level
@@ -834,10 +825,13 @@ class WoFSCastModel:
         
     def save(self, model_params, state):
         """Checkpoint the model parameters including task and model configs."""
-        # Unreplicate model_params 
+        # Unreplicate model_params if using GPU parallelization for training. 
         # Using the suggested change from https://github.com/google/jax/discussions/15972
         # to limit increasing the memory. 
-        model_data = {'parameters' : jax.device_get(jax.tree_map(lambda x: x[0], model_params)), 
+        if self.num_devices > 1:
+            model_params = jax.device_get(jax.tree_map(lambda x: x[0], model_params))
+            
+        model_data = {'parameters' : model_params, 
                 'state' : state,
                 'model_config' : self.model_config, 
                 'task_config' : self.task_config,
