@@ -87,16 +87,10 @@ jax.config.update("jax_compilation_cache_dir", ".")
 graphcast_name = 'params_GraphCast - ERA5 1979-2017 - resolution 0.25 - pressure levels 37 - mesh 2to6 - precipitation input and output.npz'
 
 def add_batch_dim(ds, batch_size):
-    # Expand the dataset with a new 'batch' dimension
-    ds_expanded = ds.expand_dims('batch')
-    
-    # Create a new 'batch' coordinate with the specified size
-    batch_coord = np.arange(batch_size)
-    
-    # Assign the batch coordinate to the dataset
-    ds_expanded = ds_expanded.assign_coords(batch=batch_coord)
-    
-    return ds_expanded
+    # Repeat the data along the 'batch' dimension 
+    ds = xarray.concat([ds] * batch_size, dim='batch')  
+
+    return ds
 
 def construct_wrapped_graphcast(model_config: graphcast.ModelConfig, 
                                 task_config: graphcast.TaskConfig,
@@ -586,7 +580,6 @@ class WoFSCastModel:
             # Expects a pandas.Timestamp object. If it's a string or other format,
             # it will convert to a Timestamp object.
             if not isinstance(initial_datetime, pd.Timestamp):
-    
                 if isinstance(initial_datetime, str):
                     # Convert string to pandas.Timestamp
                     initial_datetime = pd.Timestamp(initial_datetime)
@@ -618,23 +611,18 @@ class WoFSCastModel:
                 extended_forcings = TOARadiationFlux(
                     longitude_range="[0, 360]").add_toa_radiation(extended_forcings)
                 
-                # Add the batch dim back and ensure its the correct size. 
-                batch_size = inputs.dims['batch']
-                extended_forcings = add_batch_dim(extended_forcings, batch_size)
-                
             else:
+                # Select a single batch, but add the batch dim back later. 
                 print(f'Adding forcing variables using add_local_solar_time')
-                extended_forcings = add_local_solar_time(extended_targets.copy(deep=True))
-            
-            
+                extended_forcings = add_local_solar_time(
+                    extended_targets.isel(batch=0).copy(deep=True))
+
             extended_forcings = extended_forcings[self.task_config.forcing_variables]
             
-            #Expand the batch size since the add local solar time will drop it. 
-            #extended_forcings = extended_forcings.expand_dims('batch', axis=0)
-            batch_size = inputs.dims['batch'] 
-            # Repeat the data along the 'batch' dimension 18 times
-            extended_forcings = xarray.concat([extended_forcings] * batch_size, dim='batch')  
-                
+            # Expand the batch size since the previous functions will drop it.  
+            batch_size = inputs.dims['batch']
+            extended_forcings = add_batch_dim(extended_forcings, batch_size)
+            
             extended_forcings = extended_forcings.drop_vars('datetime', errors='ignore')
             extended_targets = extended_targets.drop_vars('datetime', errors='ignore')
     
