@@ -25,8 +25,10 @@ import numpy as np
 import typing_extensions
 import xarray
 
-from .diffusion import apply_diffusion
-
+try:
+    from .diffusion import apply_diffusion
+except ModuleNotFoundError:
+    print('torch or related packages are not installed, skipping import from diffusion.py')
 
 def apply_border_mask_and_update(inputs, boundary_conditions):
     """

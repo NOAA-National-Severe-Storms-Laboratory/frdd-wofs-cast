@@ -404,7 +404,7 @@ class GraphCast(predictor_base.Predictor):
     #grid_mesh_connectivity.radius_query_indices
     (grid_indices, mesh_indices) = square_mesh.radius_query_indices(
         grid_size=len(self._grid_lat),
-        mesh = self._finest_mesh, 
+        finest_mesh = self._finest_mesh, 
         radius=self._query_radius)
 
     # Edges sending info from grid to mesh.

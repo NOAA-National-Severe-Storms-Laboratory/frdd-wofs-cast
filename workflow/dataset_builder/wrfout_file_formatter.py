@@ -44,7 +44,8 @@ class FileFormatter:
                  legacy=True,
                  do_drop_vars =True,
                  vars_to_keep = [], 
-                 processes = ['resize', 'subset_vertical_levels']
+                 processes = ['resize', 'subset_vertical_levels'],
+                 verbose=0
                 ):
         
         self.processes = processes
@@ -57,6 +58,7 @@ class FileFormatter:
         self.do_drop_vars = do_drop_vars
         self.overwrite = overwrite
         self.vars_to_keep = vars_to_keep
+        self.verbose = verbose
         
         self.n_expected_files = (self.duration_minutes // self.timestep_minutes) + 1 
         
@@ -198,7 +200,6 @@ class FileFormatter:
              # unneccesary concatenation for simulateous forecast valid times.
             ds = self.add_time_dim_after_concat(ds)    
         
-        
         if 'subset_vertical_levels' in self.processes: 
             # Subset the vertical levels (every N layers) and reset the coordinate. 
             ds = ds.isel(level=ds.level[::3])
@@ -208,12 +209,9 @@ class FileFormatter:
         # Latitude and longitude are expected to be 1d vectors. 
         ds = ds.assign_coords(lat=lat_1d, lon=lon_1d)
         
-        # Deprecated, but keeping for legacy at the moment. 
-        # Convert negative longitude values to 0-360 range and update the Dataset
-        # Deprecated, but brought back to make new datasets consistent 
-        # with the existing 10-min dataset. 
-        if self.legacy:
-            ds['lon'] = xr.where(ds['lon'] < 0, ds['lon'] + 180, ds['lon'])
+        # The edge feature calculations using longitude require it
+        # to be in range [0,360]. 
+        ds = self.convert_to_fully_positive_longitude(ds)
         
         # Deprecated, but keeping for legacy at the moment
         # Add the 'time' coordinate and dimension
@@ -226,9 +224,9 @@ class FileFormatter:
         if 'resize' in self.processes: 
             ds = self.resize(ds)
         
-        if self.debug:
-            print(f"Processed result for {out_path}")
-            return ds 
+        #if self.debug:
+        #    print(f"Processed result for {out_path}")
+        #    return ds 
         
         compressor = zarr.Blosc(cname='zstd', clevel=3, shuffle=zarr.Blosc.SHUFFLE)
 
@@ -237,7 +235,26 @@ class FileFormatter:
 
         ds.to_zarr(out_path, mode='w', encoding=encoding, consolidated=True)
         
+        if self.verbose > 0:
+            print(f'Saving {out_path}')
+            
         return f"Processed result for {out_path}"
+    
+    def convert_to_fully_positive_longitude(self, ds):
+        """
+        Convert longitude values in the range [-180, 180] to [0, 360].
+
+        Parameters:
+        ds (xarray.Dataset): Input xarray dataset with 'lon' as the longitude coordinate.
+
+        Returns:
+        xarray.Dataset: Dataset with longitude values in the range [0, 360].
+        """
+        ds = ds.copy()
+        # Convert longitude values to the range [0, 360]
+        ds['lon'] = (ds['lon']) % 360
+        return ds
+    
     
     def unaccum_rainfall(self, ds):
         """

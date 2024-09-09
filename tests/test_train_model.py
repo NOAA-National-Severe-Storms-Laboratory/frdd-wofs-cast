@@ -4,7 +4,9 @@
 # WOFSCAST AND DIFFUSION, APPLIED BOTH IN-STEP AND IN-POST
 
 # AUTHOR : monte-flora 
-
+#import os
+# Reduce VRAM usage by reducing fragmentation
+#os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 
 import unittest
 import os, sys
@@ -31,8 +33,11 @@ from wofscast.common.wofs_data_loader import WoFSDataLoader
 
 from wofscast.graphcast_lam import TaskConfig
 from wofscast.common.helpers import to_datetimes
-from wofscast.diffusion import DiffusionModel
 
+try:
+    from wofscast.diffusion import DiffusionModel
+except ModuleNotFoundError:
+    print('torch or related packages are not installed, skipping import from diffusion.py')
 
 from dataclasses import dataclass
 
@@ -64,9 +69,11 @@ class FakeGenerator:
         forcings = xr.concat(forcing_batch, dim='batch')
         
         # Shard the dataset.
-        inputs = shard_xarray_dataset(inputs, self.num_devices)
-        targets = shard_xarray_dataset(targets, self.num_devices)
-        forcings = shard_xarray_dataset(forcings, self.num_devices)
+        if self.num_devices > 1:
+            inputs = shard_xarray_dataset(inputs, self.num_devices)
+            targets = shard_xarray_dataset(targets, self.num_devices)
+            forcings = shard_xarray_dataset(forcings, self.num_devices)
+            
         
         return inputs, targets, forcings 
         
@@ -192,7 +199,7 @@ def create_temp_norm_stats(
     diffs_stddev_by_level.to_netcdf(diffs_stddev_by_level_path)
 
 class TestWoFSCastModel(unittest.TestCase):
-
+    #"""
     @classmethod
     def setUpClass(cls):
         # This method runs once before any tests in the test case.
@@ -240,7 +247,8 @@ class TestWoFSCastModel(unittest.TestCase):
             use_wandb=False
         )
 
-        generator = FakeGenerator(cls.task_config)
+        print(f'{jax.local_device_count()=}')
+        generator = FakeGenerator(cls.task_config, num_devices=jax.local_device_count())
         model_params, state = None, {}
         cls.model.fit_generator(generator, model_params=model_params, state=state)
         
@@ -256,7 +264,7 @@ class TestWoFSCastModel(unittest.TestCase):
                 print(f"Deleted {file}")
             except OSError as e:
                 print(f"Error deleting file {file}: {e}")
-
+    
     # dtype issue; needs to be resolved!
     def test_fine_tuning(self):
         # Test initializing model parameters from existing parameters
@@ -286,7 +294,7 @@ class TestWoFSCastModel(unittest.TestCase):
         trainer.load_model(self.model_path)
         model_params, state = trainer.model_params, trainer.state
         
-        generator = FakeGenerator(self.task_config)
+        generator = FakeGenerator(self.task_config, jax.local_device_count())
         
         trainer.fit_generator(generator, model_params=model_params, state=state)
         self.assertTrue(True)  # Dummy assertion just to check the method runs
@@ -307,8 +315,7 @@ class TestWoFSCastModel(unittest.TestCase):
                                          n_steps=5, replace_bdry=False)
         
         self.assertIsNotNone(predictions)
-        
-
+    #"""    
     #works!
     def test_wofscast_predict(self):
         # Test loading a saved WoFSCast model and performing rollout on WoFS Data.
@@ -337,7 +344,7 @@ class TestWoFSCastModel(unittest.TestCase):
         # Load the base WoFSCast model and diffusion model.
         model = WoFSCastModel()
         model.load_model(model_path)
-        diffusion_model = DiffusionModel(device='cuda:0')
+        diffusion_model = DiffusionModel(device='cuda')
         
         data_loader = WoFSDataLoader(config, model.task_config, 
                              add_local_solar_time, 
@@ -353,6 +360,7 @@ class TestWoFSCastModel(unittest.TestCase):
                             replace_bdry=False)
 
         # WoFSCast with diffusion in-step
+        #'''
         predictions_with_diff = model.predict(inputs, 
                             targets, 
                             forcings, 
@@ -363,9 +371,8 @@ class TestWoFSCastModel(unittest.TestCase):
                            )
         
         predictions_in_post =  diffusion_model.sample_in_post(predictions, num_steps=5)
-        
-       
+        #'''
         self.assertIsNotNone(predictions) 
- 
+     #"""
 if __name__ == '__main__':
     unittest.main()

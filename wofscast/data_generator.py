@@ -232,6 +232,7 @@ class SingleZarrDataGenerator:
 def replicate_for_devices(params, num_devices=None):
     if num_devices is None:
         num_devices = jax.local_device_count()
+        
     return jax.device_put_replicated(params, jax.local_devices()) if num_devices > 1 else params
 
 

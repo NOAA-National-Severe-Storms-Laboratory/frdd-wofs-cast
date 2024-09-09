@@ -4,6 +4,10 @@
 
 """ usage: stdbuf -oL python -u format_wofs_wrfouts.py --config dataset_10min_test_full_domain_config.yaml --debug --legacy --do_drop_vars --overwrite > & log_formatter & """
 
+
+""" usage: stdbuf -oL python -u format_wofs_wrfouts.py --config dataset_10min_train_config.yaml --debug  --overwrite > & log_formatter & """
+
+
 import sys, os 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.getcwd())))
 from wrfout_file_formatter import FileFormatter, filter_dates 
@@ -25,8 +29,6 @@ parser.add_argument('--legacy', action='store_true', help='Run in legacy mode')
 parser.add_argument('--do_drop_vars', action='store_true', help='Drop variables to the original (for legacy)')
 parser.add_argument('--overwrite', action='store_true', help='Whether to overwrite an existing file.')
 args = parser.parse_args()
-
-print(f'{args.debug=}')
 
 config_path = os.path.join(BASE_CONFIG_PATH, args.config)
 config_dict = load_yaml(config_path)
@@ -70,7 +72,8 @@ if subset_vertical_levels:
     processes.append('subset_vertical_levels')
     
 subset_dates = config_dict.get('subset_dates', False)
-   
+
+verbose = 1 if args.debug else 0
 
 formatter = FileFormatter(n_jobs = n_jobs, #35 for one timestep, 20 for multitimesteps
                           duration_minutes=duration_minutes, 
@@ -83,7 +86,8 @@ formatter = FileFormatter(n_jobs = n_jobs, #35 for one timestep, 20 for multitim
                           legacy=legacy,
                           do_drop_vars=do_drop_vars,
                           vars_to_keep=vars_to_keep,
-                          processes = processes
+                          processes = processes,
+                          verbose = verbose
                          )
 
 

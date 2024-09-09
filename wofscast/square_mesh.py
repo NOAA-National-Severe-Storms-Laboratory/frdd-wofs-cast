@@ -23,7 +23,31 @@ class TriangularMesh(NamedTuple):
   vertices: np.ndarray
   faces: np.ndarray
 
+from collections import defaultdict
 
+def check_mesh_closed(faces: np.ndarray) -> bool:
+    """Checks if the mesh is closed by ensuring every edge is shared by two faces."""
+    edge_count = defaultdict(int)
+
+    # Count occurrences of each edge
+    for face in faces:
+        edges = [(face[0], face[1]), (face[1], face[2]), (face[2], face[0])]
+        for edge in edges:
+            # Sort the edge so (a, b) and (b, a) are treated the same
+            edge = tuple(sorted(edge))
+            edge_count[edge] += 1
+
+    # Check if any edge is only used once (open edge)
+    for edge, count in edge_count.items():
+        if count != 2:
+            print(f"Edge {edge} is only used {count} times, indicating an open mesh.")
+            return False
+    
+    print("The mesh is closed.")
+    return True
+
+    
+    
 def get_meshes(start_lat, start_lon, domain_size, mesh_size=5):
     # Generate mesh hierarchy for the given patch
     meshes = get_hierarchy_of_triangular_meshes(
@@ -74,10 +98,6 @@ def get_hierarchy_of_tiled_triangular_meshes(tiling, domain_size, mesh_size=5):
     for i in range(len(combined_meshes)):
         combined_meshes[i] = add_boundary_triangles(combined_meshes[i], tiling, domain_size)
 
-    
-    #combined_meshes[-1] = add_boundary_triangles(combined_meshes[-1], tiling, domain_size)
-
-    
     return combined_meshes
 
 def merge_tiled_meshes(mesh_list: Sequence[TriangularMesh]) -> TriangularMesh:
@@ -235,6 +255,9 @@ def get_hierarchy_of_triangular_meshes(
         current_mesh = concatenate_meshes(tiling, domain_size)
     else:
         current_mesh = get_tri_mesh(0, 0, domain_size, offset=2)
+        # The faces are not closed, so had to add additional edges 
+        # manually in the face_to_edges function below.
+        #is_closed = check_mesh_closed(current_mesh.faces)
         
     output_meshes = [current_mesh]
     
@@ -243,6 +266,21 @@ def get_hierarchy_of_triangular_meshes(
         output_meshes.append(current_mesh)
     
     return output_meshes
+
+def enforce_consistent_orientation(vertices: np.ndarray, faces: np.ndarray) -> np.ndarray:
+    """Ensures all triangular faces have a counterclockwise orientation."""
+    for i, face in enumerate(faces):
+        # Extract the vertices of the current face
+        v0, v1, v2 = vertices[face]
+
+        # Compute the cross product of the two edge vectors
+        cross_product = np.cross(v1 - v0, v2 - v0)
+
+        # If the cross product is negative, reverse the order to make it counterclockwise
+        if cross_product < 0:
+            faces[i] = [face[0], face[2], face[1]]  # Swap the second and third vertices
+    return faces
+
 
 def get_tri_mesh(x_start, y_start, size, offset=0) -> TriangularMesh:
     """Returns a staggered triangular mesh.
@@ -269,6 +307,9 @@ def get_tri_mesh(x_start, y_start, size, offset=0) -> TriangularMesh:
     
     tri = Delaunay(vertices)
     faces = tri.simplices  # The faces are defined by the Delaunay triangulation
+    
+    # Enforce consistent counterclockwise orientation
+    faces = enforce_consistent_orientation(vertices, faces)
     
     return TriangularMesh(vertices=vertices,
                         faces=np.array(faces, dtype=np.int32))
@@ -323,6 +364,26 @@ class _ChildVerticesBuilder:
         return np.array(self._all_vertices_list)
 
 
+def make_edges_bi_directional(senders, receivers):
+    # Create a set of (sender, receiver) pairs
+    edge_pairs = set(zip(senders, receivers))
+
+    # New lists to hold bi-directional edges
+    new_senders = list(senders)
+    new_receivers = list(receivers)
+
+    # Check if all edges are bi-directional
+    for sender, receiver in zip(senders, receivers):
+        if (receiver, sender) not in edge_pairs:
+            # Add the missing reverse edge
+            new_senders.append(receiver)
+            new_receivers.append(sender)
+            #print(f"Added reverse edge for ({receiver}, {sender})")
+
+    # Convert lists back to arrays
+    return np.array(new_senders), np.array(new_receivers)
+    
+    
 def faces_to_edges(faces: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
   """Transforms polygonal faces to sender and receiver indices.
 
@@ -345,6 +406,14 @@ def faces_to_edges(faces: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
   assert faces.shape[-1] == 3
   senders = np.concatenate([faces[:, 0], faces[:, 1], faces[:, 2]])
   receivers = np.concatenate([faces[:, 1], faces[:, 2], faces[:, 0]])
+
+  # The triangular mesh faces have consistent orientations, but 
+  # open faces prevent fully bi-directional edges. As a fix
+  # we can add the reverse of an existing edge direction if it 
+  # does not exist. As of yet to determine what some triangle faces
+  # are not fully closed. 
+  senders, receivers = make_edges_bi_directional(senders, receivers)
+
   return senders, receivers
 
 
@@ -377,24 +446,23 @@ def get_grid_positions(grid_size: int, add_3d_dim=False):
     
 
 def radius_query_indices(
-    grid_size, 
-    mesh, 
+    grid_size : int, 
+    finest_mesh : TriangularMesh, 
     radius: float) -> tuple[np.ndarray, np.ndarray]:
     """
     Find mesh-grid edge indices within a given radius.
 
     Parameters:
-    grid_lat -- array of grid latitudes
-    grid_lon -- array of grid longitudes
-    mesh_lat -- array of mesh latitudes
-    mesh_lon -- array of mesh longitudes
-    radius -- search radius in Cartesian space
+    grid_size : int : Number of NWP grid positions in one direction
+    finest_mesh : TriangularMesh : Finest mesh refinement layer in the multi-mesh
+    radius : float : search radius in integer Caresian space
     
     Returns:
-    A tuple of arrays containing the grid indices and mesh indices.
+    A tuple of arrays containing the grid indices and mesh indices that are connected 
+    together within the search radius. 
     """
     grid_positions = get_grid_positions(grid_size)
-    mesh_positions = mesh.vertices
+    mesh_positions = finest_mesh.vertices
     
     # Build a k-d tree for the mesh positions
     kd_tree = scipy.spatial.cKDTree(mesh_positions)
@@ -406,7 +474,6 @@ def radius_query_indices(
     grid_edge_indices = []
     mesh_edge_indices = []
     for grid_index, mesh_neighbors in enumerate(query_indices):
-        ##print(mesh_neighbors)
         grid_edge_indices.append(np.repeat(grid_index, len(mesh_neighbors)))
         mesh_edge_indices.append(mesh_neighbors)
 

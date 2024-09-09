@@ -82,8 +82,6 @@ WOFS_TASK_CONFIG_30MIN_GC = graphcast.TaskConfig(
  )
 
 
-
-
 LEVELS_EVERY_3 = list(np.arange(0,50,3))
 LEVELS_EVERY_2 = list(np.arange(0,50,2))
 
