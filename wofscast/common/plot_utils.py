@@ -52,19 +52,25 @@ class WoFSCastAnimator:
                  plot_border=False, 
                  dts=None, 
                  add_rmse=True, 
-                 for_randy=False):
+                 for_randy=False,
+                 add_timing_text = False, 
+                 title_prefixes=['WoFS', 'WoFSCast'],
+                ):
         
         self.dts = dts  # Placeholder, replace with your datetime conversion function
         self.plot_border = plot_border
         self.domain_size = domain_size
         self.add_rmse = add_rmse 
         self.for_randy = for_randy
+        self.add_timing_text = add_timing_text 
         
         self.inputs = inputs
         self.predictions = predictions
         self.targets = targets
         self.mrms_dataset = mrms_dataset
         self.analysis_dataset = analysis_dataset
+        self.title_prefixes = title_prefixes
+    
     
     def set_level(self, var, level):
         if var in VARS_2D:
@@ -97,19 +103,19 @@ class WoFSCastAnimator:
         (self.inputs, 
          self.predictions, 
          self.targets) = self.drop_batch_dim(ens_idx, self.inputs, self.predictions, self.targets)
-        
+
         if animation_type == 'wofs_vs_wofscast':
             self.titles = [
-                f'WoFS {display_name_mapper.get(var, var)}{level_txt}', 
-                f'WoFS-Cast {display_name_mapper.get(var, var)}{level_txt}'
+                f'{self.title_prefixes[0]} {display_name_mapper.get(var, var)}{level_txt}', 
+                f'{self.title_prefixes[1]} {display_name_mapper.get(var, var)}{level_txt}'
             ]
             fig, self.axes = plt.subplots(dpi=200, figsize=(12, 6), ncols=2, 
                                           gridspec_kw={'height_ratios': [1], 'bottom': 0.15})
         
         elif animation_type == 'wofs_wofscast_analysis_mrms':
             self.titles = [
-                f'WoFS {display_name_mapper.get(var, var)}{level_txt}', 
-                f'WoFS-Cast {display_name_mapper.get(var, var)}{level_txt}',
+                f'{self.title_prefixes[0]} {display_name_mapper.get(var, var)}{level_txt}', 
+                f'{self.title_prefixes[1]} {display_name_mapper.get(var, var)}{level_txt}',
                 'Analysis Dataset', 
                 'MRMS Dataset'
             ]
@@ -184,7 +190,6 @@ class WoFSCastAnimator:
     def get_colormap_and_levels(self, var, levels):
         self.dz_cmap = WoFSColors.nws_dz_cmap
         self.dz_levels = WoFSLevels.dz_levels_nws
-        
         
         if var == 'COMPOSITE_REFL_10CM':
             cmap = WoFSColors.nws_dz_cmap
@@ -267,8 +272,13 @@ class WoFSCastAnimator:
 
             if self.mrms_dataset is not None and i < 3:
                 self.add_mrms_overlay(ax, z[1], t)
+                
+            if self.add_timing_text:
+                timing_text = ['8-12 min with 60+ CPUs', '30-40 secs with 1 GPU'] 
+                ax.annotate(timing_text[i], xy=(0.025, 0.95), xycoords='axes fraction',
+                            weight='bold', color='gray', fontsize=12, 
+                            bbox=dict(facecolor='lightblue', alpha=0.7, edgecolor='none'))
     
-            
         if self.cbar is None:
             self.cbar = self.fig.colorbar(im, cax=self.cbar_ax, orientation='horizontal')
             self.cbar.set_label(f'{display_name_mapper.get(self.var, self.var)} ({units_mapper.get(self.var, self.var)})')
@@ -281,7 +291,8 @@ class WoFSCastAnimator:
                    colors=['black', 'blue'], 
                    levels=[35.0, 50.0], linewidths=[1.0, 1.5])
         
-        ax.annotate(f'RMSE with MRMS: {this_rmse:.4f}', 
+        if self.add_rmse:
+            ax.annotate(f'RMSE with MRMS: {this_rmse:.4f}', 
                     xy=(0.01, 0.90), xycoords='axes fraction', 
                     weight='bold', color='k', 
                     bbox=dict(facecolor='white', alpha=0.7, edgecolor='none'))

@@ -4,12 +4,13 @@ from glob import glob
 
 
 class WoFSDataLoader:
-    def __init__(self, config, task_config, preprocess_fn=None, load_ensemble=True):
+    def __init__(self, config, task_config, preprocess_fn=None, load_ensemble=True, decode_times=False):
         self.config = config 
         self.task_config = task_config
         self.load_ensemble = load_ensemble
         self.preprocess_fn = preprocess_fn
         self._case_date = None
+        self.decode_times = decode_times
 
     def get_target_slice_range(self):
         """Returns the slice range for target lead times based on the timestep."""
@@ -30,6 +31,7 @@ class WoFSDataLoader:
             if not isinstance(path, list):
                 paths = [path]
                 
+        print(paths)        
         return paths 
     
     @property
@@ -44,7 +46,7 @@ class WoFSDataLoader:
     def load_inputs_targets_forcings(self, path):
         """Loads the input, target, and forcing data based on the specified path."""
         paths = self.get_paths(path)
-        dataset = load_chunk(paths, 1, self.preprocess_fn).compute()
+        dataset = load_chunk(paths, 1, self.preprocess_fn, decode_times=self.decode_times).compute()
 
         self._case_date = get_case_date(paths[0])
         
