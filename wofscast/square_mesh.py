@@ -225,7 +225,11 @@ def concatenate_meshes(tiling: Tuple[int, int], domain_size: int, offset: int = 
     return TriangularMesh(vertices=concatenated_vertices, faces=concatenated_faces)
 
 def get_hierarchy_of_triangular_meshes(
-    splits: int, domain_size: int, tiling=None) -> List[TriangularMesh]:
+    splits: int, 
+    domain_size: int, 
+    tiling=None, 
+    legacy_mesh: bool = False
+) -> List[TriangularMesh]:
     """Returns a sequence of meshes
 
       Starting with a regular icosahedron (12 vertices, 20 faces, 30 edges) with
@@ -254,7 +258,7 @@ def get_hierarchy_of_triangular_meshes(
     if tiling:
         current_mesh = concatenate_meshes(tiling, domain_size)
     else:
-        current_mesh = get_tri_mesh(0, 0, domain_size, offset=2)
+        current_mesh = get_tri_mesh(0, 0, domain_size, offset=2, legacy=legacy_mesh)
         # The faces are not closed, so had to add additional edges 
         # manually in the face_to_edges function below.
         #is_closed = check_mesh_closed(current_mesh.faces)
@@ -282,7 +286,7 @@ def enforce_consistent_orientation(vertices: np.ndarray, faces: np.ndarray) -> n
     return faces
 
 
-def get_tri_mesh(x_start, y_start, size, offset=0) -> TriangularMesh:
+def get_tri_mesh(x_start, y_start, size, offset=0, legacy: bool = False) -> TriangularMesh:
     """Returns a staggered triangular mesh.
   
     Returns:
@@ -309,7 +313,9 @@ def get_tri_mesh(x_start, y_start, size, offset=0) -> TriangularMesh:
     faces = tri.simplices  # The faces are defined by the Delaunay triangulation
     
     # Enforce consistent counterclockwise orientation
-    faces = enforce_consistent_orientation(vertices, faces)
+    if not legacy:
+        print('Enforcing consistent face orientation')
+        faces = enforce_consistent_orientation(vertices, faces)
     
     return TriangularMesh(vertices=vertices,
                         faces=np.array(faces, dtype=np.int32))
@@ -384,7 +390,7 @@ def make_edges_bi_directional(senders, receivers):
     return np.array(new_senders), np.array(new_receivers)
     
     
-def faces_to_edges(faces: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+def faces_to_edges(faces: np.ndarray, legacy: bool = False) -> Tuple[np.ndarray, np.ndarray]:
   """Transforms polygonal faces to sender and receiver indices.
 
   It does so by transforming every face into N_i edges. Such if the triangular
@@ -412,7 +418,9 @@ def faces_to_edges(faces: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
   # we can add the reverse of an existing edge direction if it 
   # does not exist. As of yet to determine what some triangle faces
   # are not fully closed. 
-  senders, receivers = make_edges_bi_directional(senders, receivers)
+  if not legacy:
+      print('Correcting the bi-direction mesh edges') 
+      senders, receivers = make_edges_bi_directional(senders, receivers)
 
   return senders, receivers
 

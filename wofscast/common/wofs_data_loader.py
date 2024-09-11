@@ -30,8 +30,7 @@ class WoFSDataLoader:
         else:
             if not isinstance(path, list):
                 paths = [path]
-                
-        print(paths)        
+                      
         return paths 
     
     @property

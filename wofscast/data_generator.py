@@ -328,45 +328,29 @@ def load_and_concatenate(files, concat_dim):
        
     return combined_dataset
 
-'''
-def load_chunk(paths_chunk, batch_over_time=False, gpu_batch_size=32, preprocess_fn=None):
-    if batch_over_time:
-        if not isinstance(paths_chunk, list) or not all(isinstance(i, list) for i in paths_chunk):
-            raise ValueError('paths must be a nested list if concatenating along a time dimension.')
-        datasets_per_time = [load_and_concatenate(p, concat_dim='Time') for p in paths_chunk]
-        
-        # Apply preprocessing to the individual datasets. 
-        if preprocess_fn:
-            datasets_per_time = [preprocess_fn(ds) for ds in datasets_per_time]
-        
-        dataset = xr.concat(datasets_per_time, dim='batch')  
-    else:
-        dataset = load_and_concatenate(paths_chunk, concat_dim='batch')
-
-        # Apply preprocessing to the dataset. 
-        if preprocess_fn:
-            dataset = preprocess_fn(dataset)     
-        
-    # Chunk the dataset
-    dataset = dataset.chunk({'batch': gpu_batch_size})
-    
-    return dataset
-'''
 
 def load_chunk(paths, gpu_batch_size, preprocess_fn=None, decode_times=False):
-    dataset =  xr.open_mfdataset(paths, engine='zarr', consolidated=True, 
-                       decode_times=decode_times, chunks={},
-                        combine='nested', 
-                        concat_dim='batch', 
-                        preprocess=preprocess_fn, combine_attrs='drop'
-                      )
-    # creates an actual 'batch' coordinate, which I believe causes the 
-    # the data sharding function to fail. 
-    #dataset['batch'] = np.arange(dataset.dims['batch'])
-
-    # Chunk the dataset
-    dataset = dataset.chunk({'batch': gpu_batch_size})
     
+    kwargs=dict(decode_times=decode_times, 
+                chunks={},
+                concat_dim='batch',  
+                combine = 'nested',
+                preprocess=preprocess_fn, 
+                combine_attrs='drop',
+                #  minimal settings to limit 
+                # concatenation overhead. 
+                compat ='override',   
+                coords = 'minimal',
+                 join = 'override',
+               ) 
+    
+    
+    if '.zarr' in paths[0]:
+        kwargs['engine'] = 'zarr'
+        kwargs['consolidated'] = True
+
+    dataset =  xr.open_mfdataset(paths, **kwargs)
+
     return dataset
 
 

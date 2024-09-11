@@ -94,6 +94,7 @@ class ModelConfig:
   k_hop : int = 8  
   use_transformer : bool = False
   num_attn_heads : int = 4 
+  legacy_mesh : bool = False
 
 @chex.dataclass(frozen=True, eq=True)
 class CheckPoint:
@@ -138,14 +139,6 @@ class GraphCast(predictor_base.Predictor):
     n_vars_2D = task_config.n_vars_2D
     domain_size = task_config.domain_size
     tiling = task_config.tiling
-    
-    #print('MAKE SURE YOU HAVE THE CORRECT ACTIVATION FUNCTION!') 
-    #try:
-    #    activation = task_config.activation 
-    #except:
-    #    activation = "swish" 
-    
-    #activation = "gelu" # For new training, need to make this retro-factored for older models.
     activation = "swish" 
     
     self._spatial_features_kwargs = dict(
@@ -162,9 +155,15 @@ class GraphCast(predictor_base.Predictor):
     self._loss_weights = model_config.loss_weights
 
     # Specification of the multimesh.
+    print(f'{model_config.legacy_mesh=}')
+    self.legacy_mesh = model_config.legacy_mesh
     self._meshes = (
           square_mesh.get_hierarchy_of_triangular_meshes(
-            splits=model_config.mesh_size, domain_size=domain_size, tiling=tiling))
+            splits=model_config.mesh_size, 
+              domain_size=domain_size, 
+              tiling=tiling, 
+              legacy_mesh = model_config.legacy_mesh
+          ))
 
     # Encoder, which moves data from the grid to the mesh with a single message
     # passing step.
@@ -454,7 +453,7 @@ class GraphCast(predictor_base.Predictor):
     merged_mesh = square_mesh.merge_meshes(self._meshes)
 
     # Work simply on the mesh edges.
-    senders, receivers = square_mesh.faces_to_edges(merged_mesh.faces)
+    senders, receivers = square_mesh.faces_to_edges(merged_mesh.faces, self.legacy_mesh)
 
     # If using transformer, initialize the k-hop adjacency matrix
     adjacency_matrix = graph_transformer.create_adjacency_matrix(senders, receivers, self._num_mesh_nodes)

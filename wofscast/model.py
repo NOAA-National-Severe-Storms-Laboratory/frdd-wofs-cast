@@ -128,6 +128,7 @@ def run_forward(model_config, task_config, norm_stats, noise_level, inputs, targ
     predictor = construct_wrapped_graphcast(model_config, task_config, norm_stats, noise_level)
     return predictor(inputs, targets_template=targets_template, forcings=forcings)
 
+
 @hk.transform_with_state
 def loss_fn(model_config, task_config, norm_stats, noise_level, inputs, targets, forcings):
     predictor = construct_wrapped_graphcast(model_config, task_config, norm_stats, noise_level)
@@ -135,6 +136,7 @@ def loss_fn(model_config, task_config, norm_stats, noise_level, inputs, targets,
     return xarray_tree.map_structure(
       lambda x: xarray_jax.unwrap_data(x.mean(), require_jax=True),
       (loss, diagnostics))
+
 
 # Jax doesn't seem to like passing configs as args through the jit. Passing it
 # in via partial (instead of capture by closure) forces jax to invalidate the
@@ -405,7 +407,10 @@ class WoFSCastModel:
             train_step_jitted = xarray_jax.pmap(train_fn, dim='devices', axis_name='devices')
         else:
             train_step_jitted = jax.jit(train_fn)
-            
+        
+        #print('Starting JAX trace on line 411..')
+        #jax.profiler.start_trace("/tmp/tensorboard")
+        
         # Load a single batch. These pre-allocate space 
         # and we'll use a trick below to update these datasets 
         # with data from newly loaded batches. 
@@ -421,7 +426,7 @@ class WoFSCastModel:
                 targets = targets.isel(devices=0)
                 forcings = forcings.isel(devices=0) 
         
-        #print(f'{inputs.dims=}')
+        ##print(f'{inputs.dims=}')
         #print(f'{targets=}')
         #print(f'{forcings=}')
         
@@ -449,7 +454,7 @@ class WoFSCastModel:
                     targets_template=_targets,
                     forcings=_forcings, 
                     )
-        
+            
             # The following will replace all up the initial embedding layers 
             # with weights from the GraphCast 36.7M parameter model. 
             # At the moment, there are no checks to ensure that the model 
@@ -550,7 +555,9 @@ class WoFSCastModel:
                 if self.verbose > 1:
                     print('Saving model params....')    
                 self.save(model_params_replicated, state)
-                
+            
+        #jax.profiler.stop_trace()
+               
         # Save the final model params 
         print('Saving the final model...')
         self.save(model_params_replicated, state)
@@ -740,6 +747,8 @@ class WoFSCastModel:
         if grid_to_mesh_node_dist is None:
             grid_to_mesh_node_dist = int(data['grid_to_mesh_node_dist'])
         
+        legacy_mesh = additional_config.get('legacy_mesh', False)
+        
         self.model_config = graphcast.ModelConfig(
               resolution=int(data['resolution']),
               mesh_size=mesh_size,
@@ -751,7 +760,8 @@ class WoFSCastModel:
               k_hop = k_hop,
               use_transformer = use_transformer,
               num_attn_heads = num_attn_heads, 
-              mesh2grid_edge_normalization_factor = mesh2grid_edge_normalization_factor
+              mesh2grid_edge_normalization_factor = mesh2grid_edge_normalization_factor,
+             legacy_mesh = legacy_mesh
         )
         
         if self.verbose > 2:
@@ -775,7 +785,7 @@ class WoFSCastModel:
         
     def _init_model_config(self, mesh_size, latent_size, 
                            gnn_msg_steps, hidden_layers, grid_to_mesh_node_dist, 
-                           loss_weights, k_hop, use_transformer, num_attn_heads
+                           loss_weights, k_hop, use_transformer, num_attn_heads, **kwargs
                           ):
         # Weights used in the loss equation.
         if self.loss_weights is None:

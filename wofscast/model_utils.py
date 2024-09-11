@@ -19,6 +19,14 @@ import numpy as np
 from scipy.spatial import transform
 import xarray
 
+def check_longitudes_non_negative(senders_node_lon: np.ndarray 
+                                  ,receivers_node_lon: np.ndarray):
+    # Check if any value in senders_node_lon or receivers_node_lon is negative
+    if np.any(senders_node_lon < 0):
+        raise ValueError("senders_node_lon contains negative values. Longitudes must be in the [0, 360] range.")
+    if np.any(receivers_node_lon < 0):
+        raise ValueError("receivers_node_lon contains negative values. Longitudes must be in the [0, 360] range.")
+             
 
 def get_graph_spatial_features(
     *, node_lat: np.ndarray, node_lon: np.ndarray,
@@ -66,6 +74,12 @@ def get_graph_spatial_features(
     with node and edge features.
 
   """
+  # Minimal check that longitude values are non-negative. 
+  # Unfortunately, positive longitude values do not guarantee 
+  # values are in [0, 360], but negative values definitely are not! 
+  if np.any(node_lon < 0):
+      raise ValueError("node_lon contains negative values. Longitudes must be in the [0, 360] range.")
+
 
   num_nodes = node_lat.shape[0]
   num_edges = senders.shape[0]
@@ -420,6 +434,10 @@ def get_bipartite_graph_spatial_features(
     with node and edge features.
 
   """
+  # Minimal check that longitude values are non-negative. 
+  # Unfortunately, positive longitude values do not guarantee 
+  # values are in [0, 360], but negative values definitely are not! 
+  check_longitudes_non_negative(senders_node_lon, receivers_node_lon)
 
   num_senders = senders_node_lat.shape[0]
   num_receivers = receivers_node_lat.shape[0]

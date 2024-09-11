@@ -210,7 +210,7 @@ def sum_per_variable_losses(
     
     total = xarray.concat(
         weighted_per_variable_losses.values(), dim="variable", join="exact"
-    ).sum("variable", skipna=False).astype(jax.numpy.bfloat16)
+    ).sum("variable", skipna=False) #.astype(jax.numpy.bfloat16)
     
     return total, per_variable_losses  # pytype: disable=bad-return-type
 
