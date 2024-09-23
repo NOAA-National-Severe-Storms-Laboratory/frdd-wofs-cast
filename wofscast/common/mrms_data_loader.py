@@ -4,6 +4,36 @@ import pandas as pd
 import numpy as np
 import xarray as xr
 
+def to_xarray_dataset(array, time, lat, lon, variable_name='data'):
+    """
+    Convert a NumPy array of shape (NT, lat, lon) into an xarray.Dataset.
+
+    Parameters:
+    - array: The input NumPy array with shape (NT, lat, lon).
+    - time: Array-like time values corresponding to the NT dimension.
+    - lat: Array-like latitude values.
+    - lon: Array-like longitude values.
+    - variable_name: The name of the variable to assign to the dataset (default: 'data').
+
+    Returns:
+    - xarray.Dataset: Dataset containing the input data with 'time', 'lat', and 'lon' coordinates.
+    """
+    # Create an xarray DataArray from the numpy array
+    data_array = xr.DataArray(
+        array,
+        dims=['time', 'lat', 'lon'],  # Define the dimensions
+        coords={'time': time, 'lat': lat, 'lon': lon},  # Assign coordinates
+        name=variable_name  # Name of the variable
+    )
+
+    # Convert the DataArray to a Dataset
+    dataset = data_array.to_dataset()
+
+    return dataset
+
+
+
+
 class MRMSDataLoader: 
     
     MRMS_PATH = '/work/rt_obs/MRMS/RAD_AZS_MSH/'
@@ -78,7 +108,7 @@ class MRMSDataLoader:
             if file is not None: 
                 ds = xr.open_dataset(file, drop_variables=['lat', 'lon'])
                 
-                # Resize the output to 150 x 150\
+                # Resize the output to 150 x 150
                 if self.resize_domain: 
                     ds = self.resize(ds)
                 
@@ -92,14 +122,23 @@ class MRMSDataLoader:
         return data
         
     
-    def load(self):
+    def load(self, to_xarray=True):
 
         files = self.find_mrms_files()
+        
+        # If any files are missing, then return None 
+        # so it can be skipped. 
+        any_files_none = any([f is None for f in files])
+        if any_files_none:
+            return None
+
         
         # Initialize an empty list to store the datasets with 'mesh_consv' variable
         data = np.zeros((len(files), self.domain_size, self.domain_size))
 
+        
         # Load 'mesh_consv' variable from each file and append to the datasets list
+        i = 0 
         for t, file in enumerate(files):
             if file is not None: 
                 ds = xr.open_dataset(file, drop_variables=['lat', 'lon'])
@@ -108,8 +147,21 @@ class MRMSDataLoader:
                 if self.resize_domain: 
                     ds = self.resize(ds)
                 
+                if i == 0:
+                    lat, lon = ds.lat, ds.lon
+                    i+=1
+                
                 data[t,:,:] = ds['dz_consv'].values
     
                 ds.close()
+        
+        if to_xarray:
+            dataset = to_xarray_dataset(data, time=self.datetime_rng, 
+                                    lat=lat, 
+                                    lon=lon, 
+                                    variable_name='comp_dz')
+        
+        
+            return dataset
         
         return data

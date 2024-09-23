@@ -21,7 +21,8 @@ display_name_mapper = {'U' : 'U-wind Comp.',
           'T2' : '2-m Temp.', 
           'COMPOSITE_REFL_10CM' : 'Comp. Refl.',
           'UP_HELI_MAX' : '2-5 km UH', 
-          'RAIN_AMOUNT' : 'Rain Rate'
+          'RAIN_AMOUNT' : 'Rain Rate',
+          'WMAX' : 'Max Vert. Velocity',
          }
 
 units_mapper = {'T': 'K', 
@@ -32,13 +33,39 @@ units_mapper = {'T': 'K',
                 'W': 'm/s', 
                 'GEOPOT': 'm', 
                 'RAIN_AMOUNT': 'in', 
-                'COMPOSITE_REFL_10CM': 'dBZ'
+                'COMPOSITE_REFL_10CM': 'dBZ',
+                'WMAX' : 'm/s'
                }
 
 VARS_2D = ['COMPOSITE_REFL_10CM', 
            'T2', 
            'RAIN_AMOUNT'
           ]
+
+def get_colormap_and_levels(var):
+        if var == 'COMPOSITE_REFL_10CM':
+            cmap = WoFSColors.nws_dz_cmap
+            levels = WoFSLevels.dz_levels_nws
+        elif var == 'RAIN_AMOUNT':
+            cmap = WoFSColors.rain_cmap
+            levels = WoFSLevels.rain_rate_levels
+        elif var == 'UP_HELI_MAX':
+            cmap = WoFSColors.wz_cmap_extend
+            levels = WoFSLevels.uh_2to5_levels_3000m
+        elif var == 'T2':
+            cmap = WoFSColors.temp_cmap
+            levels = np.arange(40., 90., 2.5)
+        elif var == 'QVAPOR': 
+            cmap = WoFSColors.temp_cmap
+        elif var in ['W', 'WMAX']: 
+            cmap = WoFSColors.wz_cmap_extend
+            levels = [2.5, 5, 7.5, 10, 12.5, 15, 17.5, 20]#, 25]#, 30, 35, 40]
+        else:
+            cmap = WoFSColors.wz_cmap_extend
+        
+        return cmap, levels
+
+
 
 
 class WoFSCastAnimator:
@@ -54,7 +81,8 @@ class WoFSCastAnimator:
                  add_rmse=True, 
                  for_randy=False,
                  add_timing_text = False, 
-                 title_prefixes=['WoFS', 'WoFSCast'],
+                 title_prefixes=['WoFS', 'WoFSCast', 'Analysis', 'MRMS'],
+                 add_mrms_overlay = True
                 ):
         
         self.dts = dts  # Placeholder, replace with your datetime conversion function
@@ -70,6 +98,7 @@ class WoFSCastAnimator:
         self.mrms_dataset = mrms_dataset
         self.analysis_dataset = analysis_dataset
         self.title_prefixes = title_prefixes
+        self.add_mrms_overlay = add_mrms_overlay
     
     
     def set_level(self, var, level):
@@ -116,8 +145,8 @@ class WoFSCastAnimator:
             self.titles = [
                 f'{self.title_prefixes[0]} {display_name_mapper.get(var, var)}{level_txt}', 
                 f'{self.title_prefixes[1]} {display_name_mapper.get(var, var)}{level_txt}',
-                'Analysis Dataset', 
-                'MRMS Dataset'
+                f'{self.title_prefixes[2]} {display_name_mapper.get(var, var)}{level_txt}', 
+                f'{self.title_prefixes[3]} Refl'
             ]
             fig, self.axes = plt.subplots(dpi=200, figsize=(12, 12), nrows=2, ncols=2,
                                           gridspec_kw={'height_ratios': [1, 1], 'bottom': 0.1})
@@ -193,6 +222,8 @@ class WoFSCastAnimator:
         
         if var == 'COMPOSITE_REFL_10CM':
             cmap = WoFSColors.nws_dz_cmap
+            if self.for_randy:
+                cmap = 'Spectral_r'
             levels = WoFSLevels.dz_levels_nws            
         elif var == 'RAIN_AMOUNT':
             cmap = WoFSColors.rain_cmap
@@ -270,7 +301,7 @@ class WoFSCastAnimator:
                         weight='bold', color='red', fontsize=10, 
                         bbox=dict(facecolor='white', alpha=0.7, edgecolor='none'))
 
-            if self.mrms_dataset is not None and i < 3:
+            if self.mrms_dataset is not None and i < 3 and self.add_mrms_overlay:
                 self.add_mrms_overlay(ax, z[1], t)
                 
             if self.add_timing_text:

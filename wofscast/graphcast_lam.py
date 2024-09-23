@@ -155,7 +155,6 @@ class GraphCast(predictor_base.Predictor):
     self._loss_weights = model_config.loss_weights
 
     # Specification of the multimesh.
-    print(f'{model_config.legacy_mesh=}')
     self.legacy_mesh = model_config.legacy_mesh
     self._meshes = (
           square_mesh.get_hierarchy_of_triangular_meshes(
