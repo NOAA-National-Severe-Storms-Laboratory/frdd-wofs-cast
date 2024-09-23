@@ -83,7 +83,7 @@ class Evaluator:
 
     def evaluate(self, paths):
         
-        wofs_dbz_thresh = 40  
+        wofs_dbz_thresh = 47  
             
         # TODO: Allow this to be optional! 
         wofs_v_mrms_metric = ObjectBasedContingencyStats(key='wofs_vs_mrms')
