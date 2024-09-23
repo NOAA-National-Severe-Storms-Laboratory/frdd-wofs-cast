@@ -1,0 +1,44 @@
+# CONFIGURATION YAML FOR THE WOFSCAST EVALUATIONS 
+
+# Data file paths for a single member for evaluation. 
+data_path : '/work2/mflora/wofscast_datasets/dataset_10min_15min_init/2021/*_ens_mem_09.zarr'
+
+
+
+# Number of random samples to evaluate.
+n_samples : 5
+seed : 42
+
+# The model to evaluate.
+model_path : '/work/cpotvin/WOFSCAST/model/wofscast_test_v178.npz'
+
+# Keep default; ensemble functionality not 
+# incorporated in the Evaluator code yet! 
+load_ensemble : False
+
+# Whether to apply diffusion. 
+add_diffusion : True
+
+spectra_variables : ['COMPOSITE_REFL_10CM', 'T2', 'W']
+pmm_variables : ['COMPOSITE_REFL_10CM', 'T2', 'RAIN_AMOUNT', 'WMAX']
+fss_variables : ['COMPOSITE_REFL_10CM', 'RAIN_AMOUNT']
+fss_windows : [7, 15, 27]
+fss_thresh_dict : {
+                'COMPOSITE_REFL_10CM' : [40.0], 
+                'RAIN_AMOUNT' : [0.5], #in
+                  }
+# Directory the results dataset will be stored. The 
+# filename is determined internally. 
+out_base_path : '/work2/mflora/verification_datasets'
+
+
+# Matching distance between objects (in km). 
+# Converted to grid point distance in evaluation script
+# i.e., dist = matching_distance // grid_spacing 
+# The same matching distance is used for centroid 
+# and minimum displacement in the MontePython.ObjectMatcher 
+# similar to Skinner et al. (2018, WAF). 
+matching_distance_km : 40 
+
+grid_spacing_km : 3.0
+
