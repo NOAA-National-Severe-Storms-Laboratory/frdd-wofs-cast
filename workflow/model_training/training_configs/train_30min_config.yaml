@@ -3,12 +3,12 @@
 # Path to the datasets used for training. Can be a list of different sets.
 
 data_paths : [
-                '/work2/mflora/wofscast_datasets/dataset_30min_'
+                '/work2/mflora/wofscast_datasets/dataset_30min_fixed'
             ]
             
 #--------------------------------------------
 # Path to the normalization statistics 
-norm_stats_path : '/work2/mflora/wofscast_norm_stats/dataset_30min'
+norm_stats_path : '/work2/mflora/wofscast_norm_stats/dataset_30min_fixed'
 #--------------------------------------------
 
 # Model output path and filename 
@@ -19,7 +19,6 @@ model_save_path : '/work/mflora/wofs-cast-data/model/wofscast_test_30min.npz'
 
 
 add_local_solar_time : False
-
 decode_times : True
 
 

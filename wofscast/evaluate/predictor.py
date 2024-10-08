@@ -7,7 +7,9 @@ class Predictor:
     LEGACY_MODELS = [
     '/work/cpotvin/WOFSCAST/model/wofscast_test_v178.npz',
     '/work2/mflora/wofs-cast-data/model/wofscast_test_v178_fine_tune_v3.npz',
-    '/work/cpotvin/WOFSCAST/model/wofscast_test_v203.npz'    
+    '/work/cpotvin/WOFSCAST/model/wofscast_test_v203.npz', 
+    '/work/mflora/wofs-cast-data/model/wofscast_v178_reproducibility_test_v1.npz'
+    #'/work/cpotvin/WOFSCAST/model/wofscast_test_v213.npz',
     ]
     
     def __init__(self, 
@@ -41,12 +43,15 @@ class Predictor:
     def _load_model(self, model_path, full_domain, add_diffusion, sampler_kwargs):    
         
         preprocess_fn = None
-        additional_configs={}
+        #additional_configs={}
         decode_times = True
         if model_path in self.LEGACY_MODELS:
             preprocess_fn = add_local_solar_time
             decode_times = False
-            additional_configs = {"legacy_mesh" : True}    
+        
+        print('Setting legacy_mesh = True in predictor.py') 
+              
+        additional_configs = {"legacy_mesh" : True}    
         
         self._preprocess_fn = preprocess_fn
         self._decode_times = decode_times

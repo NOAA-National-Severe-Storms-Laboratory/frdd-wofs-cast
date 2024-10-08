@@ -291,6 +291,9 @@ class GraphCast(predictor_base.Predictor):
     # Convert all input data into flat vectors for each of the grid nodes.
     # xarray (batch, time, lat, lon, level, multiple vars, forcings)
     # -> [num_grid_nodes, batch, num_channels]
+    if is_xarray_dataset_empty(forcings):
+        forcings = None
+    
     grid_node_features = self._inputs_to_grid_node_features(inputs, forcings)
 
     # Transfer data for the grid to the mesh,
@@ -711,10 +714,11 @@ class GraphCast(predictor_base.Predictor):
     # to xarray `DataArray` (batch, lat, lon, channels)
     
     stacked_inputs = model_utils.dataset_to_stacked(inputs)   
+
     stacked_forcings = model_utils.dataset_to_stacked(forcings)
-    
     stacked_inputs = xarray.concat(
-        [stacked_inputs, stacked_forcings], dim="channels")
+            [stacked_inputs, stacked_forcings], dim="channels"
+        )
 
     # xarray `DataArray` (batch, lat, lon, channels)
     # to single numpy array with shape [lat_lon_node, batch, channels]
@@ -757,6 +761,10 @@ class GraphCast(predictor_base.Predictor):
 
     return model_utils.stacked_to_dataset(
         grid_xarray.variable, targets_template)
+
+def is_xarray_dataset_empty(dataset):
+    # Check if there are any data variables and dimensions in the dataset
+    return len(dataset.data_vars) == 0
 
 
 def _add_batch_second_axis(data, batch_size):

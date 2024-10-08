@@ -442,7 +442,7 @@ class PMMStormStructure(Metric):
         
             # Match objects
             forecast_storms = forecast.isel(time=t)['storms'].values
-            truth_storms = forecast.isel(time=t)['storms'].values
+            truth_storms = truth.isel(time=t)['storms'].values
             forecast_labels, truth_labels, cent_dists = self.matcher.match(forecast_storms, truth_storms)
         
             # For removing any labels that is not matched. 

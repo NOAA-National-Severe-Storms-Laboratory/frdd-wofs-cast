@@ -1,29 +1,30 @@
-# CONFIGURATION FILE FOR THE BEST 10-MIN WOFSCAST TRAINING. 
-# This configuration matches the v178 model Corey trained for the paper 
-# These have produced the best performing model. 
-
-
 # Path to the datasets used for training. Can be a list of different sets.
 
 data_paths : [
-                '/work/mflora/wofs-cast-data/datasets_zarr'
+                 '/work2/mflora/wofscast_datasets/dataset_10min_reproducible'
             ]
+
+#--------------------------------------------
+# Path to the normalization statistics 
+norm_stats_path : '/work2/mflora/wofscast_norm_stats/dataset_10min_reproducible'
+#--------------------------------------------
+
 
 # Model output path and filename 
 # Where the model weights are stored.
 # If the path already exists, the code will not overwrite 
 # and instead create a new version with an append _v1, v2, etc.
-model_save_path : '/work/mflora/wofs-cast-data/model/wofscast_v178_reproducibility_test.npz'
+model_save_path : '/work/mflora/wofs-cast-data/model/wofscast_v178_no_forcings_later_lead_times.npz'
 
 # The task config contains details like the input variables, 
 # target variables, time step, etc.
-task_config : 'WOFS_TASK_CONFIG' 
+task_config : 'WOFS_TASK_CONFIG_NO_FORCE' 
 
+use_wandb : True
 legacy_mesh : True  
-add_local_solar_time : True
-decode_times : False
-
-#use_wandb : False
+add_local_solar_time : False 
+decode_times : True # If add_local_solar_time is False, then must be set True
+to_legacy_lons : False 
 
 # WoFSCast Model Parameters
 #--------------------------------------------
@@ -49,11 +50,6 @@ num_attn_heads : 4
 
 # How often to save the weights (in terms of gradient descent steps) 
 checkpoint_interval : 250
-
-#--------------------------------------------
-# Path to the normalization statistics 
-norm_stats_path : '/work/mflora/wofs-cast-data/full_normalization_stats'
-#--------------------------------------------
 
 # For general training, we adopt the linear increase in learning rate 
 # during a 'warm-up' period followed by a cosine decay in learning rate      

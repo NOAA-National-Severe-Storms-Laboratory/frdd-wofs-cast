@@ -13,15 +13,18 @@ data_paths : [
 # Where the model weights are stored.
 # If the path already exists, the code will not overwrite 
 # and instead create a new version with an append _v1, v2, etc.
-model_save_path : '/work/mflora/wofs-cast-data/model/wofscast_v178_reproducibility_test.npz'
+model_save_path : '/work/mflora/wofs-cast-data/model/wofscast_da.npz'
 
 # The task config contains details like the input variables, 
 # target variables, time step, etc.
-task_config : 'WOFS_TASK_CONFIG' 
+task_config : 'WOFS_TASK_CONFIG_DA' 
 
+generator_name : 'DataAssimDataLoader'
+
+use_wandb : False
 legacy_mesh : True  
-add_local_solar_time : True
-decode_times : False
+add_local_solar_time : False 
+decode_times : True # If add_local_solar_time is False, then must be set True
 
 #use_wandb : False
 

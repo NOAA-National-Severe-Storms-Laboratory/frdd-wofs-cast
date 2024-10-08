@@ -5,7 +5,7 @@ import argparse
 import numpy as np
 from os.path import join
 from concurrent.futures import ThreadPoolExecutor
-import optax
+import optax, jax
 from copy import copy 
 
 # Environment Configuration
@@ -35,6 +35,7 @@ from wofscast.model import WoFSCastModel
 from wofscast import wofscast_task_config
 from wofscast.data_generator import (
     ZarrDataGenerator, 
+    DataAssimDataLoader, 
     SingleZarrDataGenerator, 
     add_local_solar_time, 
     WoFSDataProcessor
@@ -70,7 +71,7 @@ def get_paths(base_paths, years=['2019', '2020']):
 if __name__ == '__main__':
     """Main script execution."""
     
-    """ usage: stdbuf -oL python -u train_wofscast.py --config train_10min_v178_config_updated.yaml > & log_training & """
+    """ usage: stdbuf -oL python -u train_wofscast.py --config train_10min_v178_no_forcings_later_lead_times.yaml > & logs/log_training_later_times & """
     
     args = parse_arguments()
     config_dict = load_configuration(BASE_CONFIG_PATH, args.config)
@@ -88,6 +89,33 @@ if __name__ == '__main__':
     do_add_solar_time = config_dict.get('add_local_solar_time', True) 
     decode_times = config_dict.get('decode_times', False)
     
+    parallel = config_dict.get('parallel', True)
+    use_wandb = config_dict.get('use_wandb', True)
+    legacy_mesh = config_dict.get('legacy_mesh', True) 
+    generator_name = config_dict.get('generator_name', 'ZarrDataGenerator') 
+    
+    lr_scheduler = config_dict.get('lr_scheduler', 'cosine_decay') 
+    
+    print(f'{lr_scheduler=}')
+    
+    if lr_scheduler == 'constant':
+        scheduler = optax.constant_schedule(float(config_dict['peak_learning_rate']))
+        n_steps = config_dict.get('n_fine_tune_steps', 10000) 
+        
+    elif lr_scheduler == 'cosine_decay':
+        # General training settings
+        warmup_steps = config_dict['warmup_steps']
+        decay_steps = config_dict['decay_steps']
+        n_steps = warmup_steps + decay_steps
+        
+        scheduler = optax.warmup_cosine_decay_schedule(
+            init_value=0,
+            peak_value=float(config_dict['peak_learning_rate']),
+            warmup_steps=warmup_steps,
+            decay_steps=decay_steps,
+            end_value=0.0,
+        )
+
     if fine_tune: 
         # Determine whether the fine tuning includes loading data for 
         # more than one time step. 
@@ -112,8 +140,6 @@ if __name__ == '__main__':
         print('Performing fine tuning...')
         print(f'Saving model to {out_path}..')
         
-        scheduler = optax.constant_schedule(float(config_dict['fine_tune_learning_rate']))
-        
         trainer = WoFSCastModel(
             learning_rate_scheduler=scheduler, 
             checkpoint=True, 
@@ -123,7 +149,9 @@ if __name__ == '__main__':
             verbose=1, 
             n_steps = n_steps, 
             loss_weights=loss_weights,
-            parallel=True
+            parallel=True, 
+            use_wandb=use_wandb,
+            legacy_mesh = legacy_mesh
         )
         
         # Load the model
@@ -135,7 +163,7 @@ if __name__ == '__main__':
             # At the moment, we have a model trained on 150 x 150 grid point patches. 
             # Thus, for the full domain, if set tiling = (2,2), it will create a 2 x 2 
             # quilt of the original mesh to cover the full 300 x 300 WoFS domain.
-            trainer.load_model(model_path, **{'tiling' : (2,2)})
+            trainer.load_model(model_path, **{'tiling' : (2,2), 'legacy_mesh' : legacy_mesh})
         else:
             trainer.load_model(model_path)
             
@@ -143,19 +171,6 @@ if __name__ == '__main__':
         
     else:
         base_paths = config_dict['data_paths'] 
-        
-        # General training settings
-        warmup_steps = config_dict['warmup_steps']
-        decay_steps = config_dict['decay_steps']
-        n_steps = warmup_steps + decay_steps
-        
-        scheduler = optax.warmup_cosine_decay_schedule(
-            init_value=0,
-            peak_value=float(config_dict['peak_learning_rate']),
-            warmup_steps=warmup_steps,
-            decay_steps=decay_steps,
-            end_value=0.0,
-        )
         
         model_params, state = None, {}
         target_lead_times = None  # Defaults to TaskConfig's target lead times
@@ -179,12 +194,14 @@ if __name__ == '__main__':
             checkpoint_interval=config_dict['checkpoint_interval'],
             verbose=1, 
             loss_weights=loss_weights,
-            parallel=True,
-            graphcast_pretrain=graphcast_pretrain
+            parallel=parallel,
+            graphcast_pretrain=graphcast_pretrain,
+            use_wandb=use_wandb,
+            legacy_mesh = legacy_mesh
         )
     
     paths = get_paths(base_paths, years=['2019', '2020'])
-    
+
     # Shuffle paths
     rs = np.random.RandomState(seed)
     rs.shuffle(paths)
@@ -198,17 +215,50 @@ if __name__ == '__main__':
             ds = add_local_solar_time(ds)
             return ds
     
-    generator = ZarrDataGenerator(
-        paths=paths, 
-        task_config=task_config, 
-        target_lead_times=target_lead_times,
-        batch_size=batch_size, 
-        num_devices=2, 
-        preprocess_fn=preprocess_fn,
-        prefetch_size=2,
-        random_seed=seed, 
-        decode_times=decode_times,
-    )
+    to_legacy_lons = config_dict.get('to_legacy_lons', False)
+    
+    print(f'{to_legacy_lons=}')
+    
+    if to_legacy_lons:
+        def preprocess_fn(ds):
+            # Convert longs of ~260 back to 70-80
+            # Seems to work ¯\_(ツ)_/¯
+            ds = ds.assign_coords(lon =ds.lon-180)
+            return ds
+
+    pre_select_times = config_dict.get('pre_select_times', False)
+    
+    if pre_select_times:     
+        def preprocess_fn(ds):
+            ds = ds.isel(time=[1,2,3])
+            return ds 
+    
+    if generator_name == 'ZarrDataGenerator': 
+    
+        generator = ZarrDataGenerator(
+            paths=paths, 
+            task_config=task_config, 
+            target_lead_times=target_lead_times,
+            batch_size=batch_size, 
+            num_devices=jax.local_device_count(), 
+            preprocess_fn=preprocess_fn,
+            prefetch_size=2,
+            random_seed=seed, 
+            decode_times=decode_times,
+        )
+    elif generator_name == 'DataAssimDataLoader':
+        generator = DataAssimDataLoader(
+            paths=paths, 
+            task_config=task_config, 
+            target_lead_times=target_lead_times,
+            batch_size=batch_size, 
+            num_devices=jax.local_device_count(), 
+            preprocess_fn=preprocess_fn,
+            prefetch_size=2,
+            random_seed=seed, 
+            decode_times=decode_times,
+        )
+        
 
     # Optional: Uncomment to use SingleZarrDataGenerator instead
     # zarr_path = '/work/mflora/wofs-cast-data/datasets_5min/training_dataset/wofs_data_2019-2020.zarr'
@@ -222,4 +272,4 @@ if __name__ == '__main__':
     #     random_seed=seed, 
     # )
     
-    trainer.fit_generator(generator, model_params=model_params, state=state)
+    results = trainer.fit_generator(generator, model_params=model_params, state=state)

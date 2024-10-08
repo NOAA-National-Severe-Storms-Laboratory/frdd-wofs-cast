@@ -8,6 +8,10 @@ BASE_PATH : '/work2/wofs_zarr'
 OUT_PATH : '/work2/mflora/wofscast_datasets/new_dataset_5min'
 OUT_NORM_PATH : '/work2/mflora/wofscast_norm_stats/new_dataset_5min'
 
+# For debug testing.
+#OUT_NORM_PATH : '/work2/mflora/wofscast_norm_stats/test_dir'
+#OUT_PATH : '/work2/mflora/wofscast_datasets/test_dir'
+
 # Timestep resolution for the dataset. 
 timestep_minutes : 5  # 60, 5, 10
 
@@ -46,7 +50,7 @@ init_times : ['1900', '1930',
               
 # Number of random samples used for generating the 
 # normalization statistics. 
-n_samples_for_norm : 1024              
+n_samples_for_norm : 1 #1024              
 
 # Batch chunk size used for the 
 # normalization stat computation

@@ -58,12 +58,14 @@ def apply_border_mask_and_update(inputs, boundary_conditions):
                                                dims=updated_inputs[var].dims, 
                                                coords=updated_inputs[var].coords)
             # Using xarray.where to update values at the borders
-            if 'level' in updated_inputs[var].dims:
-                dims = ('batch', 'time', 'level', 'lat', 'lon')
-            else:
-                dims = updated_inputs[var].dims
+            #if 'level' in updated_inputs[var].dims:
+            #    var_dims = ('batch', 'time', 'level', 'lat', 'lon')
+            #else:
+            #    var_dims = updated_inputs[var].dims
                 
             updated_inputs[var] = xarray.where(mask_data_array, boundary_conditions[var], inputs[var])
+    
+    #print(updated_inputs)
     
     updated_inputs = updated_inputs.transpose(*dims, missing_dims='ignore')
     

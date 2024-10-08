@@ -2,7 +2,7 @@
 
 # Add --debug to run a single case! 
 
-""" usage: stdbuf -oL python -u format_wofs_wrfouts.py --config dataset_10min_test_full_domain_config.yaml --debug --legacy --do_drop_vars --overwrite > & log_formatter & """
+""" usage: stdbuf -oL python -u format_wofs_wrfouts.py --config dataset_10min_test_full_domain_config.yaml --legacy --do_drop_vars --overwrite > & log_formatter & """
 
 
 """ usage: stdbuf -oL python -u format_wofs_wrfouts.py --config dataset_10min_train_config.yaml --debug  --overwrite > & log_formatter & """
@@ -42,7 +42,7 @@ else:
     
 timestep_minutes = config_dict['timestep_minutes']
 if args.debug:
-    n_timesteps = 3
+    n_timesteps = 4
 else:
     n_timesteps = config_dict['n_timesteps']
     
@@ -100,7 +100,10 @@ if process_multi_date:
         
         good_dates = filter_dates(possible_dates)#[:5]
         if subset_dates:
-            good_dates = good_dates[:2] 
+            if isinstance(subset_dates, list):
+                good_dates = subset_dates 
+            else:
+                good_dates = good_dates[:2] 
         
         all_dates.extend(good_dates)
     

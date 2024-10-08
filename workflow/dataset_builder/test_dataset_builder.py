@@ -5,14 +5,18 @@ import time
 # A RUNNER SCRIPT FOR GENERATING A WOFSCAST-STYLE TESTING DATASET
 # FROM EITHER INDIVIDUAL RAW WRFOUT FILES OR CURATED ZARR FILES
 
-""" usage: stdbuf -oL python -u test_dataset_builder.py > & logs/log_dataset_builder & """
+""" usage: stdbuf -oL python -u test_dataset_builder.py > & logs/log_test_dataset_builder & """
 
 if __name__ == "__main__":
     
     config_name = "dataset_10min_test_config.yaml"
-
+    
+    
+    tags = "--overwrite"
+    
+    
     # Command to reformat the WoFS wrfout files or Zarr files
-    format_cmd = f"stdbuf -oL python -u format_wofs_wrfouts.py --config {config_name} --overwrite --do_drop_vars >  logs/log_formatter 2>&1"
+    format_cmd = f"stdbuf -oL python -u format_wofs_wrfouts.py --config {config_name} {tags} >  logs/log_test_dataset 2>&1"
     
     print("Running format command:")
     print(format_cmd)
