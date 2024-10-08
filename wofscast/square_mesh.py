@@ -196,7 +196,9 @@ def merge_meshes(
       faces=np.concatenate([mesh.faces for mesh in mesh_list], axis=0))
 
 
-def concatenate_meshes(tiling: Tuple[int, int], domain_size: int, offset: int = 2) -> TriangularMesh:
+def concatenate_meshes(tiling: Tuple[int, int], domain_size: int, 
+                       offset: int = 2, legacy=True
+                      ) -> TriangularMesh:
     """
     Concatenate multiple triangular meshes to form a larger tiled mesh.
     
@@ -214,7 +216,7 @@ def concatenate_meshes(tiling: Tuple[int, int], domain_size: int, offset: int = 
     
     for i in range(nx):
         for j in range(ny):
-            mesh = get_tri_mesh(i * domain_size, j * domain_size, domain_size, offset=offset)
+            mesh = get_tri_mesh(i * domain_size, j * domain_size, domain_size, offset=offset, legacy=legacy)
             all_vertices.append(mesh.vertices)
             all_faces.append(mesh.faces + vertex_offset)
             vertex_offset += mesh.vertices.shape[0]
@@ -256,7 +258,7 @@ def get_hierarchy_of_triangular_meshes(
            (counterclock-wise when looking from the outside).
     """
     if tiling:
-        current_mesh = concatenate_meshes(tiling, domain_size)
+        current_mesh = concatenate_meshes(tiling, domain_size, legacy=legacy_mesh)
     else:
         current_mesh = get_tri_mesh(0, 0, domain_size, offset=2, legacy=legacy_mesh)
         # The faces are not closed, so had to add additional edges 
@@ -441,7 +443,6 @@ def get_mesh_coords(mesh, grid_lat, grid_lon):
     mesh_nodes_lon = grid_lon.min() + (grid_lon.max() - grid_lon.min()) * normalized_vertices[:, 1]
 
     return mesh_nodes_lon, mesh_nodes_lat
-
 
 def get_grid_positions(grid_size: int, add_3d_dim=False):
     """Generate grid positions for a given range in a 2D space."""

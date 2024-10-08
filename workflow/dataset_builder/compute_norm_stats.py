@@ -1,10 +1,7 @@
-#!/usr/bin/env python
-# coding: utf-8
+# Compute the normalization statistics for the WoFSCast
 
-# Compute the normalization statistics for the GraphCast code
+""" usage: stdbuf -oL python -u compute_norm_stats.py --config dataset_10min_train_config.yaml > & logs/log_compute_norm_stats & """
 
-
-""" usage: stdbuf -oL python -u compute_norm_stats.py --config dataset_5min_train_config.yaml > & log_compute_norm_stats & """
 # Add the relative path to the wofscast package. 
 import sys, os 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.getcwd())))

@@ -1,21 +1,14 @@
 # CONFIGURATION YAML FOR THE WOFSCAST EVALUATIONS 
 
 # Data file paths for a single member for evaluation. 
-data_path : '/work2/mflora/wofscast_datasets/dataset_10min_15min_init/2021/*_ens_mem_09.zarr'
-#data_path : '/work/mflora/wofs-cast-data/datasets_2hr_zarr/2021/*_ens_mem_09.zarr'
+data_path : '/work2/mflora/wofscast_datasets/dataset_10min_all_vars/2021/*_ens_mem_09.zarr'
 
 # Number of random samples to evaluate.
 n_samples : 100
 seed : 42
 
 # The model to evaluate.
-#model_path : '/work/cpotvin/WOFSCAST/model/wofscast_test_v178.npz'
-
-#paths = wofscast_v178_old_norm_new_data_legacy_lons.npz
-#         wofscast_v178_no_forcings_select_later_times.npz
-#          wofscast_v178_reproducibility_test_v1.npz
-
-model_path : '/work/mflora/wofs-cast-data/model/wofscast_v178_no_forcings_v1.npz'
+model_path : '/work/cpotvin/WOFSCAST/model/wofscast_test_v213.npz'
 
 # Keep default; ensemble functionality not 
 # incorporated in the Evaluator code yet! 
@@ -25,7 +18,7 @@ load_ensemble : False
 add_diffusion : False
 
 spectra_variables : ['COMPOSITE_REFL_10CM', 'T2', 'W']
-pmm_variables : ['COMPOSITE_REFL_10CM', 'T2', 'RAIN_AMOUNT', 'WMAX']
+pmm_variables : ['COMPOSITE_REFL_10CM', 'T2', 'RAIN_AMOUNT', 'WMAX', 'UP_HELI_MAX']
 fss_variables : ['COMPOSITE_REFL_10CM', 'RAIN_AMOUNT']
 fss_windows : [7, 15, 27]
 fss_thresh_dict : {

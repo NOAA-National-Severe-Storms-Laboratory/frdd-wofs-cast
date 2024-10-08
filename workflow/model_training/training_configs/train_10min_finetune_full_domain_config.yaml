@@ -9,12 +9,10 @@
 model_save_path : '/work/cpotvin/WOFSCAST/model/wofscast_test_v178.npz'
 new_save_path : '/work2/mflora/wofs-cast-data/model'
 
-
 #--------------------------------------------
 # Path to the normalization statistics 
 norm_stats_path : '/work/mflora/wofs-cast-data/full_normalization_stats/'
 #--------------------------------------------
-
 
 # How often to save the weights (in terms of gradient descent steps) 
 checkpoint_interval : 5
@@ -33,14 +31,21 @@ fine_tune : True
 rollout : False 
 full_domain : True
 
+use_wandb : True
+legacy_mesh : True 
+
+lr_scheduler : cosine_decay
+
+warmup_steps :  1000
+decay_steps : 25000
+peak_learning_rate : 1e-4 
+
+
 n_fine_tune_steps : 10000 
-               
 fine_tune_data_paths : [
         '/work2/mflora/wofscast_datasets/dataset_10min_full_domain/'
         ]
-
-fine_tune_learning_rate : 3e-6
-                     
+           
 # Random seed used for the data generator. 
 seed : 42
 

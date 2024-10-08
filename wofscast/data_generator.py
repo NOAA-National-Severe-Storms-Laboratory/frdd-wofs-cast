@@ -130,6 +130,7 @@ class ZarrDataGenerator:
                                                      batch_over_time=self.batch_over_time,
                                                      n_target_steps=self.n_target_steps)
         inputs, targets, forcings = dask.compute(inputs, targets, forcings)
+        
         return inputs, targets, forcings
     
     def generate(self):
@@ -150,6 +151,52 @@ class ZarrDataGenerator:
         self._prefetch_next_batch()
         return inputs, targets, forcings
 
+    
+class DataAssimDataLoader(ZarrDataGenerator): 
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        
+    def generate(self):
+        """
+        Generates a single batch of data from the provided paths.
+
+        Returns:
+        -------
+        tuple
+            A tuple containing inputs, targets, and forcings for each batch.
+        """
+        if not self.futures:
+            for _ in range(self.prefetch_size):
+                self._prefetch_next_batch()
+        
+        future = self.futures.pop(0)
+        inputs, targets, forcings = future.result()
+         
+        # Inputs = U,V, COMPOSITE_REFL_10CM
+        # Targets = U,V, W, COMPOSITE_REFL_10CM, T, GEOPOT,  ...
+        
+        # as a hack, need inputs and targets at a different time? 
+        # so let target be all the variables, and then set inputs
+        # the values in the target dataset. Then only keep the 
+        # KNOWN_VARS for the inputs
+        
+        inputs = targets.copy(deep=True)
+        
+        KNOWN_VARS = ['U', 'V', 'COMPOSITE_REFL_10CM']
+        
+        inputs = inputs.isel(time=[-1])
+        inputs[KNOWN_VARS] = targets[KNOWN_VARS]
+
+        inputs = inputs[KNOWN_VARS]
+        
+        self._prefetch_next_batch()
+        
+        return inputs, targets, forcings
+    
+        
+    
+    
 class SingleZarrDataGenerator:
     """
     A generator class to load and preprocess data from a single zarr files for machine learning tasks.
@@ -362,8 +409,6 @@ def dataset_to_input(dataset, task_config, target_lead_times=None,
     if target_lead_times is None:
         target_lead_times = task_config.train_lead_times
     
-    #print(f'{target_lead_times=}')
-    
     if batch_over_time:
         inputs, targets, forcings = data_utils.batch_extract_inputs_targets_forcings(
             dataset, 
@@ -383,11 +428,11 @@ def dataset_to_input(dataset, task_config, target_lead_times=None,
         raise IndexError('target_lead_times is too long for dataset and inputs are empty!')
     
     inputs = to_static_vars(inputs)
-        
+    
     inputs = inputs.transpose(*DIMS, missing_dims='ignore')
     targets = targets.transpose(*DIMS, missing_dims='ignore')
     forcings = forcings.transpose(*DIMS, missing_dims='ignore')
-    
+ 
     return inputs, targets, forcings
 
 

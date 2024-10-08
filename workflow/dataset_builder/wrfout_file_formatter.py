@@ -209,9 +209,13 @@ class FileFormatter:
         # Latitude and longitude are expected to be 1d vectors. 
         ds = ds.assign_coords(lat=lat_1d, lon=lon_1d)
         
-        # The edge feature calculations using longitude require it
-        # to be in range [0,360]. 
-        ds = self.convert_to_fully_positive_longitude(ds)
+        if self.legacy:
+            # Shift negative longitude by 180 
+            ds['lon'] = xr.where(ds['lon'] < 0, ds['lon'] + 180, ds['lon'])
+        else:
+            ds = self.convert_to_fully_positive_longitude(ds)
+        
+        
         
         # Deprecated, but keeping for legacy at the moment
         # Add the 'time' coordinate and dimension

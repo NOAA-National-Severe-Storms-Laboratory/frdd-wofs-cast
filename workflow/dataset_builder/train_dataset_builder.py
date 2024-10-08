@@ -6,14 +6,14 @@ import time
 # FROM EITHER INDIVIDUAL RAW WRFOUT FILES OR CURATED ZARR FILES
 # ADDITIONALLY, COMPUTE THE NORMALIZATION STATISTICS FOR THE NEW TRAINING DATASET.
 
-""" usage: stdbuf -oL python -u train_dataset_builder.py > & log_dataset_builder & """
+""" usage: stdbuf -oL python -u train_dataset_builder.py > & logs/log_dataset_builder & """
 
 if __name__ == "__main__":
     
     config_name = "dataset_10min_train_config.yaml"
 
     # Command to reformat the WoFS wrfout files or Zarr files
-    format_cmd = f"stdbuf -oL python -u format_wofs_wrfouts.py --config {config_name} --overwrite >  logs/log_formatter 2>&1"
+    format_cmd = f"stdbuf -oL python -u format_wofs_wrfouts.py --config {config_name} --overwrite --legacy >  logs/log_formatter_10min 2>&1"
     
     print("Running format command:")
     print(format_cmd)
@@ -28,7 +28,7 @@ if __name__ == "__main__":
     print("Dataset creation completed!")
 
     # Command to compute normalization statistics
-    norm_stats_cmd = f"stdbuf -oL python -u compute_norm_stats.py --config {config_name} > logs/log_compute_norm_stats 2>&1"
+    norm_stats_cmd = f"stdbuf -oL python -u compute_norm_stats.py --config {config_name} > logs/log_compute_norm_stats_10min 2>&1"
     
     print("Running normalization statistics command:")
     print(norm_stats_cmd)

@@ -1,24 +1,32 @@
-# Configuration file to generate the 10-min timestep WoFSCast testing dataset
+# Configuration file to generate the 10-min timestep WoFSCast training dataset
 # with the original set of variables. Uses the legacy version of the 
 # data generation, which will use the non-negative longitude, etc. 
 
 #BASE_PATH = '/work2/wof/realtime/FCST/' 
 BASE_PATH : '/work2/wofs_zarr'
-OUT_PATH : '/work2/mflora/wofscast_datasets/dataset_10min_all_vars'
-OUT_NORM_PATH : '/work2/mflora/wofscast_norm_stats/dataset_10min_all_vars'
+OUT_PATH : '/work2/mflora/wofscast_datasets/dataset_30min_fixed'
+OUT_NORM_PATH : '/work2/mflora/wofscast_norm_stats/dataset_30min_fixed'
 
 # Timestep resolution for the dataset. 
-timestep_minutes : 10  
-
+timestep_minutes : 30  
 # Number of timesteps to include in one sample. 
-n_timesteps : 14      
+# For training, we need 3 steps, but 
+# for testing, the value varies to cover a 2-3 hr period. 
 
+# hrs = 3
+# hrs = n_timesteps * timestep_minutes // 60
+# 60 * hrs = n_timesteps * timestep_minutes 
+# n_timesteps = 60 * hrs // timestep_minutes
+
+n_timesteps : 6        
 # Time in minutes after forecast initialization to start sampling. 
-offset : 60            
+offset : 15        
 
 years : ['2021'] 
 
-n_jobs : 20 
+subset_dates : [
+'20210514'
+]
 
 VARS_TO_KEEP : ['U', 
                 'V', 
@@ -34,7 +42,9 @@ VARS_TO_KEEP : ['U',
                 'HGT', 'XLAND'
                 ]
 
-mems : [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18]
+
+#mems : [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18]
+mems : [9]
 
 init_times : ['1900', '1930', 
               '2000', '2030', 
@@ -45,3 +55,11 @@ init_times : ['1900', '1930',
               '0100', '0130',
               '0200', '0230',
               '0300']
+
+# Number of random samples used for generating the 
+# normalization statistics. 
+n_samples_for_norm : 4096              
+
+# Batch chunk size used for the 
+# normalization stat computation
+batch_size : 64

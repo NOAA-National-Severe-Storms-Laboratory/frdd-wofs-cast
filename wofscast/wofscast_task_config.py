@@ -10,9 +10,11 @@ VARS_3D = ['U',
            'T', 
            'GEOPOT', 
            'QVAPOR']
+
 VARS_2D = ['T2', 
            'COMPOSITE_REFL_10CM', 
            'RAIN_AMOUNT'] #'UP_HELI_MAX',
+
 STATIC_VARS = ['XLAND', 'HGT']
 
 INPUT_VARS = VARS_3D + VARS_2D + STATIC_VARS
@@ -69,6 +71,20 @@ WOFS_TASK_CONFIG_GC = graphcast.TaskConfig(
       train_lead_times = train_lead_times,
  )
 
+
+WOFS_TASK_CONFIG_NO_FORCE = graphcast.TaskConfig(
+      input_variables=INPUT_VARS,
+      target_variables=TARGET_VARS,
+      forcing_variables=None,
+      pressure_levels=PRESSURE_LEVELS,
+      input_duration=INPUT_DURATION,
+      n_vars_2D = len(VARS_2D),
+      domain_size = DOMAIN_SIZE,
+      tiling=None,
+      train_lead_times = train_lead_times,
+ )
+
+
 WOFS_TASK_CONFIG_30MIN_GC = graphcast.TaskConfig(
       input_variables=INPUT_VARS,
       target_variables=TARGET_VARS,
@@ -80,6 +96,23 @@ WOFS_TASK_CONFIG_30MIN_GC = graphcast.TaskConfig(
       tiling=None,
       train_lead_times = '30min',
  )
+
+DA_VARS = ['U', 'V', 'W', 'COMPOSITE_REFL_10CM', 'T', 'GEOPOT']
+
+WOFS_TASK_CONFIG_DA = graphcast.TaskConfig(
+      input_variables=DA_VARS + STATIC_VARS,
+      target_variables=DA_VARS,
+      forcing_variables=None,
+      pressure_levels=PRESSURE_LEVELS,
+      input_duration=INPUT_DURATION,
+      n_vars_2D = len(VARS_2D),
+      domain_size = DOMAIN_SIZE,
+      tiling=None,
+      train_lead_times = train_lead_times,
+ )
+
+
+
 
 
 LEVELS_EVERY_3 = list(np.arange(0,50,3))

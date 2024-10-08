@@ -498,7 +498,7 @@ def get_bipartite_graph_spatial_features(
     # Note this is L2 distance in 3d space, rather than geodesic distance.
     relative_edge_distances = np.linalg.norm(
         relative_position, axis=-1, keepdims=True)
-
+    
     if edge_normalization_factor is None:
       # Normalize to the maximum edge distance. Note that we expect to always
       # have an edge that goes in the opposite direction of any given edge

@@ -125,7 +125,7 @@ def construct_wrapped_graphcast(model_config: graphcast.ModelConfig,
 # Function for deployment. Used to make predictions on new data and rollout. 
 @hk.transform_with_state
 def run_forward(model_config, task_config, norm_stats, noise_level, inputs, targets_template, forcings):
-    predictor = construct_wrapped_graphcast(model_config, task_config, norm_stats, noise_level)
+    predictor = construct_wrapped_graphcast(model_config, task_config, norm_stats, noise_level)    
     return predictor(inputs, targets_template=targets_template, forcings=forcings)
 
 
@@ -219,8 +219,11 @@ class WoFSCastModel:
                  graphcast_pretrain=False,
                  verbose=1,
                  use_wandb = True,
-                 adam_weight_decay = 0.1
+                 adam_weight_decay = 0.1,
+                 legacy_mesh = False
                 ):
+        
+        ###print(f'{legacy_mesh=} in model.py')
         
         self.use_wandb = use_wandb
         self.wandb_config = {'mesh_size' : mesh_size, 
@@ -232,7 +235,8 @@ class WoFSCastModel:
                              'n_steps' : n_steps, 
                              'checkpoint_interval' : checkpoint_interval,
                              'task_config' : task_config,
-                             'noise_level' : noise_level
+                             'noise_level' : noise_level, 
+                             'legacy_mesh' : legacy_mesh
                             }
         
         self.graphcast_pretrain = graphcast_pretrain
@@ -266,7 +270,8 @@ class WoFSCastModel:
             # Initialize the GraphCast ModelConfig obj. 
             self._init_model_config(mesh_size, latent_size, 
                            gnn_msg_steps, hidden_layers, grid_to_mesh_node_dist, 
-                           loss_weights, k_hop, use_transformer, num_attn_heads)
+                           loss_weights, k_hop, use_transformer, num_attn_heads, 
+                                    legacy_mesh=legacy_mesh)
         
             # Load the normalization statistics. 
             self._load_norm_stats(norm_stats_path)
@@ -447,7 +452,7 @@ class WoFSCastModel:
                 _inputs = inputs.isel(devices=0, batch=[0])
                 _targets = targets.isel(devices=0, batch=[0])
                 _forcings = forcings.isel(devices=0, batch=[0])
-        
+ 
             model_params, state = init_jitted(
                     rng=jax.random.PRNGKey(0),
                     inputs=_inputs,
@@ -747,8 +752,13 @@ class WoFSCastModel:
         if grid_to_mesh_node_dist is None:
             grid_to_mesh_node_dist = int(data['grid_to_mesh_node_dist'])
         
-        legacy_mesh = additional_config.get('legacy_mesh', False)
+        legacy_mesh = additional_config.get('legacy_mesh', True)
         
+        # To avoid data type conversions, need to ensure the loss weights 
+        # are loaded correctly. 
+        # Convert each array to a scalar float
+        weights = {key: value.item() for key, value in data['loss_weights'].items()}
+
         self.model_config = graphcast.ModelConfig(
               resolution=int(data['resolution']),
               mesh_size=mesh_size,
@@ -756,7 +766,7 @@ class WoFSCastModel:
               gnn_msg_steps=int(data['gnn_msg_steps']),
               hidden_layers=int(data['hidden_layers']),
               grid_to_mesh_node_dist=grid_to_mesh_node_dist,
-              loss_weights = data['loss_weights'],
+              loss_weights = weights,
               k_hop = k_hop,
               use_transformer = use_transformer,
               num_attn_heads = num_attn_heads, 
@@ -785,8 +795,12 @@ class WoFSCastModel:
         
     def _init_model_config(self, mesh_size, latent_size, 
                            gnn_msg_steps, hidden_layers, grid_to_mesh_node_dist, 
-                           loss_weights, k_hop, use_transformer, num_attn_heads, **kwargs
+                           loss_weights, k_hop, use_transformer, num_attn_heads, 
+                           legacy_mesh, **kwargs
                           ):
+        
+        print(f'{legacy_mesh=} in _init_model_config')
+        
         # Weights used in the loss equation.
         if self.loss_weights is None:
             loss_weights = {v : 1.0 for v in self.target_vars}
@@ -803,7 +817,8 @@ class WoFSCastModel:
               loss_weights = loss_weights,
               k_hop = k_hop,
               use_transformer = use_transformer,
-              num_attn_heads = num_attn_heads
+              num_attn_heads = num_attn_heads,
+              legacy_mesh = legacy_mesh
         )
         
         if self.verbose > 2:

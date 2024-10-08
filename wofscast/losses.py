@@ -150,6 +150,14 @@ def weighted_loss(predictions, targets):
     return final_loss     
             
 
+def limited_area_loss(predictions, targets):
+    
+    # Inner most 150 x 150 
+    pred = predictions.isel(lat=slice(75, 225), lon=slice(75, 225))
+    tars = targets.isel(lat=slice(75, 225), lon=slice(75, 225))
+                            
+    return (pred - tars) ** 2
+                        
 def weighted_mse_per_level(
     predictions: xarray.Dataset,
     targets: xarray.Dataset,
@@ -173,17 +181,13 @@ def weighted_mse_per_level(
 
         return _mean_preserving_batch(loss)
 
-    # losses = xarray_tree.map_structure(loss, predictions, targets)
-    # losses = xarray_tree.map_structure(custom_loss, predictions, targets)
-
     losses = xarray_tree.map_structure(loss, predictions, targets)
-
+    #losses = xarray_tree.map_structure(limited_area_loss, predictions, targets)
+      
     return sum_per_variable_losses(losses, per_variable_weights)
-
 
 def _mean_preserving_batch(x: xarray.DataArray) -> xarray.DataArray:
     return x.mean([d for d in x.dims if d != "batch"], skipna=False)
-
 
 def sum_per_variable_losses(
     per_variable_losses: Mapping[str, xarray.DataArray],
@@ -203,14 +207,9 @@ def sum_per_variable_losses(
         name: loss * weights.get(name, 1) for name, loss in per_variable_losses.items()
     }
     
-    # MLF: For a yet unknown reason, when loading saved weights and running the model
-    # for finetuning training the "total" loss switched dtype from bfloat16 to float32, 
-    # despite all the variables in per_variable_losses being bfloat16. Though
-    # it may be suboptimal, forcing the loss dtype to bfloat16 avoids the issue.
-    
     total = xarray.concat(
         weighted_per_variable_losses.values(), dim="variable", join="exact"
-    ).sum("variable", skipna=False) #.astype(jax.numpy.bfloat16)
+    ).sum("variable", skipna=False) 
     
     return total, per_variable_losses  # pytype: disable=bad-return-type
 
