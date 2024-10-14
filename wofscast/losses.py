@@ -13,7 +13,7 @@
 # limitations under the License.
 """Loss functions (and terms for use in loss functions) used for weather."""
 
-from typing import Mapping
+from typing import Mapping, Callable 
 
 from . import xarray_tree
 import numpy as np
@@ -23,9 +23,7 @@ import xarray
 import xarray
 import jax
 
-
 LossAndDiagnostics = tuple[xarray.DataArray, xarray.Dataset]
-
 
 class LossFunction(Protocol):
     """A loss function.
@@ -54,135 +52,69 @@ class LossFunction(Protocol):
             batch before logging.
         """
 
+class Loss:
+    def __init__(self, 
+                 lat_rng = None, 
+                 lon_rng = None,
+                 add_level_weight=False, 
+                 add_latitude_weight=False,
+                ):
+        
+        self.lat_rng = lat_rng
+        self.lon_rng = lon_rng
+        self.add_level_weight = add_level_weight 
+        self.add_latitude_weight = add_latitude_weight 
+        
+    def __call__(self, prediction, target):
+        
+        # Pre-select region where to compute the loss. 
+        prediction, target = self.select_region(prediction, target) 
+        
+        # Compute the MSE and then apply weighting (optional).
+        loss = self.loss(prediction, target) 
+        
+        if self.add_latitude_weight:
+            loss *= normalized_latitude_weights(target).astype(loss.dtype)
 
-def threshold_tuned_loss(
-    target,
-    prediction,
-    small_val_thresh,
-    mid_val_thresh,
-    large_val_thresh,
-    small_val_penalty=10.0,
-    mid_val_penalty=15.0,
-    large_val_penalty=5.0,
-):
-    """
-    Custom loss function that penalizes underpredictions above a certain threshold and overpredictions below a certain threshold.
-
-    Parameters:
-    - target: xarray.DataArray representing the true target values.
-    - prediction: xarray.DataArray representing the predicted values.
-    - large_val_thresh: Threshold above which underpredictions are heavily penalized.
-    - small_val_thresh: Threshold below which overpredictions are heavily penalized.
-
-    Returns:
-    - loss: The calculated loss as an xarray.DataArray.
-    """
-
-    # Masks
-    overpredict_small_val_mask = (prediction > target) & (target <= small_val_thresh)
-    underpredict_mid_val_mask = (prediction < target) & (target <= mid_val_thresh)
-    underpredict_large_val_mask = (prediction < target) & (target > large_val_thresh)
-
-    # Loss calculations
-    overpredict_loss = xarray.where(
-        overpredict_small_val_mask, (prediction - target) * small_val_penalty, 0
-    )
-    underpredict_loss_mid = xarray.where(
-        underpredict_mid_val_mask, (target - prediction) * mid_val_penalty, 0
-    )
-    underpredict_loss_large = xarray.where(
-        underpredict_large_val_mask, (target - prediction) * large_val_penalty, 0
-    )
-
-    # Combine loss components
-    combined_loss = overpredict_loss + underpredict_loss_mid + underpredict_loss_large
-
-    return combined_loss
-
-
-def custom_loss(predictions, targets):
-    """Custom loss equation that heavily penalizes over and under prediction for a subset of variables,
-    but otherwise, relies on MSE.
-
-    predictions and targets are DataArray objects
-    """
-    custom_loss_params = {
-        "COMPOSITE_REFL_10CM": {
-            "small_val_thresh": 5.0,  # dBZ
-            "mid_val_thresh": 15.0,  # dBZ
-            "large_val_thresh": 40,
-        },
-        "UP_HELI_MAX": {
-            "small_val_thresh": 5.0,  # UH units
-            "mid_val_thresh": 15.0,  # UH units
-            "large_val_thresh": 60,
-        },
-        "RAINNC": {
-            "small_val_thresh": 0.1,  # mm
-            "mid_val_thresh": 5.0,  # mm
-            "large_val_thresh": 25.4,  # mm
-        },
-    }
-
-    if predictions.name in custom_loss_params.keys():
-        params = custom_loss_params[predictions.name]
-        loss = threshold_tuned_loss(targets, predictions, **params)
-    else:
-        loss = (predictions - targets) ** 2
-
-    return _mean_preserving_batch(loss)
-
-
-def weighted_loss(predictions, targets):
-    # Calculate the element-wise squared error
-    mse_loss = (predictions - targets) ** 2
-
-    # Create a mask to ignore target values less than or equal to 10
-    mask = targets > 10
-
-    # Apply additional weighting where the target values are greater than 10
-    weight = xarray.where(mask, 10.0, 1.0).astype('bfloat16') 
-    weighted_mse_loss = mse_loss * weight
-
-    # Ignore the "correct" predictions of nothing (target <= 10)
-    final_loss = weighted_mse_loss.where(mask, 0.0)
-
-    return final_loss     
+        if 'level' in target.dims and self.add_level_weight:
+            loss *= normalized_level_weights(target).astype(loss.dtype)    
             
-
-def limited_area_loss(predictions, targets):
+        return loss     
+            
+    def select_region(self, prediction, target):
+        
+        if self.lat_rng is None:
+            return prediction, target 
+            
+        prediction = prediction.sel(lat=self.lat_rng, lon=self.lon_rng)
+        target = target.sel(lat=self.lat_rng, lon=self.lon_rng)
+        
+        return prediction, target 
     
-    # Inner most 150 x 150 
-    pred = predictions.isel(lat=slice(75, 225), lon=slice(75, 225))
-    tars = targets.isel(lat=slice(75, 225), lon=slice(75, 225))
-                            
-    return (pred - tars) ** 2
-                        
-def weighted_mse_per_level(
+    # To be implemented by subclasses
+    def loss(self, prediction, target):
+        raise NotImplementedError("Subclasses must implement this method.") 
+        
+class MSE(Loss):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+    def loss(self, prediction, target):
+        return (prediction-target)**2
+        
+class MAE(Loss):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+    def loss(self, prediction, target):
+        return abs(prediction-target)
+                
+def compute_loss(
     predictions: xarray.Dataset,
     targets: xarray.Dataset,
     per_variable_weights: Mapping[str, float],
+    loss_per_variable: Callable[[xarray.DataArray, xarray.DataArray], xarray.DataArray], 
 ) -> LossAndDiagnostics:
-    """Latitude- and pressure-level-weighted MSE loss."""
-
-    def loss(prediction, target):
-        loss = (prediction - target) ** 2
-
-        # For GenCast
-        # loss = weight * ((prediction - target)**2) 
-        # so weight needs to be a xarray_jax DataArray. 
-        
-        # print('No longer doing latitude-based weighting in the loss')
-        # loss *= normalized_latitude_weights(target).astype(loss.dtype)
-
-        # print('Turned off the pressure-level weighted loss')
-        # if 'level' in target.dims:
-        #  loss *= normalized_level_weights(target).astype(loss.dtype)
-
-        return _mean_preserving_batch(loss)
-
-    losses = xarray_tree.map_structure(loss, predictions, targets)
-    #losses = xarray_tree.map_structure(limited_area_loss, predictions, targets)
+    """Compute the loss function per variable, then sum the losses."""
+    losses = xarray_tree.map_structure(loss_per_variable, predictions, targets)
       
     return sum_per_variable_losses(losses, per_variable_weights)
 
@@ -231,8 +163,6 @@ def normalized_level_weights(data: xarray.DataArray) -> xarray.DataArray:
     
     return weights
 
-
-
 def normalized_latitude_weights(data: xarray.DataArray) -> xarray.DataArray:
     """Weights based on latitude, roughly proportional to grid cell area.
 
@@ -271,6 +201,7 @@ def normalized_latitude_weights(data: xarray.DataArray) -> xarray.DataArray:
       Unit mean latitude weights.
     """
     latitude = data.coords["lat"]
+    
 
     if np.any(np.isclose(np.abs(latitude), 90.0)):
         weights = _weight_for_latitude_vector_with_poles(latitude)
@@ -288,7 +219,7 @@ def _weight_for_latitude_vector_without_poles(latitude):
     ):
         raise ValueError(
             f"Latitude vector {latitude} does not start/end at "
-            "+- (90 - delta_latitude/2) degrees."
+            "+- (90 - delta_latitude/2) degrees. If a LAM application, latitude weighting may not be appropriate"
         )
     return np.cos(np.deg2rad(latitude))
 
@@ -312,7 +243,7 @@ def _weight_for_latitude_vector_with_poles(latitude):
 def _check_uniform_spacing_and_get_delta(vector):
     diff = np.diff(vector)
 
-    print("Ignoring this error for WoFS! Make sure to come back to this!!!!")
-    # if not np.all(np.isclose(diff[0], diff)):
-    #  raise ValueError(f'Vector {diff} is not uniformly spaced.')
+    if not np.all(np.isclose(diff[0], diff)):
+        raise ValueError(f'Latitude differennces {diff} is not uniformly spaced. ')
+    
     return diff[0]
