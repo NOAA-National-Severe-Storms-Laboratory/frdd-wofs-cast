@@ -220,25 +220,14 @@ class WoFSCastModel:
                  verbose=1,
                  use_wandb = True,
                  adam_weight_decay = 0.1,
-                 legacy_mesh = False
+                 legacy_mesh = False,
+                 wandb_config = None, 
                 ):
         
-        ###print(f'{legacy_mesh=} in model.py')
-        
+
         self.use_wandb = use_wandb
-        self.wandb_config = {'mesh_size' : mesh_size, 
-                             'latent_size' : latent_size,
-                             'loss_weights' : loss_weights,
-                             'gnn_msg_steps' : gnn_msg_steps,
-                             'hidden_layers' : hidden_layers,
-                             'grid_to_mesh_node_dist' : grid_to_mesh_node_dist,
-                             'n_steps' : n_steps, 
-                             'checkpoint_interval' : checkpoint_interval,
-                             'task_config' : task_config,
-                             'noise_level' : noise_level, 
-                             'legacy_mesh' : legacy_mesh
-                            }
-        
+        self.wandb_config = wandb_config
+
         self.graphcast_pretrain = graphcast_pretrain
         if self.graphcast_pretrain:
             assert latent_size == 512, 'If graphcast_pretrain==True, latent_size must equal 512'

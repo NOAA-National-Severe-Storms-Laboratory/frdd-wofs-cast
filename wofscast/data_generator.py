@@ -124,6 +124,8 @@ class ZarrDataGenerator:
         sampled_paths = rs.choice(self.paths, self.batch_size, replace=True)
         batch = load_chunk(sampled_paths, len(sampled_paths), preprocess_fn=self.preprocess_fn, 
                           decode_times=self.decode_times)
+        # Dropping datetime only for training.
+        batch = batch.drop('datetime', errors='ignore')
         batch_sharded = shard_xarray_dataset(batch, self.num_devices)
         inputs, targets, forcings = dataset_to_input(batch_sharded, self.task_config, 
                                                      target_lead_times=self.target_lead_times,
@@ -154,47 +156,117 @@ class ZarrDataGenerator:
     
 class DataAssimDataLoader(ZarrDataGenerator): 
     
-    def __init__(self, *args, **kwargs):
+    def __init__(self, 
+                 norm_stats_path, 
+                 known_variables=None,
+                 mean_filter_size = 20, 
+                 noise_percent = 0.05, 
+                 *args, **kwargs):
         super().__init__(*args, **kwargs)
+    
+        if known_variables is None:
+            known_variables = ['U', 'V', 'COMPOSITE_REFL_10CM']
+    
+        self.known_variables = known_variables
+        self.mean_filter_size = mean_filter_size
+        self.noise_percent = noise_percent
+        self._load_norm_stats(norm_stats_path=norm_stats_path)
+    
+    def _load_norm_stats(self, norm_stats_path):
+        self.mean_by_level = xr.load_dataset(os.path.join(norm_stats_path, 'mean_by_level.nc'))
+        self.stddev_by_level = xr.load_dataset(os.path.join(norm_stats_path, 'stddev_by_level.nc'))
+    
+    def drop_static_vars(self, ds):
+        # Identify variables that have the 'time' dimension
+        vars_with_time = [var for var in ds.data_vars if 'time' in ds[var].dims]
+    
+        # Select only those variables with the 'time' dimension
+        ds_filtered = ds[vars_with_time]
+    
+        return ds_filtered
+    
+    def drop_datetime(self, ds):
+        return ds.drop('datetime', errors='ignore')
+    
+    def _generate_batch(self, seed):
+              
+        rs = np.random.RandomState(seed)
+        sampled_paths = rs.choice(self.paths, self.batch_size, replace=True)
+        batch = load_chunk(sampled_paths, len(sampled_paths), preprocess_fn=self.preprocess_fn, 
+                          decode_times=self.decode_times)
+        batch_sharded = shard_xarray_dataset(batch, self.num_devices)
         
-    def generate(self):
-        """
-        Generates a single batch of data from the provided paths.
+        batch = batch.drop('datetime', errors='ignore')
+        
+        inputs, targets, forcings = dataset_to_input(batch_sharded, self.task_config, 
+                                                     target_lead_times=self.target_lead_times,
+                                                     batch_over_time=self.batch_over_time,
+                                                     n_target_steps=self.n_target_steps)
 
-        Returns:
-        -------
-        tuple
-            A tuple containing inputs, targets, and forcings for each batch.
-        """
-        if not self.futures:
-            for _ in range(self.prefetch_size):
-                self._prefetch_next_batch()
+        inputs = self.drop_datetime(inputs)
+        targets = self.drop_datetime(targets)
+        forcings = self.drop_datetime(forcings)
         
-        future = self.futures.pop(0)
-        inputs, targets, forcings = future.result()
-         
-        # Inputs = U,V, COMPOSITE_REFL_10CM
-        # Targets = U,V, W, COMPOSITE_REFL_10CM, T, GEOPOT,  ...
-        
-        # as a hack, need inputs and targets at a different time? 
-        # so let target be all the variables, and then set inputs
-        # the values in the target dataset. Then only keep the 
-        # KNOWN_VARS for the inputs
-        
-        inputs = targets.copy(deep=True)
-        
-        KNOWN_VARS = ['U', 'V', 'COMPOSITE_REFL_10CM']
-        
+        # Select the latest time. In the future, let's explore using 
+        # more than 1 time step. 
         inputs = inputs.isel(time=[-1])
-        inputs[KNOWN_VARS] = targets[KNOWN_VARS]
-
-        inputs = inputs[KNOWN_VARS]
         
-        self._prefetch_next_batch()
+        targets_time = targets['time']
+        
+        # Set the target to the inputs; drop the static variables
+        targets = inputs.copy(deep=True)
+        targets = self.drop_static_vars(targets)
+        
+        # Set the forcings time to the same as the inputs/targets
+        forcings = forcings.assign_coords(time = inputs['time'])
+        
+        # Strategy: for the unknown variables, replace them with a highly smoothed version
+        # of the known field. Include some small random noise. Should be a decent estimate 
+        # of a global model field like ECMWF/GFS, but only some noise so it has to learn 
+        # to add it. 
+        
+        # Apply a 5x5 mean filter using xarray's rolling method for lat and lon only
+        non_known_vars = [var for var in targets.data_vars if var not in self.known_variables]
+        
+        for var in non_known_vars:
+            # Apply size x size rolling mean for lat and lon (center=True ensures the window is centered)
+            # Use min_periods=1 to handle NaNs at the edges of the dataset
+            filtered_data = (targets[var]
+                             .rolling({'lat': self.mean_filter_size, 
+                                       'lon': self.mean_filter_size}, center=True, min_periods=1)
+                             .mean())
+            
+            # Replace the input variable with the filtered data
+            inputs[var] = filtered_data
+
+        if self.noise_percent > 0:    
+            
+            for var in non_known_vars:
+                # Get the mean and stddev for the variable by level
+                mean_var = self.mean_by_level[var]
+                stddev_var = self.stddev_by_level[var]
+            
+                # Broadcast the mean and stddev to match the dimensions of the variable
+                mean_var_broadcast = mean_var.broadcast_like(targets[var])
+                stddev_var_broadcast = stddev_var.broadcast_like(targets[var])
+            
+                # Generate 5% random noise based on the standard deviation
+                noise = rs.randn(*targets[var].shape) * stddev_var_broadcast * self.noise_percent  # % of stddev
+            
+                # Add the noise to the variable
+                noisy_data = targets[var] + noise
+            
+                # Replace the input variable with the noisy data
+                inputs[var] = noisy_data
+        
+        # reset the targets time
+        targets = targets.assign_coords(time = targets_time)
+        
+        # Compute with Dask
+        inputs, targets, forcings = dask.compute(inputs, targets, forcings)
         
         return inputs, targets, forcings
-    
-        
+
     
     
 class SingleZarrDataGenerator:
@@ -408,7 +480,7 @@ def dataset_to_input(dataset, task_config, target_lead_times=None,
     
     if target_lead_times is None:
         target_lead_times = task_config.train_lead_times
-    
+        
     if batch_over_time:
         inputs, targets, forcings = data_utils.batch_extract_inputs_targets_forcings(
             dataset, 
@@ -674,7 +746,7 @@ def add_local_solar_time(data: xr.Dataset) -> xr.Dataset:
     data['local_solar_time_sin'] = local_solar_time_sin_da.astype('float32')
     data['local_solar_time_cos'] = local_solar_time_cos_da.astype('float32')
     
-    data = data.drop_vars('datetime', errors='ignore')
+    #data = data.drop_vars('datetime', errors='ignore')
     
     return data
     
