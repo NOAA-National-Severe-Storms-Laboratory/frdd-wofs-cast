@@ -39,19 +39,18 @@ class MRMSDataLoader:
     MRMS_PATH = '/work/rt_obs/MRMS/RAD_AZS_MSH/'
     MRMS_QPE_PATH = '/work/rt_obs/MRMS/QPE/'
     
-    def __init__(self, case_date, datetime_rng, domain_size=150, resize_domain=True):
+    def __init__(self, case_date, domain_size=150, resize_domain=True):
         self.case_date = case_date
-        self.datetime_rng = datetime_rng 
         self.domain_size = domain_size
         self.resize_domain = resize_domain 
 
-    def find_mrms_files(self):
+    def find_mrms_files(self, datetime_rng):
         """
         When given a start and end date, this function will find any MRMS RAD 
         files between those time periods. It will check if the path exists. 
         """
-        year = str(self.datetime_rng[0].year) 
-        mrms_filenames = [date.strftime('wofs_MRMS_RAD_%Y%m%d_%H%M.nc') for date in self.datetime_rng]
+        year = str(datetime_rng[0].year) 
+        mrms_filenames = [date.strftime('wofs_MRMS_RAD_%Y%m%d_%H%M.nc') for date in datetime_rng]
 
         mrms_filepaths = [Path(self.MRMS_PATH).joinpath(year, self.case_date, f) 
                           if Path(self.MRMS_PATH).joinpath(year, self.case_date, f).is_file() else None
@@ -60,8 +59,8 @@ class MRMSDataLoader:
        
         return mrms_filepaths 
     
-    def find_qpe_files(self):
-        start_time, end_time = self.datetime_rng[0], self.datetime_rng[-1]
+    def find_qpe_files(self, datetime_rng):
+        start_time, end_time = datetime_rng[0], datetime_rng[-1]
     
         year = str(start_time.year) 
         
@@ -85,83 +84,46 @@ class MRMSDataLoader:
 
         return selected_files
 
-    def resize(self, ds, n_lat=300, n_lon=300):
-        """Resize the domain"""
-        domain_size = self.domain_size
-        start_lat, start_lon = (n_lat - domain_size) // 2, (n_lon - domain_size) // 2
-        end_lat, end_lon = start_lat + domain_size, start_lon + domain_size
-        
-        # Subsetting the dataset to the central size x size grid
-        ds_subset = ds.isel(lat=slice(start_lat, end_lat), lon=slice(start_lon, end_lon))
-        
-        return ds_subset
     
-    def load_qpe(self):
+    def load(self, template_ds, mode='refl'):
+        N = 300 
         
-        files = self.find_qpe_files()
+        datetimes = pd.to_datetime(template_ds.datetime)
         
-        # Initialize an empty list to store the datasets with 'mesh_consv' variable
-        data = np.zeros((len(files), self.domain_size, self.domain_size))
-
-        # Load 'mesh_consv' variable from each file and append to the datasets list
-        for t, file in enumerate(files):
-            if file is not None: 
-                ds = xr.open_dataset(file, drop_variables=['lat', 'lon'])
-                
-                # Resize the output to 150 x 150
-                if self.resize_domain: 
-                    ds = self.resize(ds)
-                
-                data[t,:,:] = ds['qpe_consv'].values
-    
-                ds.close()
         
-        # Sum over time
-        data = data.sum(axis=0)
-        
-        return data
-        
-    
-    def load(self, to_xarray=True):
-
-        files = self.find_mrms_files()
-        
+        if mode == 'refl':
+            files = self.find_mrms_files(datetimes)
+        elif mode == 'qpe':
+            files = self.find_qpe_files(datetimes)
+         
         # If any files are missing, then return None 
         # so it can be skipped. 
         any_files_none = any([f is None for f in files])
         if any_files_none:
             return None
 
+        # Use Dask to lazily load data
+        ds = xr.open_mfdataset(files, chunks={}, combine='nested', 
+                               concat_dim='time', engine='netcdf4',
+                               drop_variables=['lat', 'lon'])
+        if 'longitude' in ds.dims:
+            ds = ds.rename({'longitude' : 'lon', 'latitude' : 'lat'})
         
-        # Initialize an empty list to store the datasets with 'mesh_consv' variable
-        data = np.zeros((len(files), self.domain_size, self.domain_size))
-
+        datetimes = pd.to_datetime(template_ds.datetime)
+        times = template_ds.time.values
         
-        # Load 'mesh_consv' variable from each file and append to the datasets list
-        i = 0 
-        for t, file in enumerate(files):
-            if file is not None: 
-                ds = xr.open_dataset(file, drop_variables=['lat', 'lon'])
-                
-                # Resize the output to 150 x 150
-                if self.resize_domain: 
-                    ds = self.resize(ds)
-                
-                if i == 0:
-                    lat, lon = ds.lat, ds.lon
-                    i+=1
-                
-                data[t,:,:] = ds['dz_consv'].values
-    
-                ds.close()
+        # Resizing the dataset if necessary
+        if self.resize_domain:
+            start = (N - self.domain_size) // 2
+            end = start + self.domain_size
+            ds = ds.isel(lon=slice(start, end), lat=slice(start, end))
         
-        if to_xarray:
-            dataset = to_xarray_dataset(data, time=self.datetime_rng, 
-                                    lat=lat, 
-                                    lon=lon, 
-                                    variable_name='comp_dz')
+        ds = ds.assign_coords(lat = template_ds.lat)
+        ds = ds.assign_coords(lon = template_ds.lon)
+        if mode == 'refl':
+            ds = ds.assign_coords(time = times)
+            ds = ds.assign_coords(datetime = ('time', datetimes))
         
+        ds = ds.compute() 
         
-            return dataset
-        
-        return data
+        return ds

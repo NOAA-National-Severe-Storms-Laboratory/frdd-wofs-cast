@@ -61,8 +61,16 @@ def get_case_date(path):
     name = os.path.basename(path)
     comps = name.split('_')
     
+    
     start_date = comps[1]+'_'+comps[2]
-    start_date_dt = datetime.strptime(start_date, '%Y-%m-%d_%H%M%S')
+    
+    try:
+        start_date = comps[1]+'_'+comps[2]+comps[3]+comps[4]
+        ###print(f'{start_date=}')
+        start_date_dt = datetime.strptime(start_date, '%Y-%m-%d_%H%M%S')
+    except:
+        start_date = comps[1]+'_'+comps[2]
+        start_date_dt = datetime.strptime(start_date, '%Y-%m-%d_%H%M%S')
     
     if start_date_dt.hour < 14:
         case_date = start_date_dt.date() - timedelta(days=1)
@@ -74,7 +82,16 @@ def get_case_date(path):
 
 def to_datetimes(path, n_times = 13):  
     name, freq, ens_mem = os.path.basename(path).split('__')
-    start_time_dt = datetime.strptime(name.split('_to')[0], 'wrfwof_%Y-%m-%d_%H%M%S')
+
+    original_time_str = name.split('_to')[0]
+    # Try the first format with underscores
+    try:
+        start_time_dt = datetime.strptime(original_time_str, 'wrfwof_%Y-%m-%d_%H_%M_%S')
+    except ValueError:
+        # If the first format fails, try the second format without underscores
+        start_time_dt = datetime.strptime(original_time_str, 'wrfwof_%Y-%m-%d_%H%M%S')
+    
+    
     start_time = pd.Timestamp(start_time_dt)
     
     dt_list = pd.date_range(start=start_time, periods=n_times, freq=freq)

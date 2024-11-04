@@ -18,7 +18,7 @@ norm_stats_path : '/work/mflora/wofs-cast-data/full_normalization_stats'
 # Where the model weights are stored.
 # If the path already exists, the code will not overwrite 
 # and instead create a new version with an append _v1, v2, etc.
-model_save_path : '/work/mflora/wofs-cast-data/model/wofscast_v178_more_data.npz'
+model_save_path : '/work/mflora/wofs-cast-data/model/wofscast_double_data_24_msg_steps.npz'
 
 use_wandb : True
 legacy_mesh : True  
@@ -37,9 +37,9 @@ variables_3D : ['U',
                
 variables_2D: ['T2', 
                'COMPOSITE_REFL_10CM', 
-               'RAIN_AMOUNT', 
-               'UP_HELI_MAX',
-               ]
+               'RAIN_AMOUNT', ]
+               #'UP_HELI_MAX',
+
                
 static_variables : ['XLAND', 'HGT']
 
@@ -68,15 +68,13 @@ add_latitude_weight : False
 #lon_rng : [79.53119,84.18631 ] 
 
 
-
-
 # WoFSCast Model Parameters
 #--------------------------------------------
 # Number of Mesh refinements or more higher resolution layers. 
 mesh_size : 5
 latent_size : 512 
 # Increasing this allows for connecting information from farther away.
-gnn_msg_steps : 16 
+gnn_msg_steps : 24 
 hidden_layers : 1 
 #noise_level : 0.0 (optional)
 

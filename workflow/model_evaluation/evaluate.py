@@ -30,7 +30,7 @@ BASE_CONFIG_PATH = 'eval_configs'
 
 if __name__ == "__main__":
     
-    """ usage: stdbuf -oL python -u evaluate.py --config eval_config.yaml > & logs/log_eval & """
+    """ usage: stdbuf -oL python -u evaluate.py --config eval_config.yaml > & logs/log_eval_bigger_model & """
     
     
     args = parse_arguments()

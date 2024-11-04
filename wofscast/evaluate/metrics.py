@@ -35,11 +35,18 @@ class MSE(Metric):
     """A class for computing an accumulating MSE. The averaging occurs over all 
     dimensions except time. 
     """
-    def __init__(self):
+    def __init__(self, addon=None, variables=None):
+        self.addon = addon
+        self.variables = variables
+        
         super().__init__()
     
-    def set_variables(self, dataset):
-        self.variables = dataset.data_vars
+    def set_variables(self, forecast, truth):
+        
+        # Get the intersection of variables in the order they appear in forecast
+        variables = [var for var in forecast.data_vars if var in truth.data_vars]
+    
+        self.variables = variables
     
     def mean_preserving_time(self, x : xr.Dataset) -> xr.Dataset:
         return x.mean([d for d in x.dims if d != 'time'], skipna=True)
@@ -55,7 +62,10 @@ class MSE(Metric):
         self.results_ = self.results_.apply(np.sqrt)
         
         # Rename the variables with the '_rmse' tag. 
-        mapper = {n : f'{n}_rmse' for n in self.variables}
+        if self.addon: 
+            mapper = {n : f'{n}_rmse_{self.addon}' for n in self.variables}
+        else:
+            mapper = {n : f'{n}_rmse' for n in self.variables}
         self.results_ = self.results_.rename(mapper)
 
         return self.results_ 
@@ -67,10 +77,10 @@ class MSE(Metric):
         
         The results are added for each call to .update.  
         """
-        if self.n_updates==0:
-            self.set_variables(forecast)
+        if self.n_updates==0 and self.variables is None:
+            self.set_variables(forecast, truth)
         
-        diff = (forecast-truth)**2
+        diff = (forecast[self.variables]-truth[self.variables])**2
         
         diff = self.mean_preserving_time(diff)
         
