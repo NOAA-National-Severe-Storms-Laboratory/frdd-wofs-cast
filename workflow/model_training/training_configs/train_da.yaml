@@ -15,18 +15,58 @@ data_paths : [
 # and instead create a new version with an append _v1, v2, etc.
 model_save_path : '/work/mflora/wofs-cast-data/model/wofscast_da.npz'
 
-# The task config contains details like the input variables, 
-# target variables, time step, etc.
-task_config : 'WOFS_TASK_CONFIG_DA' 
-
+# Whether to use a different data loader in data_generator.py
 generator_name : 'DataAssimDataLoader'
 
-use_wandb : False
+use_wandb : True
 legacy_mesh : True  
 add_local_solar_time : False 
 decode_times : True # If add_local_solar_time is False, then must be set True
 
-#use_wandb : False
+# Task config parameters
+# The task config contains details like the input variables, 
+# target variables, time step, etc.
+#--------------------------------------------
+variables_3D : [
+               'U', 
+               'V', 
+               'W', 
+               'T', 
+               'GEOPOT', 
+               'QVAPOR', 
+               ]
+               
+variables_2D: [ 'T2',
+               'COMPOSITE_REFL_10CM', 
+               'RAIN_AMOUNT'
+               ]
+               
+static_variables : ['XLAND', 'HGT']
+
+#forcings_variables : None 
+
+pressure_levels: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
+
+# Depends on the timestep interval, how many samples are selected
+# to match this duration. 
+input_duration : '10min'
+
+# How much forward to predict, will depend on the number of inputs, etc.
+train_lead_times : '10min'
+
+domain_size : 150 
+
+#tiling : None 
+
+
+# Loss function & parameters (part of the task config) 
+#--------------------------------------------
+loss_metric : 'MSE'
+add_level_weight : False
+add_latitude_weight : False 
+#lat_rng : [32.1181, 36.194077]
+#lon_rng : [79.53119,84.18631 ] 
+
 
 # WoFSCast Model Parameters
 #--------------------------------------------
@@ -55,8 +95,14 @@ checkpoint_interval : 250
 
 #--------------------------------------------
 # Path to the normalization statistics 
-norm_stats_path : '/work/mflora/wofs-cast-data/full_normalization_stats'
+norm_stats_path : '/work2/mflora/wofscast_datasets/data_assim_for_norm_stats'
 #--------------------------------------------
+
+# FOR DATA ASSIMILATION 
+known_variables : ['U', 'V', 'COMPOSITE_REFL_10CM', 'HGT', 'XLAND']
+unknown_variables : ['W', 'T', 'GEOPOT', 'QVAPOR', 'RAIN_AMOUNT', 'T2']
+skewed_variables : ['W', 'RAIN_AMOUNT']
+gauss_filter_size : 10.0 
 
 # For general training, we adopt the linear increase in learning rate 
 # during a 'warm-up' period followed by a cosine decay in learning rate      
@@ -68,7 +114,7 @@ peak_learning_rate : 1e-3
 # Number of samples processed during a single gradient descent step
 # If using multiple GPUs, batch_size / n_gpus samples are sent 
 # to each GPU. 
-batch_size : 24
+batch_size : 32
 
 # Whether to initialize the model with existing model weights 
 # TaskConfig and ModelConfig are re-built using the checkpoint

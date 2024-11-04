@@ -139,6 +139,9 @@ def sum_per_variable_losses(
         name: loss * weights.get(name, 1) for name, loss in per_variable_losses.items()
     }
     
+    ###print(f'{weighted_per_variable_losses=}')
+    
+    
     total = xarray.concat(
         weighted_per_variable_losses.values(), dim="variable", join="exact"
     ).sum("variable", skipna=False) 

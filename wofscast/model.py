@@ -708,7 +708,8 @@ class WoFSCastModel:
               n_vars_2D = data['n_vars_2D'],
               domain_size = int(domain_size), 
               tiling = tiling, 
-              train_lead_times = data.get('train_lead_times', None)
+              train_lead_times = data.get('train_lead_times', None),
+              loss_callable = None 
           )
         
         if self.verbose > 2:
@@ -760,7 +761,7 @@ class WoFSCastModel:
               use_transformer = use_transformer,
               num_attn_heads = num_attn_heads, 
               mesh2grid_edge_normalization_factor = mesh2grid_edge_normalization_factor,
-             legacy_mesh = legacy_mesh
+              legacy_mesh = legacy_mesh
         )
         
         if self.verbose > 2:

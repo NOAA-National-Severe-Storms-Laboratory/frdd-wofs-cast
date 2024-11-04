@@ -8,7 +8,8 @@ class Predictor:
     '/work/cpotvin/WOFSCAST/model/wofscast_test_v178.npz',
     '/work2/mflora/wofs-cast-data/model/wofscast_test_v178_fine_tune_v3.npz',
     '/work/cpotvin/WOFSCAST/model/wofscast_test_v203.npz', 
-    '/work/mflora/wofs-cast-data/model/wofscast_v178_reproducibility_test_v1.npz'
+    '/work/mflora/wofs-cast-data/model/wofscast_v178_reproducibility_test_v1.npz',
+    '/work/mflora/wofs-cast-data/model/wofscast_v178_more_data_v2.npz'
     #'/work/cpotvin/WOFSCAST/model/wofscast_test_v213.npz',
     ]
     

@@ -395,7 +395,8 @@ def extract_input_target_times(
     
     # MLF: Determine what times were selected and then 
     # reestablish the actual datetimes for the inputs and targets.
-    # Useful for verification. Tested and works! 
+    # Useful for verification. Tested and works! Has no effect on 
+    # the autoregressive rollout. 
     if has_dt:
         inputs_indices = dataset.time.get_index("time").get_indexer(inputs.time.values)
         targets_indices = dataset.time.get_index("time").get_indexer(targets.time.values)

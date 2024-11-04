@@ -139,6 +139,7 @@ class FileFormatter:
         # E.g., 
         fname = self.create_filename_from_list(data_paths)
         year = self.get_year_from_path(data_paths[0])
+        
         out_path = os.path.join(self.out_path, year, fname)
     
         if not self.overwrite:
@@ -214,8 +215,6 @@ class FileFormatter:
             ds['lon'] = xr.where(ds['lon'] < 0, ds['lon'] + 180, ds['lon'])
         else:
             ds = self.convert_to_fully_positive_longitude(ds)
-        
-        
         
         # Deprecated, but keeping for legacy at the moment
         # Add the 'time' coordinate and dimension
@@ -316,7 +315,11 @@ class FileFormatter:
         if '.zarr' in fname:
             exp = 'wrfwof_d01_%Y-%m-%d_%H:%M:%S.zarr'
         else:
-            exp = 'wrfwof_d01_%Y-%m-%d_%H:%M:%S'
+            print(f'{fname=}')
+            if ':' in fname:
+                exp = 'wrfwof_d01_%Y-%m-%d_%H:%M:%S'
+            else:
+                exp = 'wrfwof_d01_%Y-%m-%d_%H_%M_%S'
         
         start_time_dt = datetime.strptime(fname, exp)
 
@@ -454,7 +457,7 @@ class FileFormatter:
         parts = file_path.split('/')
     
         # List of possible segments to search for
-        search_segments = ['wofs_zarr', 'FCST']
+        search_segments = ['wofs_zarr', 'FCST', 'hurricane_data']
     
         for segment in search_segments:
             try:
@@ -549,6 +552,8 @@ class FileFormatter:
         if not file_paths:
             return "No files provided"
 
+        #wrfwof_d01_2024-10-09_19_00_00
+        
         # Extract start time from the first element
         start_time = os.path.basename(file_paths[0]).replace('wrfwof_d01_', '').replace('.zarr', '')  
         # Extract end time from the last element
@@ -556,7 +561,7 @@ class FileFormatter:
     
         # Format the filename
         ens_mem = os.path.basename(os.path.dirname(file_paths[-1])).split('_')[-1]
-    
+        
         filename = f"wrfwof_{start_time}_to_{end_time}__{self.time_resolution}__ens_mem_{int(ens_mem):02d}.zarr"
 
         # Cleaning up the datetime format to remove colons and make it filesystem-friendly

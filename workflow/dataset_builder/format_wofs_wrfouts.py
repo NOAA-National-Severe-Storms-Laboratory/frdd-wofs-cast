@@ -42,7 +42,7 @@ else:
     
 timestep_minutes = config_dict['timestep_minutes']
 if args.debug:
-    n_timesteps = 4
+    n_timesteps = 3
 else:
     n_timesteps = config_dict['n_timesteps']
     
@@ -63,6 +63,8 @@ process_multi_date = False if args.debug else True
 do_drop_vars = args.do_drop_vars 
 legacy = args.legacy 
 overwrite = args.overwrite
+
+resize = False
 
 processes = [] 
 if resize:
@@ -129,6 +131,12 @@ else:
 
 start_time = time.time()
 
+#file_paths_set = [
+#            ['/work2/mflora/wofscast_datasets/hurricane_data/2024/20241009/1800/ENS_MEM_09/wrfwof_d01_2024-10-09_19_00_00', 
+#             '/work2/mflora/wofscast_datasets/hurricane_data/2024/20241009/1800/ENS_MEM_09/wrfwof_d01_2024-10-09_19_10_00',
+#             '/work2/mflora/wofscast_datasets/hurricane_data/2024/20241009/1800/ENS_MEM_09/wrfwof_d01_2024-10-09_19_20_00'
+#            ]
+#                 ]
 ds = formatter.run(file_paths_set, single_case)
 
 print(f'Finished! Time elapsed: {time.time()-start_time:.3f} secs')

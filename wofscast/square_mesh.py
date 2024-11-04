@@ -257,7 +257,7 @@ def get_hierarchy_of_triangular_meshes(
            the vertices adjacent to the face. Always with positive orientation
            (counterclock-wise when looking from the outside).
     """
-    if tiling:
+    if tiling: 
         current_mesh = concatenate_meshes(tiling, domain_size, legacy=legacy_mesh)
     else:
         current_mesh = get_tri_mesh(0, 0, domain_size, offset=2, legacy=legacy_mesh)

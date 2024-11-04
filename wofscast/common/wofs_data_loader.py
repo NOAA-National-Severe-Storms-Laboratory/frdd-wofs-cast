@@ -1,6 +1,26 @@
 from ..data_generator import load_chunk, dataset_to_input 
 from .helpers import get_case_date
 from glob import glob
+import os
+import pandas as pd
+from datetime import datetime
+
+def to_datetimes(path, n_times):  
+    name, freq, ens_mem = os.path.basename(path).split('__')
+    
+    original_time_str = name.split('_to')[0]
+    # Try the first format with underscores
+    try:
+        start_time_dt = datetime.strptime(original_time_str, 'wrfwof_%Y-%m-%d_%H_%M_%S')
+    except ValueError:
+        # If the first format fails, try the second format without underscores
+        start_time_dt = datetime.strptime(original_time_str, 'wrfwof_%Y-%m-%d_%H%M%S')
+        
+    start_time = pd.Timestamp(start_time_dt)
+    
+    dt_list = pd.date_range(start=start_time, periods=n_times, freq=freq)
+    
+    return dt_list
 
 
 class WoFSDataLoader:
@@ -10,11 +30,16 @@ class WoFSDataLoader:
         self.preprocess_fn = preprocess_fn
         self._case_date = None
         self.decode_times = decode_times
+        
 
     def get_target_slice_range(self):
         """Returns the slice range for target lead times based on the timestep."""
         #if self.config.timestep == 5:
         #    return slice('5min', '100min')
+        
+        # TODO: fix this! It is not robust; if we change the number of time steps
+        # in our verification dataset or the time step!.
+        
         return slice('10min', '120min')
         
     def get_paths(self, path):
@@ -49,6 +74,10 @@ class WoFSDataLoader:
 
         dataset = dataset.compute() 
         
+        dts = to_datetimes(path, n_times = dataset.dims['time'])
+        
+        dataset = dataset.assign_coords(datetime = ('time', dts))
+        
         self._case_date = get_case_date(paths[0])
         
         target_lead_times = self.get_target_slice_range()
@@ -59,6 +88,5 @@ class WoFSDataLoader:
             batch_over_time=False, 
             n_target_steps=2
         )
-        
-        return inputs, targets, forcings
 
+        return inputs, targets, forcings

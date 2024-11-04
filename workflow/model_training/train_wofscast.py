@@ -73,7 +73,9 @@ def get_paths(base_paths, years=['2019', '2020']):
 if __name__ == '__main__':
     """Main script execution."""
     
-    """ usage: stdbuf -oL python -u train_wofscast.py --config train_10min_v178_more_data.yaml > & logs/log_train_with_more_data & """
+    """ usage: stdbuf -oL python -u train_wofscast.py --config train_10min_v178_90min_offset.yaml > & logs/log_train_90min & """
+    
+    """ usage: stdbuf -oL python -u train_wofscast.py --config train_da.yaml > & logs/log_train_da & """
     
     args = parse_arguments()
     config_dict = load_configuration(BASE_CONFIG_PATH, args.config)
@@ -304,10 +306,10 @@ if __name__ == '__main__':
         )
     elif generator_name == 'DataAssimDataLoader':
         generator = DataAssimDataLoader(
-            norm_stats_path=norm_stats_path,
             known_variables = config_dict.get('known_variables', ['COMPOSITE_REFL_10CM']),
-            mean_filter_size = config_dict.get('mean_filter_size', 10),
-            noise_percent=config_dict.get('noise_percent', 0.05),
+            unknown_variables = config_dict.get('unknown_variables', ['COMPOSITE_REFL_10CM']),
+            skewed_variables = config_dict.get('skewed_variables', ['COMPOSITE_REFL_10CM']),
+            gauss_filter_size = config_dict.get('gauss_filter_size', 10.0),
             paths=paths, 
             task_config=task_config, 
             target_lead_times=target_lead_times,

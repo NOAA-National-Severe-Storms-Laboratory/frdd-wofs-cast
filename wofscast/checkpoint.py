@@ -51,8 +51,10 @@ def load(source: BinaryIO, typ: type[_T]) -> _T:
   Returns:
     the deserialized value as the specified type.
   """
-  return _convert_types(typ, _unflatten(np.load(source)))
-
+  try:
+      result = _convert_types(typ, _unflatten(np.load(source)))
+  except ValueError:
+      return _convert_types(typ, _unflatten(np.load(source, allow_pickle=True)))
 
 _SEP = ":"
 
