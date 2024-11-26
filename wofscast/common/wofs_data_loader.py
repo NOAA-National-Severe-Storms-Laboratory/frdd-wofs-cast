@@ -24,24 +24,16 @@ def to_datetimes(path, n_times):
 
 
 class WoFSDataLoader:
-    def __init__(self, task_config, preprocess_fn=None, load_ensemble=True, decode_times=False):
+    def __init__(self, task_config, preprocess_fn=None, load_ensemble=True, decode_times=False, 
+                 time_range = slice('10min', '110min') 
+                ):
         self.task_config = task_config
         self.load_ensemble = load_ensemble
         self.preprocess_fn = preprocess_fn
         self._case_date = None
         self.decode_times = decode_times
-        
-
-    def get_target_slice_range(self):
-        """Returns the slice range for target lead times based on the timestep."""
-        #if self.config.timestep == 5:
-        #    return slice('5min', '100min')
-        
-        # TODO: fix this! It is not robust; if we change the number of time steps
-        # in our verification dataset or the time step!.
-        
-        return slice('10min', '120min')
-        
+        self.target_lead_times = time_range
+           
     def get_paths(self, path):
         """Returns a sorted list of ensemble paths if load_ensemble is True; otherwise returns the path."""
         if self.load_ensemble:
@@ -80,11 +72,9 @@ class WoFSDataLoader:
         
         self._case_date = get_case_date(paths[0])
         
-        target_lead_times = self.get_target_slice_range()
-        
         inputs, targets, forcings = dataset_to_input(
             dataset, self.task_config, 
-            target_lead_times=target_lead_times, 
+            target_lead_times=self.target_lead_times, 
             batch_over_time=False, 
             n_target_steps=2
         )

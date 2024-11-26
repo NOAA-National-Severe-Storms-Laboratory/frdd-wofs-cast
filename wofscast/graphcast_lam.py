@@ -347,7 +347,6 @@ class GraphCast(predictor_base.Predictor):
                         loss_per_variable = self._loss_callable
                        )
 
-    
     return loss, predictions  # pytype: disable=bad-return-type  # jax-ndarray
 
   def loss(  # pytype: disable=signature-mismatch  # jax-ndarray

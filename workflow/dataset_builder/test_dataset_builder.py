@@ -11,9 +11,7 @@ if __name__ == "__main__":
     
     config_name = "dataset_10min_test_config.yaml"
     
-    
-    tags = "--overwrite"
-    
+    tags = "--overwrite --legacy " #--do_drop_vars"
     
     # Command to reformat the WoFS wrfout files or Zarr files
     format_cmd = f"stdbuf -oL python -u format_wofs_wrfouts.py --config {config_name} {tags} >  logs/log_test_dataset 2>&1"

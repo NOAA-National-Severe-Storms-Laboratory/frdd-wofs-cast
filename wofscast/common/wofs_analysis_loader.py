@@ -78,7 +78,9 @@ class WoFSAnalysisLoader:
         
         ds['GEOPOT'] = ds['PH'] + ds['PHB']  # Combine PH and PHB into GEOPOT
         ds = ds.drop_vars(['PH', 'PHB'])
-            
+        
+        ds['T']+=300. 
+        
         ds = self.destagger(ds)
 
         # Rename

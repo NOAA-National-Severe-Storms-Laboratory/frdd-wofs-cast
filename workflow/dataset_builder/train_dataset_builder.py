@@ -12,8 +12,10 @@ if __name__ == "__main__":
     
     config_name = "dataset_10min_train_config.yaml"
 
+    tags = '--overwrite --legacy'
+    
     # Command to reformat the WoFS wrfout files or Zarr files
-    format_cmd = f"stdbuf -oL python -u format_wofs_wrfouts.py --config {config_name} --overwrite --legacy >  logs/log_formatter_10min 2>&1"
+    format_cmd = f"stdbuf -oL python -u format_wofs_wrfouts.py --config {config_name} {tags} > logs/log_formatter 2>&1"
     
     print("Running format command:")
     print(format_cmd)
@@ -28,7 +30,7 @@ if __name__ == "__main__":
     print("Dataset creation completed!")
 
     # Command to compute normalization statistics
-    norm_stats_cmd = f"stdbuf -oL python -u compute_norm_stats.py --config {config_name} > logs/log_compute_norm_stats_10min 2>&1"
+    norm_stats_cmd = f"stdbuf -oL python -u compute_norm_stats.py --config {config_name} > logs/log_compute_norm_stats 2>&1"
     
     print("Running normalization statistics command:")
     print(norm_stats_cmd)
