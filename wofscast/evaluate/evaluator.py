@@ -11,6 +11,7 @@ from .metrics import ObjectBasedContingencyStats, MSE, FractionsSkillScore
 import os 
 from tqdm import tqdm 
 import xarray as xr
+import numpy as np
 import pandas as pd
 
 # For the dataclass below. 
@@ -33,6 +34,7 @@ class EvaluatorConfig:
     matching_distance_km: int
     grid_spacing_km : float
     out_base_path : str
+    object_id_params : Dict
 
         
 class Evaluator:
@@ -40,74 +42,104 @@ class Evaluator:
     DIM_ORDER = ('batch', 'time', 'level', 'lat', 'lon')
     
     def __init__(self, model, object_ider, data_loader, metrics, 
-                 unit_converter_funcs = [convert_T2_K_to_F, convert_rain_amount_to_inches]
+                 object_id_params, 
+                 forecast_v_mrms_metrics, 
+                 targets_v_mrms_metrics, 
+                 forecast_v_analysis_metrics,
+                 targets_v_analysis_metrics,
+                 unit_converter_funcs = [convert_T2_K_to_F, 
+                                         convert_rain_amount_to_inches],
+                 replace_bdry=True
                 ): 
+        
+        self.replace_bdry = replace_bdry
+        
+        # Parameters for identifying objects in the forecast, truth, and mrms datasets. 
+        self.object_id_params = object_id_params
+
         self.model = model 
         self.data_loader = data_loader 
         self.metrics = metrics 
         
-        # Metrics for comparing against an analysis dataset 
-        self.targets_v_analysis_metics = [MSE(addon='targets_vs_analysis')]
-        self.forecast_v_analysis_metrics = [MSE(addon='forecast_vs_analysis')]
+        # Metrics for comparing against an analysis dataset and against MRMS. 
+        self.targets_v_analysis_metrics = targets_v_analysis_metrics
+        self.forecast_v_analysis_metrics = forecast_v_analysis_metrics
         
-        # Metrics for comparing against MRMS. 
-        variables = ['accum_rain'] 
-        self.targets_v_mrms_metrics = [MSE(addon='targets_vs_mrms', variables=variables), 
-                                       #FractionsSkillScore(windows=[7, 15, 27], 
-                                       #      thresh_dict={'accum_rain' : [0.5]},
-                                       #      variables = ['accum_rain']),
-                                       ObjectBasedContingencyStats(key='targets_vs_mrms'),
-                                      ]
-        self.forecast_v_mrms_metrics = [MSE(addon='forecast_vs_mrms', variables=variables), 
-                                        #FractionsSkillScore(windows=[7, 15, 27], 
-                                        #    thresh_dict={'accum_rain' : [0.5]},
-                                        #     variables = ['accum_rain']),
-                                        ObjectBasedContingencyStats(key='forecasts_vs_mrms'),
-                                        ]
+        self.targets_v_mrms_metrics = targets_v_mrms_metrics
+        self.forecast_v_mrms_metrics = forecast_v_mrms_metrics 
                
         self.object_ider = object_ider
         self.unit_converter_funcs = unit_converter_funcs
         
-        self._var_dim_map = {'U': 'west_east_stag', 
-                       'V': 'south_north_stag',
-                       'W': 'bottom_top_stag',
-                       'GEOPOT': 'bottom_top_stag'
-                      }
-        
     def add_initial_conditions(self, dataset, inputs):
         return xr.concat([inputs.isel(time=-1), dataset], dim='time')
 
-    def load_mrms_data(self, forecast, data_path, mode='refl'):
+    def load_mrms_data(self, forecast, data_path):
         # Load the MRMS composite reflectivity. Loads all the separate time steps into 
         # one dataset. 
         case_date = get_case_date(data_path)
         dts = pd.to_datetime(forecast.datetime) 
+        # TODO: Not flexible for the full domain!!!
         loader = MRMSDataLoader(case_date, domain_size=150, resize_domain=True) 
-
         try: 
-            mrms_dataset = loader.load(forecast, mode=mode) 
-            return mrms_dataset
+            mrms_radar = loader.load(forecast, mode='refl') 
+            mrms_qpe = loader.load(forecast, mode='qpe') 
+            
+            if mrms_radar is None:
+                return None 
+            
+            if mrms_qpe is None:
+                return None 
+            
+            
         except OSError:
             print(f'Unable to load MRMS data for {data_path}, Skipping it...')
-            return None 
-    
+            return None     
+            
+        mrms_qpe = mrms_qpe.expand_dims('batch', axis=0)
+            
+        qpe_var = 'qpe_consv' if 'qpe_consv' in mrms_qpe.data_vars else 'qpe_consv_15m'
+            
+        # Create accumulated rain variable and drop other QPE variables
+        mrms_qpe = mrms_qpe.assign(accum_rain=mrms_qpe[qpe_var].sum(dim='time')).drop_vars(mrms_qpe.data_vars)
+                        
+        mrms_dataset = xr.merge([mrms_radar, mrms_qpe])
+            
+        mrms_dataset = mrms_dataset.transpose(*self.DIM_ORDER, missing_dims='ignore')
+        mrms_dataset = mrms_dataset.drop_vars('datetime') 
+
+        # Add the reflectivity value for the FSS. TODO: this is hardcoded and should be fixed
+        # in the future. Problem should just create the same named variable between WRF and MRMS. 
+        mrms_dataset['COMPOSITE_REFL_10CM'] = mrms_dataset['dz_consv'].copy() 
+            
+        return mrms_dataset
+        
     def load_analysis_data(self, forecast, data_path):
         # Load the WoFS analyses. Loads all the separate time steps into 
         # one dataset. 
         case_date = get_case_date(data_path)
         dts = pd.to_datetime(forecast.datetime)  
         
-        anal_loader = WoFSAnalysisLoader()
+        loader = WoFSAnalysisLoader()
         variables = list(forecast.data_vars)
         variables.remove('RAIN_AMOUNT') 
         variables.remove('WMAX') 
 
-        #try:
-        anal_ds = anal_loader.load(forecast, dts, case_date, mem=9)
-        return anal_ds
-        #except:
-        #    print(f'Unable to load WoFS analys for {data_path}, Skipping it...')
-        #    return None 
+        wofs_analysis_dataset = loader.load(forecast, dts, case_date, mem=9)
+        if wofs_analysis_dataset:
+            wofs_analysis_dataset = wofs_analysis_dataset.expand_dims('batch', axis=0)
+            wofs_analysis_dataset = wofs_analysis_dataset.drop_vars('datetime')
+                
+            wofs_analysis_dataset = self.add_units(wofs_analysis_dataset, unit_converter_funcs = [convert_T2_K_to_F])
+            wofs_analysis_dataset['WMAX'] = wofs_analysis_dataset['W'].max(dim='level')
+
+            wofs_analysis_dataset = wofs_analysis_dataset.transpose(*self.DIM_ORDER)     
+                
+            # Ensure the analysis dataset has the same time dimension as the forecast. 
+            wofs_analysis_dataset = wofs_analysis_dataset.reindex(time=forecast.time, fill_value=np.nan)
+
+        return wofs_analysis_dataset
+    
     
     def add_units(self, dataset, unit_converter_funcs = [convert_T2_K_to_F, convert_rain_amount_to_inches]):
         # Convert units. 
@@ -127,31 +159,84 @@ class Evaluator:
         forecast['WMAX'] = forecast['W'].max(dim='level')
         targets['WMAX'] = targets['W'].max(dim='level')
         
+        forecast['accum_rain'] = forecast['RAIN_AMOUNT'].sum(dim='time')
+        targets['accum_rain'] = targets['RAIN_AMOUNT'].sum(dim='time')
+        
         return forecast, targets 
     
-    def evaluate(self, paths):
+    def compute_percentile_thresholds(self, paths):
+        """Use this method to compute the determine the percentile of 40 dBZ in the MRMS dataset. 
+        Using that percentile, find the dBZ threshold for the forecast and truth datasets. 
+        """
+        MRMS_THRESH = 40.
         
-        wofs_dbz_thresh = 47  
-            
+        forecast_vals = []
+        truth_vals = []
+        mrms_vals = [] 
+        
         for data_path in tqdm(paths): 
     
             inputs, targets, forcings = self.data_loader.load_inputs_targets_forcings(data_path)
             forecast = self.model.predict(inputs, targets, forcings)
+            
+            forecast = self.add_initial_conditions(forecast, inputs)
+            targets = self.add_initial_conditions(targets, inputs)
+    
+            mrms_dataset = self.load_mrms_data(forecast, data_path)
+            if mrms_dataset:  
+                forecast_vals.append(forecast['COMPOSITE_REFL_10CM'].isel(time=-1).values.ravel())
+                truth_vals.append(targets['COMPOSITE_REFL_10CM'].isel(time=-1).values.ravel())
+                mrms_vals.append(mrms_dataset['COMPOSITE_REFL_10CM'].values.ravel()) 
+                
+        mrms_vals = np.array(mrms_vals).ravel()  
+
+        # Compute the percentile corresponding to 40 dBZ in MRMS.
+        percentile_40dbz = ((mrms_vals < MRMS_THRESH).sum() / len(mrms_vals)) * 100
+        
+        print(f"Percentile for 40 dBZ in MRMS: {percentile_40dbz}%")
+        
+        # Use that percentile to determine the corresponding dbz val
+        forecast_threshold = np.percentile(forecast_vals, percentile_40dbz)
+        truth_threshold = np.percentile(truth_vals, percentile_40dbz)        
+        
+        print(f"Forecast threshold for {percentile_40dbz}%: {forecast_threshold}")
+        print(f"Truth threshold for {percentile_40dbz}%: {truth_threshold}")
+        
+        return {
+                'forecast_threshold': forecast_threshold,
+                'truth_threshold': truth_threshold
+                }
+                
+    def evaluate(self, paths):
+        
+        for data_path in tqdm(paths): 
+    
+            inputs, targets, forcings = self.data_loader.load_inputs_targets_forcings(data_path)
+            forecast = self.model.predict(inputs, targets, forcings, replace_bdry=self.replace_bdry)
     
             forecast = self.add_initial_conditions(forecast, inputs)
             targets = self.add_initial_conditions(targets, inputs)
     
             # Add derived variables to forecast & targets; ID storm objects. 
             forecast, targets = self.add_derived_variables(forecast, targets)
-            forecast = self.object_ider.label(forecast, 'COMPOSITE_REFL_10CM', params={'bdry_thresh' : wofs_dbz_thresh})
-            targets = self.object_ider.label(targets, 'COMPOSITE_REFL_10CM', params={'bdry_thresh' : wofs_dbz_thresh})
-    
+            
+            if len(self.object_id_params['forecast'].keys()) > 1:
+                raise ValueError('Code is not ready for object identifying more than 1 field!')
+            
+            for var in self.object_id_params['forecast'].keys():
+                # TODO: Beware, this is not flexible yet! All labelled regions are called "storms"
+                # and each iteration will replace the previous storms!.
+                forecast = self.object_ider.label(forecast, var, 
+                                              params={'bdry_thresh' : self.object_id_params['forecast'][var]})
+                
+                targets = self.object_ider.label(targets, var, 
+                                             params={'bdry_thresh' : self.object_id_params['truth'][var]})
+
             # Load the WoFS analysis and MRMS radar and QPE variables. 
             wofs_analysis_dataset = self.load_analysis_data(forecast, data_path) 
             mrms_dataset = self.load_mrms_data(forecast, data_path)
-            mrms_qpe = self.load_mrms_data(forecast, data_path, mode='qpe')
-            
-            # Convert units. 
+      
+            # Convert units. At the moment, its T2 K -> F and rain rate from mm to in. 
             forecast = self.add_units(forecast)
             targets = self.add_units(targets)
     
@@ -159,52 +244,38 @@ class Evaluator:
             targets = targets.transpose(*self.DIM_ORDER)
             forecast = forecast.transpose(*self.DIM_ORDER)
 
+            # Drop the datetime coordinate from all datasets, so that the only 
+            # time axis is the *lead time* coorindate.
+            targets = targets.drop_vars('datetime')
+            forecast = forecast.drop_vars('datetime') 
+  
             # Update the forecast vs. targets metrics. 
             self.metrics = [metric.update(forecast, targets) for metric in self.metrics]
 
-            if mrms_dataset: 
-                mrms_dataset = mrms_dataset.transpose(*self.DIM_ORDER, missing_dims='ignore')
-                mrms_qpe = mrms_qpe.expand_dims('batch', axis=0)
-                
+            if mrms_dataset:         
                 # Identify objects. TODO: Add UH tracks and any other field of interest! 
                 # TODO: Also, add args to change these reflectivity thresholds.
-                mrms_dataset = self.object_ider.label(mrms_dataset, 'dz_consv', params={'bdry_thresh' : 40})
+                for var, thresh in self.object_id_params['mrms'].items():
+                    mrms_dataset = self.object_ider.label(mrms_dataset,var,params={'bdry_thresh' : thresh})
    
-                # Update object matching statistics. 
-                self.targets_v_mrms_metrics[-1].update(targets, mrms_dataset)
-                self.forecast_v_mrms_metrics[-1].update(forecast, mrms_dataset)
-                
-                # Update MRMS QPE RMSE. First, accumulate rainfall. TODO: generalize this better! 
-                try:
-                    mrms_qpe['accum_rain'] = mrms_qpe['qpe_consv'].sum(dim='time')
-                except:
-                    mrms_qpe['accum_rain'] = mrms_qpe['qpe_consv_15m'].sum(dim='time')
-                    
-                forecast['accum_rain'] = forecast['RAIN_AMOUNT'].sum(dim='time')
-                targets['accum_rain'] = targets['RAIN_AMOUNT'].sum(dim='time')
-                
-                
-                #for i in [0,1]:
-                self.targets_v_mrms_metrics[0].update(targets, mrms_qpe)
-                self.forecast_v_mrms_metrics[0].update(forecast, mrms_qpe)
+                self.targets_v_mrms_metrics = [metric.update(targets, mrms_dataset) 
+                                               for metric in self.targets_v_mrms_metrics]
+                self.forecast_v_mrms_metrics = [metric.update(forecast, mrms_dataset) 
+                                                for metric in self.forecast_v_mrms_metrics]
             
             # Update against WoFS analysis
             if wofs_analysis_dataset:
-                wofs_analysis_dataset = wofs_analysis_dataset.expand_dims('batch', axis=0)
-                wofs_analysis_dataset = self.add_units(wofs_analysis_dataset, unit_converter_funcs = [convert_T2_K_to_F])
-                wofs_analysis_dataset['WMAX'] = wofs_analysis_dataset['W'].max(dim='level')
-
-                wofs_analysis_dataset = wofs_analysis_dataset.transpose(*self.DIM_ORDER)                                                          
                 self.targets_v_analysis_metics = [metric.update(targets, wofs_analysis_dataset) 
-                                             for metric in self.targets_v_analysis_metics ]
+                                             for metric in self.targets_v_analysis_metrics ]
+                
                 self.forecast_v_analysis_metrics = [metric.update(forecast, wofs_analysis_dataset) 
                                                  for metric in self.forecast_v_analysis_metrics]
-            
+        
         metrics_ds = [metric.finalize() for metric in self.metrics]
         
         # Finalize WoFS and WoFSCast metrics and append to the main list
         metrics_ds.extend([
-            *[metric.finalize() for metric in self.targets_v_analysis_metics],
+            *[metric.finalize() for metric in self.targets_v_analysis_metrics],
             *[metric.finalize() for metric in self.forecast_v_analysis_metrics],
             *[metric.finalize() for metric in self.targets_v_mrms_metrics],
             *[metric.finalize() for metric in self.forecast_v_mrms_metrics],

@@ -55,7 +55,7 @@ WOFS_TASK_CONFIG = graphcast.TaskConfig(
       n_vars_2D = len(VARS_2D),
       domain_size = DOMAIN_SIZE,
       tiling=None,
-      train_lead_times = train_lead_times,
+      train_lead_times = '20min', #train_lead_times,
      loss_callable=None
  )
 

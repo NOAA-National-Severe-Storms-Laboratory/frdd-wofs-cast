@@ -4,17 +4,17 @@
 
 #BASE_PATH = '/work2/wof/realtime/FCST/' 
 BASE_PATH : '/work2/wofs_zarr'
-OUT_PATH : '/work2/mflora/wofscast_datasets/dataset_10min_all_vars'
-OUT_NORM_PATH : '/work2/mflora/wofscast_norm_stats/dataset_10min_all_vars'
+OUT_PATH : '/work2/mflora/wofscast_datasets/dataset_10min_6hrs'
+OUT_NORM_PATH : '/work2/mflora/wofscast_norm_stats/dataset_10min_6hrs'
 
 # Timestep resolution for the dataset. 
 timestep_minutes : 10  
 
 # Number of timesteps to include in one sample. 
-n_timesteps : 14      
+n_timesteps : 34      
 
 # Time in minutes after forecast initialization to start sampling. 
-offset : 60            
+offset : 0            
 
 years : ['2021'] 
 
@@ -34,14 +34,23 @@ VARS_TO_KEEP : ['U',
                 'HGT', 'XLAND'
                 ]
 
-mems : [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18]
+#mems : [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18]
+mems : [9]
 
-init_times : ['1900', '1930', 
-              '2000', '2030', 
-              '2100', '2130', 
-              '2200', '2230', 
-              '2300', '2330',
-              '0000', '0030',
-              '0100', '0130',
-              '0200', '0230',
+init_times : ['1900', 
+              #'1930', 
+              '2000', 
+              #'2030', 
+              '2100', 
+              #'2130', 
+              '2200', 
+              #'2230', 
+              '2300', 
+              #'2330',
+              '0000', 
+              #'0030',
+              '0100', 
+              #'0130',
+              '0200', 
+              #'0230',
               '0300']

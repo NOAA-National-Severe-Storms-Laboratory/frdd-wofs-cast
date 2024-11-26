@@ -16,12 +16,14 @@
 from typing import Mapping, Callable 
 
 from . import xarray_tree
+from . import xarray_jax
 import numpy as np
 from typing_extensions import Protocol
 import xarray
 
 import xarray
 import jax
+import jax.numpy as jnp
 
 LossAndDiagnostics = tuple[xarray.DataArray, xarray.Dataset]
 
@@ -106,7 +108,35 @@ class MAE(Loss):
         super().__init__(*args, **kwargs)
     def loss(self, prediction, target):
         return abs(prediction-target)
-                
+    
+class TIMEWEIGHTED_MSE(Loss):
+    def __init__(self, gamma=0.9, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.gamma = gamma
+
+    def loss(self, prediction, target):
+        # Calculate the squared difference
+        diff = (prediction - target) ** 2
+
+        # Define time weights with only the 'time' dimension initially
+        time_len = diff.sizes['time']
+        weights = xarray_jax.DataArray(
+            jnp.array(self.gamma ** jnp.arange(time_len), dtype=jnp.bfloat16), 
+            dims=['time']
+        )
+
+        # Dynamically expand weights to match dimensions in diff
+        expand_dims = {dim: diff.sizes[dim] for dim in diff.dims if dim != 'time' and dim in diff.sizes}
+        weights = weights.expand_dims(expand_dims).broadcast_like(diff)
+
+        # Compute the time-weighted squared difference
+        weighted_diff = diff * weights
+        
+        # calculate the weighted avg. difference along the time dimension
+        #loss = weighted_diff.mean(dim='time') / weights.mean(dim='time')
+        
+        return weighted_diff
+                    
 def compute_loss(
     predictions: xarray.Dataset,
     targets: xarray.Dataset,
@@ -138,10 +168,7 @@ def sum_per_variable_losses(
     weighted_per_variable_losses = {
         name: loss * weights.get(name, 1) for name, loss in per_variable_losses.items()
     }
-    
-    ###print(f'{weighted_per_variable_losses=}')
-    
-    
+        
     total = xarray.concat(
         weighted_per_variable_losses.values(), dim="variable", join="exact"
     ).sum("variable", skipna=False) 

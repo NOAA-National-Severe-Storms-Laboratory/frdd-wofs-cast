@@ -53,9 +53,11 @@ def load(source: BinaryIO, typ: type[_T]) -> _T:
   """
   try:
       result = _convert_types(typ, _unflatten(np.load(source)))
-  except ValueError:
+      return result
+  except:
       return _convert_types(typ, _unflatten(np.load(source, allow_pickle=True)))
 
+    
 _SEP = ":"
 
 
