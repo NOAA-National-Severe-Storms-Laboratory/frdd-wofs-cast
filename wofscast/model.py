@@ -86,6 +86,10 @@ jax.config.update("jax_compilation_cache_dir", ".")
 
 graphcast_name = 'params_GraphCast - ERA5 1979-2017 - resolution 0.25 - pressure levels 37 - mesh 2to6 - precipitation input and output.npz'
 
+def log_memory(message):
+    device_mem = jax.profiler.device_memory_profile()
+    print(f"[{message}] GPU Memory: {device_mem}")
+
 def add_batch_dim(ds, batch_size):
     # Repeat the data along the 'batch' dimension 
     ds = xarray.concat([ds] * batch_size, dim='batch')  
@@ -287,6 +291,9 @@ class WoFSCastModel:
             generator: A data generator that returns inputs, targets, forcings. 
             raise_errors : 
         """
+        ##print('Starting a JAX profiler on line 290...') 
+        ##jax.profiler.start_trace("logs/jax_logdir")
+        
         def train_step_parallel(params, 
                         state, 
                         opt_state,
@@ -355,7 +362,6 @@ class WoFSCastModel:
             new_params = optax.apply_updates(params, updates)
     
             return new_params, opt_state, loss, diagnostics
-
         
         # Initialize the optimizer. The setting used match Lam et al. (GraphCast)
         # and are hardcoded expect the learning rate scheduler, which is a class arg. 
@@ -369,7 +375,7 @@ class WoFSCastModel:
                 weight_decay=self.adam_weight_decay
             )
             )
-        
+
         self.wandb_config['optimizer'] = optimizer 
         
         # Initialize the Weights & Biases project for logging and tracking 
@@ -400,9 +406,6 @@ class WoFSCastModel:
             train_step_jitted = xarray_jax.pmap(train_fn, dim='devices', axis_name='devices')
         else:
             train_step_jitted = jax.jit(train_fn)
-        
-        #print('Starting JAX trace on line 411..')
-        #jax.profiler.start_trace("/tmp/tensorboard")
         
         # Load a single batch. These pre-allocate space 
         # and we'll use a trick below to update these datasets 
@@ -448,6 +451,9 @@ class WoFSCastModel:
                     forcings=_forcings, 
                     )
             
+            # Monte: Adding this to see if it helps with memory profiling. 
+            #jax.block_until_ready(model_params) 
+        
             # The following will replace all up the initial embedding layers 
             # with weights from the GraphCast 36.7M parameter model. 
             # At the moment, there are no checks to ensure that the model 
@@ -472,6 +478,9 @@ class WoFSCastModel:
         
         opt_state = optimizer.init(model_params)
         
+        #jax.block_until_ready(opt_state) 
+        
+        
         # For GPU parallel processing, replicate the model parameters, model state, 
         # and the optimizer state on each device.
         model_params_replicated = replicate_for_devices(model_params, self.num_devices)
@@ -494,6 +503,10 @@ class WoFSCastModel:
         run_time = time.time() - start_time
         print(f'Compiling Time: {run_time:.2f}')
         
+        # Monte: Adding this to see if it helps with memory profiling. 
+        #jax.block_until_ready(model_params_replicated) 
+        
+        
         # Main processing loop.
         for step in tqdm(range(self.n_steps), total=self.n_steps, desc='Training'):
             start_time = time.time() 
@@ -505,8 +518,10 @@ class WoFSCastModel:
             # the cache system somehow notices, and either becomes slow or messes up the result
             # Copying variable values individually avoids both, fast and produces same results as before
         
+            start_io_time = time.time() 
             new_inputs, new_targets, new_forcings = generator.generate()
-
+            print(f'I/O time: {time.time() - start_io_time}')
+            
             for var_name, var in new_inputs.data_vars.items():
                 inputs[var_name] = inputs[var_name].copy(deep=False, data=var.values)
             for var_name, var in new_targets.data_vars.items():
@@ -518,6 +533,7 @@ class WoFSCastModel:
             #print(f'{targets=}')
             #print(f'{forcings=}')
             
+            start_train_step_time = time.time() 
             model_params_replicated, opt_state_replicated, loss, diagnostics = train_step_jitted(
                    model_params_replicated, 
                    state_replicated,
@@ -526,6 +542,9 @@ class WoFSCastModel:
                    targets, 
                    forcings, 
                )
+            print(f'Train Step Time: {time.time() - start_train_step_time}')
+                  
+            #jax.block_until_ready(model_params_replicated)
             
             # Convert the loss JAX array to numpy. 
             loss_val = np.mean(np.asarray(loss)).item()
@@ -549,7 +568,12 @@ class WoFSCastModel:
                     print('Saving model params....')    
                 self.save(model_params_replicated, state)
             
-        #jax.profiler.stop_trace()
+            #jax.profiler.save_device_memory_profile("memory.prof")
+            
+            #jax.profiler.stop_trace()
+        
+            return None
+        
                
         # Save the final model params 
         print('Saving the final model...')

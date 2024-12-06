@@ -1,11 +1,11 @@
-# CONFIGURATION FILE FOR THE BEST 10-MIN WOFSCAST TRAINING. 
-# This configuration matches the v178 model Corey trained for the paper 
-# These have produced the best performing model. 
+# Model weights to start the fine tuning from.
+model_save_path : '/work/mflora/wofs-cast-data/model/wofscast_v178_90min_offset.npz'
 
-parallel : True 
+# Name of the new model weights 
+out_save_path : '/work/mflora/wofs-cast-data/model/wofscast_v178_90min_offset_rollout.npz'
+
 
 # Path to the datasets used for training. Can be a list of different sets.
-
 data_paths : [
                  '/work2/mflora/wofscast_datasets/dataset_10min_reproducible'
             ]
@@ -15,17 +15,25 @@ data_paths : [
 norm_stats_path : '/work2/mflora/wofscast_norm_stats/dataset_10min_reproducible'
 #--------------------------------------------
 
-# Model output path and filename 
-# Where the model weights are stored.
-# If the path already exists, the code will not overwrite 
-# and instead create a new version with an append _v1, v2, etc.
-model_save_path : '/work/mflora/wofs-cast-data/test-models/wofscast_v178_90min_offset.npz'
-
-use_wandb : False #True
+lr_scheduler : constant 
+peak_learning_rate : 1e-4 
+ 
+fine_tune : True
+n_fine_tune_steps : 1000 
+fine_tune_data_paths : [
+        '/work2/mflora/wofscast_datasets/dataset_10min_reproducible'
+        ]
+        
+variables_2D: ['T2', 
+               'COMPOSITE_REFL_10CM', 
+               'RAIN_AMOUNT', ]
+use_wandb : True
 legacy_mesh : True  
 add_local_solar_time : False 
 decode_times : True # If add_local_solar_time is False, then must be set True
 to_legacy_lons : False
+
+rollout : True 
 
 # Task config parameters
 #--------------------------------------------
@@ -55,10 +63,10 @@ input_duration : '20min'
 # How much forward to predict, will depend on the number of inputs, etc.
 train_lead_times : '10min'
 
+target_lead_times:
+  - ['10min', '20min']
+
 domain_size : 150 
-
-#tiling : None 
-
 
 # Loss function & parameters (part of the task config) 
 #--------------------------------------------
@@ -83,7 +91,7 @@ hidden_layers : 1
 # finest mesh level. @ level 5, max distance ~ 4.5 km, 
 # so connecting to those grid points with 1-2 km 
 # OR integer as the distance 
-grid_to_mesh_node_dist : 3.0
+grid_to_mesh_node_dist : 5
 
 # Parameters if using a transformer layer for processor (mesh)
 # the transformer also relies on the latent_size arg above.
@@ -99,31 +107,11 @@ checkpoint_interval : 250
 warmup_steps : 3400 
 decay_steps : 175000
 
-peak_learning_rate : 1e-3 
-
 # Number of samples processed during a single gradient descent step
 # If using multiple GPUs, batch_size / n_gpus samples are sent 
 # to each GPU. 
 batch_size : 24
-
-# Whether to initialize the model with existing model weights 
-# TaskConfig and ModelConfig are re-built using the checkpoint
-# provided. 
-fine_tune : False
-# TODO: Add details for the fine tuning. 
-
-n_fine_tune_steps : 1000 
-target_lead_times:
-  - ['10min', '20min']
-  - ['10min', '30min']
-  - ['10min', '40min']
-                     
-fine_tune_data_paths : [
-        '/work/mflora/wofs-cast-data/datasets_2hr_zarr'
-        ]
-
-fine_tune_learning_rate : 3e-6
-                     
+                  
 # Random seed used for the data generator. 
 seed : 42
 
