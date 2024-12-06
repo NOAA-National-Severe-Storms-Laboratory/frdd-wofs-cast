@@ -1,0 +1,35 @@
+# Minimal environment for the WoFSCast code 
+name: wofscast-12.7
+channels:
+    - conda-forge
+dependencies:
+    - pip=24.2
+    - python=3.10
+    - netcdf4=1.6.5
+    - dask=2024.1.1
+    - matplotlib=3.8.2
+    - numpy=1.24.4
+    - pandas=2.2.0
+    - scipy=1.12.0
+    - zarr=2.17.2
+    - tqdm=4.66.2
+    - jupyter=1.0.0
+    - xarray==2023.7.0
+    - cartopy==0.22.0
+    - pip:
+        # Dependencies from GraphCast or Google-dependent. These were the package versions
+        # when I first installed the graphcast code
+        - jax==0.4.24
+        - jaxlib==0.4.24+cuda12.cudnn89  # JAXlib with CUDA support
+        - chex==0.1.85
+        - rtree==1.2.0
+        - optax==0.1.9
+        - dm-haiku==0.0.11
+        - dm-tree==0.1.8
+        - jraph==0.0.6.dev0
+        - trimesh==4.1.3
+        - typing_extensions==4.9.0
+        - wandb
+        - colabtools==0.0.1
+        # Required to get the older jaxlib libraries
+        - -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html

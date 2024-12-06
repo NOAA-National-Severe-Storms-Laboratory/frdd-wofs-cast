@@ -61,10 +61,12 @@ if __name__ == "__main__":
     print(f'{len(random_paths)=} {len(paths)=}')    
         
     # Hardcoded diffusion options. TODO: add them to the config.yaml.
+    # Randy said the generation parameters are crucial! 
+    # Increasing S_churn is super important!!
     sampler_kwargs = dict(
                     sigma_min = 0.0002,
                     sigma_max = 1000, 
-                    S_churn=0., #np.sqrt(2)-1, 
+                    S_churn=2.0, 
                     S_min=0.02, 
                     S_max=800, 
                     S_noise=1.05)
