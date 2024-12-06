@@ -2,26 +2,24 @@
 # This configuration matches the v178 model Corey trained for the paper 
 # These have produced the best performing model. 
 
-parallel : True 
-
 # Path to the datasets used for training. Can be a list of different sets.
 
 data_paths : [
-                 '/work2/mflora/wofscast_datasets/dataset_10min_reproducible'
+                 '/work2/mflora/wofscast_datasets/dataset_10min_15min_offset'
             ]
 
 #--------------------------------------------
 # Path to the normalization statistics 
-norm_stats_path : '/work2/mflora/wofscast_norm_stats/dataset_10min_reproducible'
+norm_stats_path : '/work2/mflora/wofscast_norm_stats/dataset_10min_15min_offset'
 #--------------------------------------------
 
 # Model output path and filename 
 # Where the model weights are stored.
 # If the path already exists, the code will not overwrite 
 # and instead create a new version with an append _v1, v2, etc.
-model_save_path : '/work/mflora/wofs-cast-data/test-models/wofscast_v178_90min_offset.npz'
+model_save_path : '/work/mflora/wofs-cast-data/model/wofscast_v178_15min_offset.npz'
 
-use_wandb : False #True
+use_wandb : True
 legacy_mesh : True  
 add_local_solar_time : False 
 decode_times : True # If add_local_solar_time is False, then must be set True
@@ -55,8 +53,7 @@ input_duration : '20min'
 # How much forward to predict, will depend on the number of inputs, etc.
 train_lead_times : '10min'
 
-domain_size : 150 
-
+domain_size : 300 
 #tiling : None 
 
 
@@ -72,7 +69,7 @@ add_latitude_weight : False
 # WoFSCast Model Parameters
 #--------------------------------------------
 # Number of Mesh refinements or more higher resolution layers. 
-mesh_size : 5
+mesh_size : 6
 latent_size : 512 
 # Increasing this allows for connecting information from farther away.
 gnn_msg_steps : 16 
@@ -83,7 +80,7 @@ hidden_layers : 1
 # finest mesh level. @ level 5, max distance ~ 4.5 km, 
 # so connecting to those grid points with 1-2 km 
 # OR integer as the distance 
-grid_to_mesh_node_dist : 3.0
+grid_to_mesh_node_dist : 5
 
 # Parameters if using a transformer layer for processor (mesh)
 # the transformer also relies on the latent_size arg above.
@@ -104,7 +101,7 @@ peak_learning_rate : 1e-3
 # Number of samples processed during a single gradient descent step
 # If using multiple GPUs, batch_size / n_gpus samples are sent 
 # to each GPU. 
-batch_size : 24
+batch_size : 12
 
 # Whether to initialize the model with existing model weights 
 # TaskConfig and ModelConfig are re-built using the checkpoint

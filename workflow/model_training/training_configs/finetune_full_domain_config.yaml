@@ -1,0 +1,81 @@
+# CONFIGURATION FILE FOR THE 10-MIN WOFSCAST TRAINING
+# FOR FINETUNING ON THE FULL WOFS DOMAIN. 
+
+# Model weights to start the fine tuning from.
+model_save_path : '/work/mflora/wofs-cast-data/model/wofscast_v178_90min_offset.npz'
+
+# Name of the new model weights 
+out_save_path : '/work/mflora/wofs-cast-data/model/wofscast_v178_full_domain.npz'
+
+#--------------------------------------------
+# Path to the normalization statistics 
+norm_stats_path : '/work/mflora/wofs-cast-data/full_normalization_stats/'
+#--------------------------------------------
+
+domain_size : 300
+tile_size : 150 
+train_lead_times : '10min'
+
+lr_scheduler : constant 
+peak_learning_rate : 1e-4 
+
+n_fine_tune_steps : 10000 
+fine_tune_data_paths : [
+        '/work2/mflora/wofscast_datasets/dataset_10min_full_domain/'
+        ]
+        
+variables_2D: ['T2', 
+               'COMPOSITE_REFL_10CM', 
+               'RAIN_AMOUNT', ]
+        
+# Loss function & parameters (part of the task config) 
+#--------------------------------------------
+loss_metric : 'MSE'
+add_level_weight : False
+add_latitude_weight : False 
+# Keeps the loss computed over the center of 150 x 150 area! 
+# Valid for the "legacy" longitude values though. 
+lat_rng : [32.1181, 36.194077]
+lon_rng : [79.53119,84.18631 ] 
+
+# How often to save the weights (in terms of gradient descent steps) 
+checkpoint_interval : 5
+
+# Number of samples processed during a single gradient descent step
+# If using multiple GPUs, batch_size / n_gpus samples are sent 
+# to each GPU. 
+
+# 24 was too big for memory. 
+batch_size : 12
+
+# Whether to initialize the model with existing model weights 
+# TaskConfig and ModelConfig are re-built using the checkpoint
+# provided. 
+fine_tune : True
+rollout : False 
+full_domain : True
+
+use_wandb : True
+to_legacy_lons : False
+add_local_solar_time : False
+decode_times : True 
+legacy_mesh : False
+
+# Random seed used for the data generator. 
+seed : 42
+
+# Per-channel weight of variables in the MSE loss equation in wofscast/losses.py
+loss_weights : {
+                    # Any variables not specified here are weighted as 1.0.
+                    'U' : 1.0, 
+                    'V': 1.0, 
+                    'W': 1.0, 
+                    'T': 1.0, 
+                    'GEOPOT': 1.0, 
+                    'QVAPOR': 1.0,
+                    'T2' : 0.1, 
+                    'COMPOSITE_REFL_10CM' : 1.0, 
+                    #'UP_HELI_MAX' : 0.1,
+                    'RAIN_AMOUNT' : 0.1,
+                    }
+
