@@ -8,9 +8,16 @@ from concurrent.futures import ThreadPoolExecutor
 import optax, jax
 from copy import copy 
 
+
+#Before profiling memory, ensure your computations are stable (no NaNs or infs), as these can inflate memory usage.
+
+#jax.config.update("jax_debug_nans", True)  # Debug NaNs
+#jax.config.update("jax_debug_infs", True)  # Debug Infs
+
+
 # Environment Configuration
-os.environ['XLA_PYTHON_CLIENT_PREALLOCATE'] = 'true'
-os.environ['XLA_PYTHON_CLIENT_MEM_FRACTION'] = '0.95'
+os.environ['XLA_PYTHON_CLIENT_PREALLOCATE'] = 'false'
+os.environ['XLA_PYTHON_CLIENT_MEM_FRACTION'] = '0.90'
 
 # Optional: Uncomment to set XLA GPU performance flags
 # os.environ['XLA_FLAGS'] = (
@@ -32,7 +39,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.getcwd())))
 
 # WoFSCast imports
 from wofscast.model import WoFSCastModel
-from wofscast import wofscast_task_config
+from wofscast.graphcast_lam import TaskConfig
+#from wofscast import wofscast_task_config
 from wofscast.data_generator import (
     ZarrDataGenerator, 
     DataAssimDataLoader, 
@@ -41,6 +49,7 @@ from wofscast.data_generator import (
     WoFSDataProcessor
 )
 from wofscast import checkpoint
+from wofscast import losses
 from wofscast.utils import get_random_subset, truncate_to_chunk_size
 from wofscast.common.helpers import parse_arguments, load_configuration 
 
@@ -71,7 +80,15 @@ def get_paths(base_paths, years=['2019', '2020']):
 if __name__ == '__main__':
     """Main script execution."""
     
-    """ usage: stdbuf -oL python -u train_wofscast.py --config train_10min_v178_no_forcings_later_lead_times.yaml > & logs/log_training_later_times & """
+    """ usage: stdbuf -oL python -u train_wofscast.py --config train_10min_v178_15min_offset.yaml > & logs/log_train_15min & """
+    
+    """ usage: stdbuf -oL python -u train_wofscast.py --config train_da.yaml > & logs/log_train_da & """
+    
+    """ usage: stdbuf -oL python -u train_wofscast.py --config finetune_full_domain_config.yaml > & logs/log_finetune_full & """
+    
+    """ usage: stdbuf -oL python -u train_wofscast.py --config train_10min_v178_90min_offset.yaml > & logs/log_finer_mesh & """
+    
+    
     
     args = parse_arguments()
     config_dict = load_configuration(BASE_CONFIG_PATH, args.config)
@@ -80,7 +97,7 @@ if __name__ == '__main__':
     fine_tune = config_dict.get('fine_tune', False)
     seed = config_dict.get('seed', 42)
     out_path = config_dict.get('model_save_path', 'wofscast_default.npz')
-    task_config = getattr(wofscast_task_config, config_dict.get('task_config'))
+    ###task_config = getattr(wofscast_task_config, config_dict.get('task_config'))
     graphcast_pretrain = config_dict.get('graphcast_pretrain', False)
     batch_size = config_dict.get('batch_size', 24)
     loss_weights = config_dict.get('loss_weights', {})
@@ -120,42 +137,40 @@ if __name__ == '__main__':
         # Determine whether the fine tuning includes loading data for 
         # more than one time step. 
         rollout = config_dict.get('rollout' , False)
+        
         if rollout:
-            target_lead_times = [slice(t[0], t[1]) for t in config_dict['target_lead_times']]
+            target_lead_times = [slice(t[0], t[1]) for t in config_dict['target_lead_times']][0]
         else:
             target_lead_times = None
-            
+        
         # Fine-tuning settings
         n_steps = config_dict['n_fine_tune_steps']
         base_paths = config_dict['fine_tune_data_paths']
+        new_save_path = config_dict['out_save_path']
+        weights_path = config_dict['model_save_path'] 
         
         # Avoid overwriting existing checkpoint
-        model_path = copy(out_path)
-        out_path = model_path.replace('.npz', '_fine_tune.npz') 
-        
-        new_save_path = config_dict.get('new_save_path', None)
-        if new_save_path: 
-            out_path = os.path.join(new_save_path, os.path.basename(out_path))
-            
         print('Performing fine tuning...')
-        print(f'Saving model to {out_path}..')
-        
+        print(f'Using model weights from {weights_path}')
+        print(f'Saving model to {new_save_path}..')
+
         trainer = WoFSCastModel(
             learning_rate_scheduler=scheduler, 
             checkpoint=True, 
             norm_stats_path=norm_stats_path, # Should come from the saved file! 
-            out_path=out_path,
+            out_path=new_save_path,
             checkpoint_interval=config_dict['checkpoint_interval'],  
             verbose=1, 
             n_steps = n_steps, 
             loss_weights=loss_weights,
             parallel=True, 
             use_wandb=use_wandb,
-            legacy_mesh = legacy_mesh
+            legacy_mesh = legacy_mesh,
+            wandb_config = config_dict, 
         )
         
         # Load the model
-        print(f'Loading {model_path}...')
+        print(f'Loading {weights_path}...')
         
         full_domain = config_dict.get('full_domain', False)
         
@@ -163,11 +178,47 @@ if __name__ == '__main__':
             # At the moment, we have a model trained on 150 x 150 grid point patches. 
             # Thus, for the full domain, if set tiling = (2,2), it will create a 2 x 2 
             # quilt of the original mesh to cover the full 300 x 300 WoFS domain.
-            trainer.load_model(model_path, **{'tiling' : (2,2), 'legacy_mesh' : legacy_mesh})
+            trainer.load_model(weights_path, **{'tiling' : 150, 'domain_size' : 300,
+                                              'legacy_mesh' : legacy_mesh})
         else:
-            trainer.load_model(model_path)
+            trainer.load_model(weights_path)
             
         model_params, state = trainer.model_params, trainer.state 
+        task_config = trainer.task_config
+        
+        loss_class = getattr(losses, config_dict.get('loss_metric', 'MSE'))
+        lat_rng = config_dict.get('lat_rng', None)
+        if lat_rng:
+            lat_rng = slice(lat_rng[0], lat_rng[1])
+        lon_rng = config_dict.get('lon_rng', None)
+        if lon_rng:
+            lon_rng = slice(lon_rng[0], lon_rng[1])
+        
+        loss_callable = loss_class(lat_rng = lat_rng, 
+                                   lon_rng = lon_rng, 
+                                   add_latitude_weight = config_dict.get('add_latitude_weight', False),
+                                   add_level_weight = config_dict.get('add_level_weight',  False), 
+                                  ) 
+        # TaskConfig is "frozen", so it needs to recreated.
+        variables_2d = config_dict.get('variables_2D', ['']) 
+        task_config = TaskConfig(
+            input_variables = task_config.input_variables, 
+            target_variables = task_config.target_variables, 
+            forcing_variables = task_config.forcing_variables, 
+            pressure_levels = task_config.pressure_levels,
+            input_duration = task_config.input_duration,
+            n_vars_2D = len(variables_2d),
+            domain_size = config_dict.get('domain_size', 150),
+            tiling = config_dict.get('tile_size', None), 
+            train_lead_times = target_lead_times,
+            loss_callable = loss_callable
+        ) 
+        
+        print(f'{target_lead_times=}')
+        
+        # Reset the task_config. 
+        trainer.task_config = task_config
+              
         
     else:
         base_paths = config_dict['data_paths'] 
@@ -175,6 +226,57 @@ if __name__ == '__main__':
         model_params, state = None, {}
         target_lead_times = None  # Defaults to TaskConfig's target lead times
         
+        # Build the task config. 
+        variables_2d = config_dict.get('variables_2D', ['']) 
+        variables_3d = config_dict.get('variables_3D', ['']) 
+        static_variables = config_dict.get('static_variables', ['']) 
+    
+        target_variables = variables_3d + variables_2d
+        input_variables = target_variables + static_variables 
+    
+        loss_class = getattr(losses, config_dict.get('loss_metric', 'MSE'))
+        lat_rng = config_dict.get('lat_rng', None)
+        if lat_rng:
+            lat_rng = slice(lat_rng[0], lat_rng[1])
+        lon_rng = config_dict.get('lon_rng', None)
+        if lon_rng:
+            lon_rng = slice(lon_rng[0], lon_rng[1])
+        
+        loss_callable = loss_class(lat_rng = lat_rng, 
+                                   lon_rng = lon_rng, 
+                                   add_latitude_weight = config_dict.get('add_latitude_weight', False),
+                                   add_level_weight = config_dict.get('add_level_weight',  False), 
+                                  ) 
+        
+        task_config = TaskConfig(
+            input_variables = input_variables, 
+            target_variables = target_variables, 
+            forcing_variables = config_dict.get('forcing_variables', None), 
+            pressure_levels = config_dict.get('pressure_levels', None),
+            input_duration = config_dict.get('input_duration', None),
+            n_vars_2D = len(variables_2d),
+            domain_size = config_dict.get('domain_size', 150),
+            tiling = config_dict.get('tiling', None), 
+            train_lead_times = config_dict.get('train_lead_times', None),
+            loss_callable = loss_callable
+        ) 
+    
+        print(f"""
+            TaskConfig:
+                input_variables   = {input_variables}
+                target_variables  = {target_variables}
+                forcing_variables = {config_dict.get('forcing_variables', None)}
+                pressure_levels   = {config_dict.get('pressure_levels', None)}
+                input_duration    = {config_dict.get('input_duration', None)}
+                n_vars_2D         = {len(variables_2d)}
+                domain_size       = {config_dict.get('domain_size', 150)}
+                tiling            = {config_dict.get('tiling', None)}
+                train_lead_times  = {config_dict.get('train_lead_times', None)}
+                loss_callable     = {loss_callable}
+                """
+        )
+
+
         trainer = WoFSCastModel(
             task_config=task_config, 
             mesh_size=config_dict['mesh_size'], 
@@ -197,7 +299,8 @@ if __name__ == '__main__':
             parallel=parallel,
             graphcast_pretrain=graphcast_pretrain,
             use_wandb=use_wandb,
-            legacy_mesh = legacy_mesh
+            legacy_mesh = legacy_mesh,
+            wandb_config = config_dict, 
         )
     
     paths = get_paths(base_paths, years=['2019', '2020'])
@@ -234,13 +337,13 @@ if __name__ == '__main__':
             return ds 
     
     if generator_name == 'ZarrDataGenerator': 
-    
+        print(f'Line 333 {target_lead_times=}')
         generator = ZarrDataGenerator(
             paths=paths, 
             task_config=task_config, 
             target_lead_times=target_lead_times,
             batch_size=batch_size, 
-            num_devices=jax.local_device_count(), 
+            num_devices=jax.local_device_count() if parallel else 1, 
             preprocess_fn=preprocess_fn,
             prefetch_size=2,
             random_seed=seed, 
@@ -248,11 +351,15 @@ if __name__ == '__main__':
         )
     elif generator_name == 'DataAssimDataLoader':
         generator = DataAssimDataLoader(
+            known_variables = config_dict.get('known_variables', ['COMPOSITE_REFL_10CM']),
+            unknown_variables = config_dict.get('unknown_variables', ['COMPOSITE_REFL_10CM']),
+            skewed_variables = config_dict.get('skewed_variables', ['COMPOSITE_REFL_10CM']),
+            gauss_filter_size = config_dict.get('gauss_filter_size', 10.0),
             paths=paths, 
             task_config=task_config, 
             target_lead_times=target_lead_times,
             batch_size=batch_size, 
-            num_devices=jax.local_device_count(), 
+            num_devices=jax.local_device_count() if parallel else 1, 
             preprocess_fn=preprocess_fn,
             prefetch_size=2,
             random_seed=seed, 

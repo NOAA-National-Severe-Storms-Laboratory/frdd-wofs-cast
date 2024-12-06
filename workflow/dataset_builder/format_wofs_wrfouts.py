@@ -8,6 +8,8 @@
 """ usage: stdbuf -oL python -u format_wofs_wrfouts.py --config dataset_10min_train_config.yaml --debug  --overwrite > & log_formatter & """
 
 
+
+
 import sys, os 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.getcwd())))
 from wrfout_file_formatter import FileFormatter, filter_dates 
@@ -42,7 +44,7 @@ else:
     
 timestep_minutes = config_dict['timestep_minutes']
 if args.debug:
-    n_timesteps = 4
+    n_timesteps = 3
 else:
     n_timesteps = config_dict['n_timesteps']
     
@@ -51,6 +53,8 @@ offset = config_dict['offset']
 years = config_dict['years']
 mems = config_dict['mems']
 init_times = config_dict['init_times']
+dates = config_dict.get('dates', None)
+
 n_jobs = config_dict.get('n_jobs', 35)
 resize = config_dict.get('resize', True)
 subset_vertical_levels = config_dict.get('subset_vertical_levels', True)
@@ -96,15 +100,19 @@ if process_multi_date:
     all_dates = [] 
     for year in years: 
         base_path = os.path.join(BASE_PATH, year)
-        possible_dates = os.listdir(base_path)
+        if dates:
+            good_dates = dates
+        else:
         
-        good_dates = filter_dates(possible_dates)#[:5]
-        if subset_dates:
-            if isinstance(subset_dates, list):
-                good_dates = subset_dates 
-            else:
-                good_dates = good_dates[:2] 
+            possible_dates = os.listdir(base_path)
         
+            good_dates = filter_dates(possible_dates)#[:5]
+            if subset_dates:
+                if isinstance(subset_dates, list):
+                    good_dates = subset_dates 
+                else:
+                    good_dates = good_dates[:2] 
+                
         all_dates.extend(good_dates)
     
         all_file_paths = list(formatter.gen_file_paths(base_path, good_dates, init_times, mems))  
@@ -128,6 +136,15 @@ else:
     single_case=True
 
 start_time = time.time()
+
+#file_paths_set = [
+#            ['/work2/mflora/wofscast_datasets/hurricane_data/2024/20241009/1800/ENS_MEM_09/wrfwof_d01_2024-10-09_19_00_00', 
+#             '/work2/mflora/wofscast_datasets/hurricane_data/2024/20241009/1800/ENS_MEM_09/wrfwof_d01_2024-10-09_19_10_00',
+#             '/work2/mflora/wofscast_datasets/hurricane_data/2024/20241009/1800/ENS_MEM_09/wrfwof_d01_2024-10-09_19_20_00'
+#            ]
+#                 ]
+
+#print(file_paths_set) 
 
 ds = formatter.run(file_paths_set, single_case)
 

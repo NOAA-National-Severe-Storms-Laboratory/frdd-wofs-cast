@@ -1,7 +1,10 @@
 # CONFIGURATION YAML FOR THE WOFSCAST EVALUATIONS 
 
 # Data file paths for a single member for evaluation. 
-data_path : '/work2/mflora/wofscast_datasets/dataset_10min_15min_init/2021/*_ens_mem_09.zarr'
+
+#data_path : '/work2/mflora/wofscast_datasets/dataset_10min_15min_init/2021/*_ens_mem_09.zarr'
+data_path : '/work2/mflora/wofscast_datasets/dataset_10min_6hrs/2021/*_ens_mem_09.zarr'
+
 #data_path : '/work/mflora/wofs-cast-data/datasets_2hr_zarr/2021/*_ens_mem_09.zarr'
 
 # Number of random samples to evaluate.
@@ -9,13 +12,39 @@ n_samples : 100
 seed : 42
 
 # The model to evaluate.
+# 16 msg steps (the baseline; default) 
 #model_path : '/work/cpotvin/WOFSCAST/model/wofscast_test_v178.npz'
+
+# 32 msg steps;
+model_path : '/work/cpotvin/WOFSCAST/model/wofscast_test_v203.npz'
+
+# 64 msg steps;
+#model_path : '/work/cpotvin/WOFSCAST/model/wofscast_test_v204.npz'
+
+# 16 msg steps; trained only on 2020 data
+#model_path : '/work/cpotvin/wofs-cast-data/model/wofscast_v178_2020only.npz'
+
+# 16 msg steps (v178), but trained on the 90-min offset dataset.
+#model_path : '/work/mflora/wofs-cast-data/model/wofscast_v178_90min_offset.npz'
+
+# 16 mgs steps (v178), but trained on 60-, 90-min offset data.
+#model_path : '/work/mflora/wofs-cast-data/model/wofscast_v178_more_data_v2.npz'
+
+# 24 msg steps, 60-, 90-min dataset
+#model_path : '/work/mflora/wofs-cast-data/model/wofscast_double_data_24_msg_steps.npz'
+
+# v178, trained on all variables
+#model_path : '/work/cpotvin/wofs-cast-data/model/wofscast_v178_allvars.npz'
+
 
 #paths = wofscast_v178_old_norm_new_data_legacy_lons.npz
 #         wofscast_v178_no_forcings_select_later_times.npz
 #          wofscast_v178_reproducibility_test_v1.npz
 
-model_path : '/work/mflora/wofs-cast-data/model/wofscast_v178_no_forcings_v1.npz'
+#model_path : '/work/mflora/wofs-cast-data/model/wofscast_double_data_24_msg_steps.npz'
+
+# wofscast_double_data_24_msg_steps.npz
+#model_path : '/work/mflora/wofs-cast-data/model/wofscast_v178_more_data_v2.npz'
 
 # Keep default; ensemble functionality not 
 # incorporated in the Evaluator code yet! 
@@ -24,7 +53,7 @@ load_ensemble : False
 # Whether to apply diffusion. 
 add_diffusion : False
 
-spectra_variables : ['COMPOSITE_REFL_10CM', 'T2', 'W']
+spectra_variables : ['COMPOSITE_REFL_10CM', 'T2', 'W', ]
 pmm_variables : ['COMPOSITE_REFL_10CM', 'T2', 'RAIN_AMOUNT', 'WMAX']
 fss_variables : ['COMPOSITE_REFL_10CM', 'RAIN_AMOUNT']
 fss_windows : [7, 15, 27]
@@ -32,9 +61,22 @@ fss_thresh_dict : {
                 'COMPOSITE_REFL_10CM' : [40.0], 
                 'RAIN_AMOUNT' : [0.5], #in
                   }
+                  
+# Object Identification Parameters 
+# Threshold were computed using the compute_percentile_thresholds method 
+# in the evaluate.py 
+object_id_params : 
+    forecast : 
+        COMPOSITE_REFL_10CM : 44.5495234157886
+    truth : 
+        COMPOSITE_REFL_10CM : 45.734375 
+    mrms : 
+        dz_consv : 40.0
+
+                
 # Directory the results dataset will be stored. The 
 # filename is determined internally. 
-out_base_path : '/work2/mflora/verification_datasets'
+out_base_path : '/work2/mflora/verification_results'
 
 # Matching distance between objects (in km). 
 # Converted to grid point distance in evaluation script

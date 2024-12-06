@@ -7,6 +7,7 @@ from . import graphcast_lam as graphcast
 from . import xarray_jax
 
 import os
+import re
 import xarray as xr
 from glob import glob
 import numpy as np
@@ -24,6 +25,8 @@ import numpy as np
 from datetime import datetime, timedelta
 import math
 import functools 
+from scipy.ndimage import gaussian_filter
+
 
 import fsspec
 from jax import jit
@@ -124,6 +127,8 @@ class ZarrDataGenerator:
         sampled_paths = rs.choice(self.paths, self.batch_size, replace=True)
         batch = load_chunk(sampled_paths, len(sampled_paths), preprocess_fn=self.preprocess_fn, 
                           decode_times=self.decode_times)
+        # Dropping datetime only for training.
+        batch = batch.drop('datetime', errors='ignore')
         batch_sharded = shard_xarray_dataset(batch, self.num_devices)
         inputs, targets, forcings = dataset_to_input(batch_sharded, self.task_config, 
                                                      target_lead_times=self.target_lead_times,
@@ -154,47 +159,114 @@ class ZarrDataGenerator:
     
 class DataAssimDataLoader(ZarrDataGenerator): 
     
-    def __init__(self, *args, **kwargs):
+    def __init__(self, 
+                 known_variables,
+                 unknown_variables, 
+                 gauss_filter_size = 10,
+                 skewed_variables = None,
+                 compute_norm_stats=False, 
+                 *args, **kwargs):
         super().__init__(*args, **kwargs)
+    
+        self.known_variables = known_variables
+        self.unknown_variables = unknown_variables
         
-    def generate(self):
-        """
-        Generates a single batch of data from the provided paths.
+        if skewed_variables is None:
+            skewed_variables = [] 
+        
+        self.skewed_variables = skewed_variables
+        
+        self.gauss_filter_size = gauss_filter_size
+        self.compute_norm_stats = compute_norm_stats 
+    
+    def drop_static_vars(self, ds):
+        # Identify variables that have the 'time' dimension
+        vars_with_time = [var for var in ds.data_vars if 'time' in ds[var].dims]
+    
+        # Select only those variables with the 'time' dimension
+        ds_filtered = ds[vars_with_time]
+    
+        return ds_filtered
+    
+    def drop_datetime(self, ds):
+        return ds.drop('datetime', errors='ignore')
+    
+    def smooth(self, dataset):
+        def apply_gaussian(arr, sigma):
+            # Apply Gaussian filter with different sigma per dimension
+            return gaussian_filter(arr, sigma=sigma)
+       
+        ds_smoothed = dataset.copy(deep=True)
+        
+        for variable in self.unknown_variables:
+            key = f'{variable}_smoothed' if self.compute_norm_stats else variable            
+            if variable in self.skewed_variables:
+                # For skewed variables like W or rain amount, the smoothed version 
+                # is simply set to zero. 
+                ds_smoothed[key] = xr.zeros_like(dataset[variable])
+            else:
+                #sigma = (self.gauss_filter_size if dim != 'time' else 0 for dim in dataset[variable].dims)
+                # Exclude smoothing for 'time' and 'level' dimensions
+                sigma = (self.gauss_filter_size if dim not in ['time', 'level'] else 0 for dim in dataset[variable].dims)
+                ds_smoothed[key] = xr.apply_ufunc(
+                        apply_gaussian, 
+                        dataset[variable], 
+                        kwargs={'sigma': sigma},  
+                        dask="allowed"
+                        )
+            
+        return ds_smoothed
+    
+    def _generate_batch(self, seed):
+              
+        rs = np.random.RandomState(seed)
+        sampled_paths = rs.choice(self.paths, self.batch_size, replace=True)
+        batch = load_chunk(sampled_paths, len(sampled_paths), preprocess_fn=self.preprocess_fn, 
+                          decode_times=self.decode_times)
+        batch_sharded = shard_xarray_dataset(batch, self.num_devices)
+        
+        batch_sharded = self.drop_datetime(batch_sharded)
+        
+        inputs, targets, forcings = dataset_to_input(batch_sharded, self.task_config, 
+                                                     target_lead_times=self.target_lead_times,
+                                                     batch_over_time=self.batch_over_time,
+                                                     n_target_steps=self.n_target_steps)
 
-        Returns:
-        -------
-        tuple
-            A tuple containing inputs, targets, and forcings for each batch.
-        """
-        if not self.futures:
-            for _ in range(self.prefetch_size):
-                self._prefetch_next_batch()
+        # Convert the known variables to static variables (no time dimension). 
+        # Allows for input fields to not be autoregressively predicted 
+        # by the GraphCast code. 
+        #inputs = to_static_vars(inputs, variables=self.known_variables)
         
-        future = self.futures.pop(0)
-        inputs, targets, forcings = future.result()
-         
-        # Inputs = U,V, COMPOSITE_REFL_10CM
-        # Targets = U,V, W, COMPOSITE_REFL_10CM, T, GEOPOT,  ...
+        # Extract the lead time of the targets dataset, it will be
+        # some delta t into the future compared to the inputs datasets. 
+        # We use it below to reset the targets dataset time. The current 
+        # WoFSCast expects the targets dataset in the future. Likely 
+        # should refactor this at some point! 
+        targets_time = targets['time']
         
-        # as a hack, need inputs and targets at a different time? 
-        # so let target be all the variables, and then set inputs
-        # the values in the target dataset. Then only keep the 
-        # KNOWN_VARS for the inputs
+        # The target field comes from the lastest input field 
+        # from the control member. Remove the static variables 
+        # from the copying. Also, remove the "known" variables. 
+        #Below, the inputs are modified  to better represent the true "unknown" input.
+        targets = inputs.isel(time=[-1]).copy(deep=True)
+        targets = self.drop_static_vars(targets)
+  
+        # Set the forcings time to the same as the targets dataset.
+        # Will need refactoring in the future. 
+        forcings = forcings.assign_coords(time = targets_time)
         
-        inputs = targets.copy(deep=True)
+        # Strategy: for the unknown variables, replace them with a highly smoothed version
+        # of the known field. Providing a smoothed version, but an estimate should constrain 
+        # the estimation provided by the AI. 
+        inputs = self.smooth(inputs)
         
-        KNOWN_VARS = ['U', 'V', 'COMPOSITE_REFL_10CM']
+        # reset the targets dataset time ()
+        targets = targets.assign_coords(time = targets_time)
         
-        inputs = inputs.isel(time=[-1])
-        inputs[KNOWN_VARS] = targets[KNOWN_VARS]
-
-        inputs = inputs[KNOWN_VARS]
-        
-        self._prefetch_next_batch()
+        # Compute with Dask
+        inputs, targets, forcings = dask.compute(inputs, targets, forcings)
         
         return inputs, targets, forcings
-    
-        
     
     
 class SingleZarrDataGenerator:
@@ -283,31 +355,28 @@ def replicate_for_devices(params, num_devices=None):
     return jax.device_put_replicated(params, jax.local_devices()) if num_devices > 1 else params
 
 
-def to_static_vars(dataset):
+def to_static_vars(dataset, variables=['HGT', 'XLAND']):
     """
-    Convert time-varying variables 'HGT' and 'XLAND' in the dataset to static variables
-    by selecting the first time index, if they have a time dimension. If the time dimension
-    does not exist for these variables, they are left unchanged.
-    
-    Parameters:
-    dataset (xarray.Dataset): The input dataset containing 'HGT' and 'XLAND' variables.
-    
-    Returns:
-    xarray.Dataset: The dataset with 'HGT' and 'XLAND' converted to static variables, if applicable.
-    """
-    if 'time' in dataset['HGT'].dims:
-        # Select the first time index and drop the 'time' dimension for 'HGT'
-        hgt_selected = dataset['HGT'].isel(time=0).drop('time')
-        dataset = dataset.drop_vars('HGT')
-        dataset['HGT'] = hgt_selected
+    Convert time-varying variables in the dataset to static variables by selecting the first time index, 
+    if they have a time dimension. If the time dimension does not exist for these variables, 
+    they are left unchanged.
 
-    if 'time' in dataset['XLAND'].dims:
-        # Select the first time index and drop the 'time' dimension for 'XLAND'
-        xland_selected = dataset['XLAND'].isel(time=0).drop('time')
-        dataset = dataset.drop_vars('XLAND')
-        dataset['XLAND'] = xland_selected
+    Parameters:
+    dataset (xarray.Dataset): The input dataset containing variables to be converted.
+    variables (list): A list of variable names (strings) to be processed.
+
+    Returns:
+    xarray.Dataset: The dataset with specified variables converted to static variables, if applicable.
+    """
+    for var in variables:
+        if var in dataset and 'time' in dataset[var].dims:
+            # Select the first time index and drop the 'time' dimension for the variable
+            static_var = dataset[var].isel(time=0).drop('time')
+            dataset = dataset.drop_vars(var)
+            dataset[var] = static_var
 
     return dataset
+
 
 
 
@@ -408,7 +477,7 @@ def dataset_to_input(dataset, task_config, target_lead_times=None,
     
     if target_lead_times is None:
         target_lead_times = task_config.train_lead_times
-    
+        
     if batch_over_time:
         inputs, targets, forcings = data_utils.batch_extract_inputs_targets_forcings(
             dataset, 
@@ -674,7 +743,7 @@ def add_local_solar_time(data: xr.Dataset) -> xr.Dataset:
     data['local_solar_time_sin'] = local_solar_time_sin_da.astype('float32')
     data['local_solar_time_cos'] = local_solar_time_cos_da.astype('float32')
     
-    data = data.drop_vars('datetime', errors='ignore')
+    #data = data.drop_vars('datetime', errors='ignore')
     
     return data
     

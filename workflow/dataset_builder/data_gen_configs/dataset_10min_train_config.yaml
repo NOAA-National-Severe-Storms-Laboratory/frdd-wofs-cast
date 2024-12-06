@@ -4,17 +4,19 @@
 
 #BASE_PATH = '/work2/wof/realtime/FCST/' 
 BASE_PATH : '/work2/wofs_zarr'
-OUT_PATH : '/work2/mflora/wofscast_datasets/dataset_10min_reproducible'
-OUT_NORM_PATH : '/work2/mflora/wofscast_norm_stats/dataset_10min_reproducible'
+OUT_PATH : '/work2/mflora/wofscast_datasets/dataset_10min_15min_offset'
+OUT_NORM_PATH : '/work2/mflora/wofscast_norm_stats/dataset_10min_15min_offset'
 
 # Timestep resolution for the dataset. 
 timestep_minutes : 10  
 # Number of timesteps to include in one sample. 
 n_timesteps : 4        
 # Time in minutes after forecast initialization to start sampling. 
-offset : 90           
+offset : 15           
 
 years : ['2019', '2020'] 
+
+resize : True
 
 VARS_TO_KEEP : ['U', 
                 'V', 

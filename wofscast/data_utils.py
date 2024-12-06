@@ -373,6 +373,13 @@ def extract_input_target_times(
     # that's available as input to the forecast, with all following timesteps
     # forming the target period which needs to be predicted.
     # This means the time coordinates are now forecast lead times.
+    try:
+        has_dt = True
+        datetime = dataset.coords['datetime']
+        dataset = dataset.drop_vars('datetime')
+    except KeyError:
+        has_dt = False
+
     time = dataset.coords["time"]
     dataset = dataset.assign_coords(time=time + target_duration - time[-1])
 
@@ -385,7 +392,18 @@ def extract_input_target_times(
     zero = pd.Timedelta(0)
     epsilon = pd.Timedelta(1, "ns")
     inputs = dataset.sel({"time": slice(-input_duration + epsilon, zero)})
-
+    
+    # MLF: Determine what times were selected and then 
+    # reestablish the actual datetimes for the inputs and targets.
+    # Useful for verification. Tested and works! Has no effect on 
+    # the autoregressive rollout. 
+    if has_dt:
+        inputs_indices = dataset.time.get_index("time").get_indexer(inputs.time.values)
+        targets_indices = dataset.time.get_index("time").get_indexer(targets.time.values)
+    
+        inputs = inputs.assign_coords(datetime=('time', datetime.values[inputs_indices]))
+        targets = targets.assign_coords(datetime=('time', datetime.values[targets_indices]))
+    
     return inputs, targets
 
 
@@ -502,8 +520,7 @@ def extract_inputs_targets_forcings(
 
         # Add a zero-forcing variable filled with zeros, using only the matching dimensions
         forcings["zero_forcing"] = (dims, np.zeros(shape, dtype=np.float32))
-    
-            
+         
     targets = targets[list(target_variables)]
 
     return inputs, targets, forcings

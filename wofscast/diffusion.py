@@ -102,12 +102,6 @@ class DiffusionModel:
         print(f"Number of parameters: {total_params/1_000_000:.2f} Million")
         return total_params 
     
-
-
-
-
-
-
 def pad_to_multiple_of_16(tensor):
     _, _, h, w = tensor.size()
     pad_h = (16 - h % 16) % 16
@@ -136,9 +130,7 @@ class EDMPrecond(torch.nn.Module):
     This is a wrapper for your pytorch model. It's purpose is to apply the preconditioning that is talked about in Karras et al. (2022)'s EDM paper. 
     
     I adapted the linked function to take a conditional input. Note for now, the condition is concatenated to the dimension you want denoise (dim:0 for one channel prediction). 
-    
-    
-    
+
     """
     def __init__(self,
         img_resolution,                     # Image resolution.
@@ -247,7 +239,8 @@ class StackedRandomGenerator:  # pragma: no cover
 #################### Funcs ########################
 
 def edm_sampler(
-    net, latents, condition_images, class_labels=None, randn_like=torch.randn_like,
+    net, latents, condition_images, class_labels=None, 
+    randn_like=torch.randn_like,
     num_steps=18, 
     
     # Setting from GenCast. 
@@ -315,7 +308,10 @@ def edm_sampler(
 
 def apply_diffusion(predictions, model, scaler, num_steps=100, sampler_kwargs={}, variables=None, device='cuda'):
     """Apply a diffusion model to the current time step output."""
-    #run sampler 
+    
+    # Set device for operations
+    device = torch.device(device)
+    
     batch_size = len(predictions.batch)
     original_domain_size = predictions.dims['lat']
     

@@ -55,7 +55,8 @@ WOFS_TASK_CONFIG = graphcast.TaskConfig(
       n_vars_2D = len(VARS_2D),
       domain_size = DOMAIN_SIZE,
       tiling=None,
-      train_lead_times = train_lead_times,
+      train_lead_times = '20min', #train_lead_times,
+     loss_callable=None
  )
 
 
@@ -69,6 +70,7 @@ WOFS_TASK_CONFIG_GC = graphcast.TaskConfig(
       domain_size = DOMAIN_SIZE,
       tiling=None,
       train_lead_times = train_lead_times,
+    loss_callable=None
  )
 
 
@@ -82,6 +84,7 @@ WOFS_TASK_CONFIG_NO_FORCE = graphcast.TaskConfig(
       domain_size = DOMAIN_SIZE,
       tiling=None,
       train_lead_times = train_lead_times,
+      loss_callable=None
  )
 
 
@@ -95,6 +98,7 @@ WOFS_TASK_CONFIG_30MIN_GC = graphcast.TaskConfig(
       domain_size = DOMAIN_SIZE,
       tiling=None,
       train_lead_times = '30min',
+     loss_callable=None
  )
 
 DA_VARS = ['U', 'V', 'W', 'COMPOSITE_REFL_10CM', 'T', 'GEOPOT']
@@ -104,15 +108,13 @@ WOFS_TASK_CONFIG_DA = graphcast.TaskConfig(
       target_variables=DA_VARS,
       forcing_variables=None,
       pressure_levels=PRESSURE_LEVELS,
-      input_duration=INPUT_DURATION,
-      n_vars_2D = len(VARS_2D),
+      input_duration='10min', # Only 1 time! 
+      n_vars_2D = 1, # Composite refl
       domain_size = DOMAIN_SIZE,
       tiling=None,
-      train_lead_times = train_lead_times,
+      train_lead_times = '10min',
+      loss_callable=None
  )
-
-
-
 
 
 LEVELS_EVERY_3 = list(np.arange(0,50,3))
@@ -130,6 +132,7 @@ WOFS_TASK_CONFIG_ALL_LEVELS = graphcast.TaskConfig(
       domain_size = DOMAIN_SIZE,
       tiling=None,
       train_lead_times = train_lead_times,
+      loss_callable=None
  )
 
 
@@ -143,6 +146,7 @@ WOFS_TASK_CONFIG_1HR = graphcast.TaskConfig(
       domain_size = DOMAIN_SIZE,
       tiling=None,
       train_lead_times = '1hr',
+      loss_callable=None
  )
 
 WOFS_TASK_CONFIG_5MIN = graphcast.TaskConfig(
@@ -155,6 +159,7 @@ WOFS_TASK_CONFIG_5MIN = graphcast.TaskConfig(
       domain_size = DOMAIN_SIZE,
       tiling=None,
       train_lead_times = '5min',
+      loss_callable=None
  )
 
 
@@ -177,6 +182,7 @@ DBZ_TASK_CONFIG = graphcast.TaskConfig(
       domain_size = DOMAIN_SIZE,
       tiling=None,
       train_lead_times = train_lead_times,
+      loss_callable=None
  )
 
 
@@ -190,6 +196,7 @@ DBZ_TASK_CONFIG_1HR = graphcast.TaskConfig(
       domain_size = 150,
       tiling=None,
       train_lead_times = '60min',
+      loss_callable=None
  )
 
 
@@ -203,5 +210,6 @@ DBZ_TASK_CONFIG_FULL = graphcast.TaskConfig(
       domain_size = 300,
       tiling=None,
       train_lead_times = '10min',
+      loss_callable=None
  )
 

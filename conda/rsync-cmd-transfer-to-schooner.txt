@@ -1,0 +1,16 @@
+
+
+# For transferring a single file. 
+
+'stdbuf -oL rsync -avz wofscast_dataset_best_model_all_vars_norm_18K.pt mflora@schooner.oscer.ou.edu:/ourdisk/hpc/ai2es/wofscast/ > & rsync_output.log &'
+
+# Transfer the new 10-min dataset (started 15 mins into the forecast)
+
+stdbuf -oL rsync -avz /work2/mflora/wofscast_datasets/dataset_10min_extra/ mflora@schooner.oscer.ou.edu:/ourdisk/hpc/ai2es/wofscast/datasets/ > & rsync_output.log &
+
+
+# Transfer the original 10-min dataset (started 60 mins into the forecast) 
+
+stdbuf -oL rsync -avz /work/mflora/wofs-cast-data/datasets_zarr mflora@schooner.oscer.ou.edu:/ourdisk/hpc/ai2es/wofscast/datasets/ > & rsync_output.log &
+
+# Transfer the normalization statistics. 

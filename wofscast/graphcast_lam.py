@@ -63,7 +63,8 @@ class TaskConfig:
     n_vars_2D : int
     domain_size : int 
     tiling: tuple[int,...]
-    train_lead_times: str   
+    train_lead_times: str
+    loss_callable : Callable 
         
         
 @chex.dataclass(frozen=True, eq=True)
@@ -95,6 +96,7 @@ class ModelConfig:
   use_transformer : bool = False
   num_attn_heads : int = 4 
   legacy_mesh : bool = False
+
 
 @chex.dataclass(frozen=True, eq=True)
 class CheckPoint:
@@ -140,6 +142,8 @@ class GraphCast(predictor_base.Predictor):
     domain_size = task_config.domain_size
     tiling = task_config.tiling
     activation = "swish" 
+    
+    self._loss_callable = task_config.loss_callable
     
     self._spatial_features_kwargs = dict(
         # Since we are using a limited area domain and assuming a single 
@@ -216,6 +220,8 @@ class GraphCast(predictor_base.Predictor):
           
     # Compute the number of expected output.
     num_outputs = n_vars_2D + (n_levels * n_vars_3D)
+    
+    ##print(f'{n_vars_2D=} {n_vars_3D=} {n_levels=} {num_outputs=}')
     
     # Decoder, which moves data from the mesh back into the grid with a single
     # message passing step.
@@ -329,10 +335,18 @@ class GraphCast(predictor_base.Predictor):
         forcings=forcings, 
         is_training=True)
     
-    loss = losses.weighted_mse_per_level(
-        predictions, targets, 
-        per_variable_weights=self._loss_weights,
-       )
+    #loss = losses.weighted_mse_per_level(
+    #    predictions, targets, 
+    #    per_variable_weights=self._loss_weights,
+    #   )
+    
+    #loss_callable = losses.MSE()
+    
+    loss = losses.compute_loss(predictions, targets, 
+                        per_variable_weights=self._loss_weights, 
+                        loss_per_variable = self._loss_callable
+                       )
+
     return loss, predictions  # pytype: disable=bad-return-type  # jax-ndarray
 
   def loss(  # pytype: disable=signature-mismatch  # jax-ndarray
@@ -709,7 +723,6 @@ class GraphCast(predictor_base.Predictor):
       forcings: xarray.Dataset,
       ) -> chex.Array:
     """xarrays -> [num_grid_nodes, batch, num_channels]."""
-
     # xarray `Dataset` (batch, time, lat, lon, level, multiple vars)
     # to xarray `DataArray` (batch, lat, lon, channels)
     
@@ -728,6 +741,9 @@ class GraphCast(predictor_base.Predictor):
     result = grid_xarray_lat_lon_leading.data.reshape(
         (-1,) + grid_xarray_lat_lon_leading.data.shape[2:])
 
+    # MLF: For the DA loader, getting the correct shape, 
+    # so the error is not here!
+        
     return result
     
   def _grid_node_outputs_to_prediction(

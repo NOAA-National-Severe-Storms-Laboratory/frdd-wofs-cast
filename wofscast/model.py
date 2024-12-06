@@ -96,7 +96,7 @@ def construct_wrapped_graphcast(model_config: graphcast.ModelConfig,
                                 task_config: graphcast.TaskConfig,
                                 norm_stats: dict,
                                 noise_level : Optional[float]=None,
-                                gradient_checkpointing=False # For fine tuning on longer rollouts, then test turning it True.
+                                gradient_checkpointing=True # For fine tuning on longer rollouts, then test turning it True.
                                ):
     """Constructs and wraps the GraphCast Predictor. Wrappers include 
     floating point precision convertion, normalization, and autoregression. 
@@ -127,7 +127,6 @@ def construct_wrapped_graphcast(model_config: graphcast.ModelConfig,
 def run_forward(model_config, task_config, norm_stats, noise_level, inputs, targets_template, forcings):
     predictor = construct_wrapped_graphcast(model_config, task_config, norm_stats, noise_level)    
     return predictor(inputs, targets_template=targets_template, forcings=forcings)
-
 
 @hk.transform_with_state
 def loss_fn(model_config, task_config, norm_stats, noise_level, inputs, targets, forcings):
@@ -220,25 +219,14 @@ class WoFSCastModel:
                  verbose=1,
                  use_wandb = True,
                  adam_weight_decay = 0.1,
-                 legacy_mesh = False
+                 legacy_mesh = False,
+                 wandb_config = None, 
                 ):
         
-        ###print(f'{legacy_mesh=} in model.py')
-        
+
         self.use_wandb = use_wandb
-        self.wandb_config = {'mesh_size' : mesh_size, 
-                             'latent_size' : latent_size,
-                             'loss_weights' : loss_weights,
-                             'gnn_msg_steps' : gnn_msg_steps,
-                             'hidden_layers' : hidden_layers,
-                             'grid_to_mesh_node_dist' : grid_to_mesh_node_dist,
-                             'n_steps' : n_steps, 
-                             'checkpoint_interval' : checkpoint_interval,
-                             'task_config' : task_config,
-                             'noise_level' : noise_level, 
-                             'legacy_mesh' : legacy_mesh
-                            }
-        
+        self.wandb_config = wandb_config
+
         self.graphcast_pretrain = graphcast_pretrain
         if self.graphcast_pretrain:
             assert latent_size == 512, 'If graphcast_pretrain==True, latent_size must equal 512'
@@ -431,8 +419,8 @@ class WoFSCastModel:
                 targets = targets.isel(devices=0)
                 forcings = forcings.isel(devices=0) 
         
-        ##print(f'{inputs.dims=}')
-        #print(f'{targets=}')
+        #print(f'{inputs.dims=}')
+        #print(f'{targets.dims=}')
         #print(f'{forcings=}')
         
         if model_params is None: 
@@ -615,21 +603,28 @@ class WoFSCastModel:
             datetime_coord = initial_datetime + extended_targets['time'].data
 
             # Assign the new datetime coordinate to the dataset
-            extended_targets = extended_targets.assign_coords(datetime=datetime_coord)
-
-            if 'toa_radiation' in self.task_config.forcing_variables:
-                # Add the local time and TOA radiation to the forcings datasets.
-                extended_forcings = add_derived_vars(extended_targets.isel(batch=0).copy(deep=True))
-                extended_forcings = TOARadiationFlux(
+            extended_targets = extended_targets.assign_coords(datetime= ('time', datetime_coord))
+            
+            if self.task_config.forcing_variables:
+                
+            
+                if 'toa_radiation' in self.task_config.forcing_variables:
+                    # Add the local time and TOA radiation to the forcings datasets.
+                    extended_forcings = add_derived_vars(extended_targets.isel(batch=0).copy(deep=True))
+                    extended_forcings = TOARadiationFlux(
                     longitude_range="[0, 360]").add_toa_radiation(extended_forcings)
                 
-            else:
-                # Select a single batch, but add the batch dim back later. 
-                print(f'Adding forcing variables using add_local_solar_time')
-                extended_forcings = add_local_solar_time(
-                    extended_targets.isel(batch=0).copy(deep=True))
+                else:
+                    # Select a single batch, but add the batch dim back later. 
+                    print(f'Adding forcing variables using add_local_solar_time')
+                    extended_forcings = add_local_solar_time(
+                        extended_targets.isel(batch=0).copy(deep=True))
 
-            extended_forcings = extended_forcings[self.task_config.forcing_variables]
+                extended_forcings = extended_forcings[self.task_config.forcing_variables]
+            
+            else:
+                extended_forcings = rollout.extend_targets_template(forcings, 
+                                                           required_num_steps=n_steps)
             
             # Expand the batch size since the previous functions will drop it.  
             batch_size = inputs.dims['batch']
@@ -677,7 +672,7 @@ class WoFSCastModel:
                     task_config_dict[key] = [int(item) for _, item in task_config[key].items()]
                 else:
                     task_config_dict[key] = [str(item) for _, item in task_config[key].items()]
-            elif key == 'input_duration':
+            elif key in ['input_duration', 'train_lead_times']:
                 task_config_dict[key] = str(task_config[key])
             else:
                 task_config_dict[key] = task_config.get(key, None)
@@ -699,7 +694,6 @@ class WoFSCastModel:
     
     def _init_task_config_run(self, data, **additional_config): 
 
-        
         domain_size = additional_config.get('domain_size', None)
         if domain_size is None:
             domain_size = data.get('domain_size', 150)
@@ -707,7 +701,7 @@ class WoFSCastModel:
         tiling = additional_config.get('tiling', None)
         if tiling is None:
             tiling = data.get('tiling', None) 
-        
+
         ###print(f'{domain_size=}')
         
         self.task_config = graphcast.TaskConfig(
@@ -719,7 +713,8 @@ class WoFSCastModel:
               n_vars_2D = data['n_vars_2D'],
               domain_size = int(domain_size), 
               tiling = tiling, 
-              train_lead_times = data.get('train_lead_times', None)
+              train_lead_times = data.get('train_lead_times', None),
+              loss_callable = None 
           )
         
         if self.verbose > 2:
@@ -771,7 +766,7 @@ class WoFSCastModel:
               use_transformer = use_transformer,
               num_attn_heads = num_attn_heads, 
               mesh2grid_edge_normalization_factor = mesh2grid_edge_normalization_factor,
-             legacy_mesh = legacy_mesh
+              legacy_mesh = legacy_mesh
         )
         
         if self.verbose > 2:

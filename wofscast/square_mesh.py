@@ -226,6 +226,94 @@ def concatenate_meshes(tiling: Tuple[int, int], domain_size: int,
     
     return TriangularMesh(vertices=concatenated_vertices, faces=concatenated_faces)
 
+def create_shared_boundary_tiled_mesh_with_offset(
+    domain_size, tile_size, offset=2
+):
+    """
+    Create a tiled mesh with shared boundary vertices and edges for a rectangular domain, with an offset applied
+    only on the full outer boundaries of the domain.
+    
+    Args:
+        domain_size: Size of the domain as an int (for square) or tuple (width, height) for rectangular.
+        tile_size: Size of each tile as an int (for square) or tuple (tile_width, tile_height) for rectangular.
+        offset: Amount to bring in the corners of the outermost boundary of the mesh.
+    
+    Returns:
+        vertices: Array of all vertices in the tiled domain.
+        faces: Array of triangle faces across the entire tiled domain.
+    """
+    # Determine domain width and height
+    if isinstance(domain_size, int):
+        domain_width, domain_height = domain_size, domain_size
+    elif isinstance(domain_size, tuple):
+        domain_width, domain_height = domain_size
+        
+    # Determine tile width and height
+    if isinstance(tile_size, int):
+        tile_width, tile_height = tile_size, tile_size
+    elif isinstance(tile_size, tuple):
+        tile_width, tile_height = tile_size
+
+    # Number of tiles along each dimension
+    num_tiles_x = domain_width // tile_width
+    num_tiles_y = domain_height // tile_height
+    vertices = []
+    faces = []
+    vertex_index_map = {}  # Map for shared boundary vertices
+
+    def add_vertex(x, y):
+        # Use a tuple of coordinates as the key for consistent shared vertices
+        key = (x, y)
+        if key in vertex_index_map:
+            return vertex_index_map[key]
+        # Add a new vertex if it doesn’t exist yet
+        vertex_index = len(vertices)
+        vertices.append([x, y])
+        vertex_index_map[key] = vertex_index
+        return vertex_index
+
+    # Generate vertices and faces for each tile
+    for i in range(num_tiles_x):
+        for j in range(num_tiles_y):
+            # Determine the starting coordinates for the tile
+            x_start = i * tile_width
+            y_start = j * tile_height
+            
+            # Apply offset only to the outermost boundary vertices
+            v0 = add_vertex(
+                x_start + (offset if i == 0 else 0), 
+                y_start + (offset if j == 0 else 0)
+            )
+            v1 = add_vertex(
+                x_start + tile_width - (offset if i == num_tiles_x - 1 else 0), 
+                y_start + (offset if j == 0 else 0)
+            )
+            v2 = add_vertex(
+                x_start + tile_width - (offset if i == num_tiles_x - 1 else 0), 
+                y_start + tile_height - (offset if j == num_tiles_y - 1 else 0)
+            )
+            v3 = add_vertex(
+                x_start + (offset if i == 0 else 0), 
+                y_start + tile_height - (offset if j == num_tiles_y - 1 else 0)
+            )
+            v4 = add_vertex(x_start + tile_width / 2, y_start + tile_height / 2)  # Center point
+
+            # Define faces using shared vertices
+            faces.extend([
+                [v0, v1, v4],
+                [v1, v2, v4],
+                [v2, v3, v4],
+                [v3, v0, v4]
+            ])
+
+    # Convert lists to numpy arrays
+    vertices = np.array(vertices)
+    faces = np.array(faces)
+    
+    #return vertices, faces
+    return TriangularMesh(vertices=vertices, faces=faces)
+    
+
 def get_hierarchy_of_triangular_meshes(
     splits: int, 
     domain_size: int, 
@@ -257,8 +345,11 @@ def get_hierarchy_of_triangular_meshes(
            the vertices adjacent to the face. Always with positive orientation
            (counterclock-wise when looking from the outside).
     """
-    if tiling:
-        current_mesh = concatenate_meshes(tiling, domain_size, legacy=legacy_mesh)
+    if tiling: 
+        #current_mesh = concatenate_meshes(tiling, domain_size, legacy=legacy_mesh)
+        tile_size = 150 
+        current_mesh = create_shared_boundary_tiled_mesh_with_offset(domain_size, tile_size, offset=2)
+        
     else:
         current_mesh = get_tri_mesh(0, 0, domain_size, offset=2, legacy=legacy_mesh)
         # The faces are not closed, so had to add additional edges 
@@ -418,11 +509,11 @@ def faces_to_edges(faces: np.ndarray, legacy: bool = False) -> Tuple[np.ndarray,
   # The triangular mesh faces have consistent orientations, but 
   # open faces prevent fully bi-directional edges. As a fix
   # we can add the reverse of an existing edge direction if it 
-  # does not exist. As of yet to determine what some triangle faces
+  # does not exist. As of yet to determine why some triangle faces
   # are not fully closed. 
-  if not legacy:
-      print('Correcting the bi-direction mesh edges') 
-      senders, receivers = make_edges_bi_directional(senders, receivers)
+  #if not legacy:
+  #    print('Correcting the bi-direction mesh edges') 
+  #    senders, receivers = make_edges_bi_directional(senders, receivers)
 
   return senders, receivers
 
